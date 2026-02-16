@@ -1,0 +1,75 @@
+// TypeScript types for the application
+
+export type UserRole = 'su' | 'admin' | 'member';
+export type SubscriptionType = 'free' | 'standard' | 'pro';
+export type ResourcePricing = 'free' | 'paid' | 'freemium';
+export type ResourceType = 'video' | 'article' | 'tool' | 'course' | 'book' | 'tutorial' | 'other';
+export type MediaFormat = 'youtube' | 'webpage' | 'pdf' | 'image' | 'audio' | 'other';
+export type Platform = 'gemini' | 'nanobanana' | 'chatgpt' | 'claude' | 'midjourney' | 'general' | 'other';
+export type ResourceStatus = 'published' | 'draft';
+export type ProgressStatus = 'new' | 'in-progress' | 'completed';
+
+export interface Credit {
+    name: string;
+    url: string;
+}
+
+export interface UserProfile {
+    uid: string;
+    email: string;
+    displayName: string;
+    photoURL?: string;
+    role: UserRole;
+    subscriptionType: SubscriptionType;
+    createdAt: Date;
+    updatedAt: Date;
+}
+
+export interface Resource {
+    id: string;
+    title: string;
+    description: string;
+    type: ResourceType;
+    mediaFormat: MediaFormat;
+    url: string;
+    youtubeVideoId?: string;
+    pricing: ResourcePricing;
+    pricingDetails?: string;
+    categories: string[];
+    credits: Credit[];
+    platform: Platform;
+    tags: string[];
+    addedBy: string;
+    createdAt: Date;
+    updatedAt: Date;
+    status: ResourceStatus;
+}
+
+export interface Category {
+    id: string;
+    name: string;
+    description: string;
+    icon: string;
+    parentCategory?: string;
+    createdAt: Date;
+}
+
+export interface UserResourceData {
+    savedResources: string[];
+    notes: Record<string, string>;
+    progress: Record<string, ProgressStatus>;
+}
+
+export interface ApiResponse<T = unknown> {
+    success: boolean;
+    data?: T;
+    error?: string;
+    message?: string;
+}
+
+export interface PaginatedResponse<T> extends ApiResponse<T[]> {
+    total: number;
+    page: number;
+    pageSize: number;
+    hasMore: boolean;
+}
