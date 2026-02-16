@@ -10,38 +10,36 @@ export async function GET(request: NextRequest) {
         const type = searchParams.get('type');
         const category = searchParams.get('category');
         const search = searchParams.get('search');
+        const sortBy = searchParams.get('sortBy') || 'updatedAt';
+        const sortOrder = searchParams.get('sortOrder') || 'desc';
         const page = parseInt(searchParams.get('page') || '1');
         const pageSize = Math.min(parseInt(searchParams.get('pageSize') || '20'), 100);
 
-        let query: FirebaseFirestore.Query = adminDb.collection('resources')
-            .orderBy('createdAt', 'desc');
-
-        if (platform) {
-            query = query.where('platform', '==', platform);
-        }
-
-        if (pricing) {
-            query = query.where('pricing', '==', pricing);
-        }
-
-        if (type) {
-            query = query.where('type', '==', type);
-        }
-
-        const snapshot = await query.get();
-        let resources = snapshot.docs.map((doc) => ({
+        let querySnapshot = await adminDb.collection('resources').get();
+        let resources = querySnapshot.docs.map((doc) => ({
             id: doc.id,
             ...doc.data(),
             createdAt: doc.data().createdAt?.toDate()?.toISOString() || null,
             updatedAt: doc.data().updatedAt?.toDate()?.toISOString() || null,
         }));
 
-        // Client-side filtering for category (Firestore doesn't support array-contains with other where clauses easily)
+        // Filtering
+        if (platform) {
+            resources = resources.filter((r: any) => r.platform === platform);
+        }
+
+        if (pricing) {
+            resources = resources.filter((r: any) => r.pricing === pricing);
+        }
+
+        if (type) {
+            resources = resources.filter((r: any) => r.type === type);
+        }
+
         if (category) {
             resources = resources.filter((r: any) => r.categories?.includes(category));
         }
 
-        // Search filter
         if (search) {
             const term = search.toLowerCase();
             resources = resources.filter((r: any) =>
@@ -49,6 +47,22 @@ export async function GET(request: NextRequest) {
                 r.description?.toLowerCase().includes(term)
             );
         }
+
+        // Sorting
+        resources.sort((a: any, b: any) => {
+            let valA = a[sortBy];
+            let valB = b[sortBy];
+
+            // Handle title case-insensitivity
+            if (sortBy === 'title') {
+                valA = valA?.toLowerCase() || '';
+                valB = valB?.toLowerCase() || '';
+            }
+
+            if (valA < valB) return sortOrder === 'asc' ? -1 : 1;
+            if (valA > valB) return sortOrder === 'asc' ? 1 : -1;
+            return 0;
+        });
 
         const total = resources.length;
         const start = (page - 1) * pageSize;
@@ -61,6 +75,8 @@ export async function GET(request: NextRequest) {
             page,
             pageSize,
             hasMore: start + pageSize < total,
+            sortBy,
+            sortOrder,
         });
     } catch (error: any) {
         console.error('API Error:', error);

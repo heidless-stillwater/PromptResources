@@ -23,39 +23,46 @@ export default function CategoriesPage() {
     useEffect(() => {
         async function fetchCategories() {
             try {
-                const snap = await getDocs(collection(db, 'resources'));
-                const resources = snap.docs.map((d) => d.data() as Resource);
+                const response = await fetch('/api/resources?pageSize=1000');
+                const result = await response.json();
+                
+                if (result.success) {
+                    const resources = result.data as Resource[];
+                    const catMap = new Map<string, CategoryInfo>();
 
-                const catMap = new Map<string, CategoryInfo>();
-
-                resources.forEach((r) => {
-                    (r.categories || []).forEach((cat) => {
-                        const existing = catMap.get(cat) || {
-                            name: cat,
-                            count: 0,
-                            platforms: [],
-                            freeCount: 0,
-                        };
-                        existing.count++;
-                        if (r.platform && !existing.platforms.includes(r.platform)) {
-                            existing.platforms.push(r.platform);
-                        }
-                        if (r.pricing === 'free') existing.freeCount++;
-                        catMap.set(cat, existing);
+                    resources.forEach((r) => {
+                        (r.categories || []).forEach((c) => {
+                            // Normalize to Title Case
+                            const cat = c.charAt(0).toUpperCase() + c.slice(1).toLowerCase();
+                            const existing = catMap.get(cat) || {
+                                name: cat,
+                                count: 0,
+                                platforms: [],
+                                freeCount: 0,
+                            };
+                            existing.count++;
+                            if (r.platform && !existing.platforms.includes(r.platform)) {
+                                existing.platforms.push(r.platform);
+                            }
+                            if (r.pricing === 'free') existing.freeCount++;
+                            catMap.set(cat, existing);
+                        });
                     });
-                });
 
-                // Add default categories without resources
-                const defaultCats = getDefaultCategories();
-                defaultCats.forEach((cat) => {
-                    if (!catMap.has(cat)) {
-                        catMap.set(cat, { name: cat, count: 0, platforms: [], freeCount: 0 });
-                    }
-                });
+                    // Add default categories without resources
+                    const defaultCats = getDefaultCategories();
+                    defaultCats.forEach((cat) => {
+                        if (!catMap.has(cat)) {
+                            catMap.set(cat, { name: cat, count: 0, platforms: [], freeCount: 0 });
+                        }
+                    });
 
-                setCategories(
-                    Array.from(catMap.values()).sort((a, b) => b.count - a.count)
-                );
+                    setCategories(
+                        Array.from(catMap.values()).sort((a, b) => b.count - a.count)
+                    );
+                } else {
+                    console.error('API Error:', result.error);
+                }
             } catch (error) {
                 console.error('Error fetching categories:', error);
             } finally {
@@ -89,6 +96,9 @@ export default function CategoriesPage() {
         'ChatGPT': '🤖',
         'Claude': '🧠',
         'Midjourney': '🎨',
+        'Archive': '📁',
+        'Project': '🏗️',
+        'Tutorial': '📖',
     };
 
     return (

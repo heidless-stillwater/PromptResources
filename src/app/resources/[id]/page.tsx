@@ -25,15 +25,18 @@ export default function ResourceDetailPage() {
     useEffect(() => {
         async function fetchResource() {
             try {
-                const docRef = doc(db, 'resources', resourceId);
-                const docSnap = await getDoc(docRef);
-                if (docSnap.exists()) {
+                const response = await fetch(`/api/resources/${resourceId}`);
+                const result = await response.json();
+
+                if (result.success) {
+                    const data = result.data;
                     setResource({
-                        id: docSnap.id,
-                        ...docSnap.data(),
-                        createdAt: docSnap.data().createdAt?.toDate() || new Date(),
-                        updatedAt: docSnap.data().updatedAt?.toDate() || new Date(),
+                        ...data,
+                        createdAt: data.createdAt ? new Date(data.createdAt) : new Date(),
+                        updatedAt: data.updatedAt ? new Date(data.updatedAt) : new Date(),
                     } as Resource);
+                } else {
+                    console.error('API Error:', result.error);
                 }
 
                 // Check if saved

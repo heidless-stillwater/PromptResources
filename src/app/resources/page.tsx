@@ -23,25 +23,31 @@ export default function ResourcesPage() {
     const [typeFilter, setTypeFilter] = useState<string>('');
     const [categoryFilter, setCategoryFilter] = useState<string>('');
     const [allCategories, setAllCategories] = useState<string[]>([]);
+    const [sortBy, setSortBy] = useState<string>('updatedAt');
+    const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
     useEffect(() => {
         async function fetchResources() {
+            setLoading(true);
             try {
-                let q = query(collection(db, 'resources'), orderBy('createdAt', 'desc'));
+                const response = await fetch(`/api/resources?pageSize=100&sortBy=${sortBy}&sortOrder=${sortOrder}`);
+                const result = await response.json();
+                
+                if (result.success) {
+                    const data: Resource[] = result.data.map((r: any) => ({
+                        ...r,
+                        createdAt: r.createdAt ? new Date(r.createdAt) : new Date(),
+                        updatedAt: r.updatedAt ? new Date(r.updatedAt) : new Date(),
+                    }));
+                    setResources(data);
 
-                const snap = await getDocs(q);
-                const data: Resource[] = snap.docs.map((doc) => ({
-                    id: doc.id,
-                    ...doc.data(),
-                    createdAt: doc.data().createdAt?.toDate() || new Date(),
-                    updatedAt: doc.data().updatedAt?.toDate() || new Date(),
-                })) as Resource[];
-                setResources(data);
-
-                // Extract unique categories
-                const cats = new Set<string>();
-                data.forEach((r) => r.categories?.forEach((c) => cats.add(c)));
-                setAllCategories(Array.from(cats).sort());
+                    // Extract unique categories
+                    const cats = new Set<string>();
+                    data.forEach((r) => r.categories?.forEach((c) => cats.add(c)));
+                    setAllCategories(Array.from(cats).sort());
+                } else {
+                    console.error('API Error:', result.error);
+                }
             } catch (error) {
                 console.error('Error fetching resources:', error);
             } finally {
@@ -49,7 +55,7 @@ export default function ResourcesPage() {
             }
         }
         fetchResources();
-    }, []);
+    }, [sortBy, sortOrder]);
 
     const applyFilters = useCallback(() => {
         let filtered = [...resources];
@@ -176,6 +182,30 @@ export default function ResourcesPage() {
                                 <option key={c} value={c}>{c}</option>
                             ))}
                         </select>
+
+                        <div style={{ display: 'flex', gap: 'var(--space-2)', marginLeft: 'auto' }}>
+                            <select
+                                className="form-select"
+                                value={sortBy}
+                                onChange={(e) => setSortBy(e.target.value)}
+                                id="sort-by"
+                                style={{ minWidth: '140px' }}
+                            >
+                                <option value="createdAt">Date Created</option>
+                                <option value="updatedAt">Date Updated</option>
+                                <option value="title">Title</option>
+                            </select>
+
+                            <button
+                                className="btn btn-secondary"
+                                onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
+                                id="toggle-sort-order"
+                                title={sortOrder === 'asc' ? 'Sorted Ascending' : 'Sorted Descending'}
+                                style={{ padding: '0 var(--space-3)', fontSize: '1.2rem' }}
+                            >
+                                {sortOrder === 'asc' ? '🔼' : '🔽'}
+                            </button>
+                        </div>
                     </div>
 
                     {/* Resource Grid */}

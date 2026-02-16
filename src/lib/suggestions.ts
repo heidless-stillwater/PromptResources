@@ -26,6 +26,9 @@ const CATEGORY_KEYWORDS: Record<string, string[]> = {
     'ChatGPT': ['chatgpt', 'openai', 'gpt'],
     'Claude': ['claude', 'anthropic'],
     'Midjourney': ['midjourney'],
+    'Archive': ['archive', 'old', 'stored'],
+    'Project': ['project', 'build', 'create', 'app'],
+    'Tutorial': ['tutorial', 'lesson', 'course', 'learn'],
 };
 
 // Known resource providers

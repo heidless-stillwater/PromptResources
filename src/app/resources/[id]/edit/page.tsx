@@ -37,10 +37,11 @@ export default function EditResourcePage() {
     useEffect(() => {
         async function fetchResource() {
             try {
-                const docRef = doc(db, 'resources', resourceId);
-                const docSnap = await getDoc(docRef);
-                if (docSnap.exists()) {
-                    const data = docSnap.data() as Resource;
+                const response = await fetch(`/api/resources/${resourceId}`);
+                const result = await response.json();
+                
+                if (result.success) {
+                    const data = result.data as Resource;
                     setTitle(data.title || '');
                     setDescription(data.description || '');
                     setUrl(data.url || '');
@@ -53,6 +54,8 @@ export default function EditResourcePage() {
                     setSelectedCategories(data.categories || []);
                     setCredits(data.credits?.length > 0 ? data.credits : [{ name: '', url: '' }]);
                     setStatus(data.status || 'published');
+                } else {
+                    console.error('API Error:', result.error);
                 }
             } catch (err) {
                 console.error('Error fetching resource:', err);
