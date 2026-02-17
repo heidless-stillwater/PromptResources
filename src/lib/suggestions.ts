@@ -123,6 +123,60 @@ export function suggestCredits(url: string, title: string = ''): Credit[] {
 }
 
 /**
+ * Suggest a description based on the title
+ */
+export function suggestDescription(title: string): string {
+    if (!title) return '';
+
+    // Basic heuristics to create a description if none exists
+    const titleLower = title.toLowerCase();
+
+    if (titleLower.includes('vs') || titleLower.includes('comparison')) {
+        return `A detailed comparison and analysis of ${title}.`;
+    }
+
+    if (titleLower.includes('how to') || titleLower.includes('guide') || titleLower.includes('tutorial')) {
+        return `A comprehensive guide on ${title}, covering essential steps and best practices.`;
+    }
+
+    if (titleLower.includes('best') || titleLower.includes('top')) {
+        return `An expert-curated list and review of ${title}.`;
+    }
+
+    return `Discover more about ${title} with this in-depth resource.`;
+}
+
+/**
+ * Suggest tags based on title, description, and URL
+ */
+export function suggestTags(title: string, description: string = '', url: string = ''): string[] {
+    const text = `${title} ${description} ${url}`.toLowerCase();
+    const tags = new Set<string>();
+
+    // Common prompt-related tags
+    if (text.includes('prompt')) tags.add('prompt');
+    if (text.includes('guide') || text.includes('tutorial')) tags.add('guide');
+    if (text.includes('beginner') || text.includes('start')) tags.add('beginner');
+    if (text.includes('advanced') || text.includes('pro')) tags.add('advanced');
+    if (text.includes('free')) tags.add('free');
+    if (text.includes('workflow') || text.includes('automation')) tags.add('workflow');
+    if (text.includes('tool') || text.includes('utility')) tags.add('tool');
+
+    // Platform tags
+    if (text.includes('gemini')) tags.add('gemini');
+    if (text.includes('chatgpt') || text.includes('gpt')) tags.add('chatgpt');
+    if (text.includes('claude')) tags.add('claude');
+    if (text.includes('midjourney')) tags.add('midjourney');
+    if (text.includes('perplexity')) tags.add('perplexity');
+    if (text.includes('notebooklm')) tags.add('notebooklm');
+
+    // Media type tags
+    if (url.includes('youtube.com') || url.includes('youtu.be')) tags.add('video');
+
+    return Array.from(tags).slice(0, 10);
+}
+
+/**
  * Get all available categories (for dropdown)
  */
 export function getDefaultCategories(): string[] {

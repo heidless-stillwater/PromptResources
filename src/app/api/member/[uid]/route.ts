@@ -38,8 +38,9 @@ export async function GET(
 
         // Fetch full saved resource details
         let savedResourceDetails: any[] = [];
-        if (userResData?.savedResources?.length > 0) {
-            const resourcePromises = userResData.savedResources.map(async (id: string) => {
+        const savedIds = userResData?.savedResources;
+        if (savedIds && savedIds.length > 0) {
+            const resourcePromises = savedIds.map(async (id: string) => {
                 const rDoc = await adminDb.collection('resources').doc(id).get();
                 if (rDoc.exists) {
                     const data = rDoc.data();

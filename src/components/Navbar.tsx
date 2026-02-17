@@ -2,6 +2,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useAuth } from '@/contexts/AuthContext';
 import { UserRole } from '@/lib/types';
 
@@ -71,7 +72,15 @@ export default function Navbar() {
                             >
                                 <div className="avatar">
                                     {profile?.photoURL ? (
-                                        <img src={profile.photoURL} alt={profile.displayName} />
+                                        <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+                                            <Image
+                                                src={profile.photoURL}
+                                                alt={profile.displayName}
+                                                fill
+                                                sizes="32px"
+                                                style={{ objectFit: 'cover', borderRadius: '50%' }}
+                                            />
+                                        </div>
                                     ) : (
                                         (profile?.displayName?.[0] || user.email?.[0] || 'U').toUpperCase()
                                     )}

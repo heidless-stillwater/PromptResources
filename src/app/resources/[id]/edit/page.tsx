@@ -7,7 +7,7 @@ import { db } from '@/lib/firebase';
 import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { useAuth } from '@/contexts/AuthContext';
 import { Credit, Platform, ResourcePricing, ResourceType, MediaFormat, Resource } from '@/lib/types';
-import { suggestCategories, suggestCredits, getDefaultCategories } from '@/lib/suggestions';
+import { suggestCategories, suggestCredits, getDefaultCategories, suggestDescription, suggestTags } from '@/lib/suggestions';
 import { isYouTubeUrl, extractYouTubeId } from '@/lib/youtube';
 
 export default function EditResourcePage() {
@@ -39,7 +39,7 @@ export default function EditResourcePage() {
             try {
                 const response = await fetch(`/api/resources/${resourceId}`);
                 const result = await response.json();
-                
+
                 if (result.success) {
                     const data = result.data as Resource;
                     setTitle(data.title || '');
@@ -97,23 +97,36 @@ export default function EditResourcePage() {
 
         try {
             const youtubeVideoId = extractYouTubeId(url);
-            await updateDoc(doc(db, 'resources', resourceId), {
-                title: title.trim(),
-                description: description.trim(),
-                url: url.trim(),
-                type,
-                mediaFormat,
-                platform,
-                pricing,
-                pricingDetails: pricingDetails.trim(),
-                categories: selectedCategories,
-                credits: validCredits,
-                youtubeVideoId: youtubeVideoId || null,
-                tags: tags.split(',').map((t) => t.trim()).filter(Boolean),
-                status,
-                updatedAt: serverTimestamp(),
+
+            const response = await fetch(`/api/resources/${resourceId}`, {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    title: title.trim(),
+                    description: description.trim(),
+                    url: url.trim(),
+                    type,
+                    mediaFormat,
+                    platform,
+                    pricing,
+                    pricingDetails: pricingDetails.trim(),
+                    categories: selectedCategories,
+                    credits: validCredits,
+                    youtubeVideoId: youtubeVideoId || null,
+                    tags: tags.split(',').map((t) => t.trim()).filter(Boolean),
+                    status,
+                }),
             });
-            router.push(`/resources/${resourceId}`);
+
+            const result = await response.json();
+
+            if (result.success) {
+                router.push(`/resources/${resourceId}`);
+            } else {
+                setError(result.error || 'Failed to update resource.');
+            }
         } catch (err: any) {
             setError(err.message || 'Failed to update resource.');
         } finally {
@@ -171,14 +184,35 @@ export default function EditResourcePage() {
                         )}
 
                         <div className="glass-card" style={{ marginBottom: 'var(--space-6)' }}>
-                            <h3 style={{
-                                fontSize: 'var(--text-lg)',
-                                marginBottom: 'var(--space-5)',
-                                paddingBottom: 'var(--space-3)',
-                                borderBottom: '1px solid var(--border-subtle)',
-                            }}>
-                                📝 Basic Information
-                            </h3>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-5)', paddingBottom: 'var(--space-3)', borderBottom: '1px solid var(--border-subtle)' }}>
+                                <h3 style={{ fontSize: 'var(--text-lg)', marginBottom: 0 }}>
+                                    📝 Basic Information
+                                </h3>
+                                <button
+                                    type="button"
+                                    className="btn btn-secondary btn-sm"
+                                    onClick={() => {
+                                        const cats = suggestCategories(title, description, url);
+                                        setSelectedCategories(Array.from(new Set([...selectedCategories, ...cats])));
+                                        const creds = suggestCredits(url, title);
+                                        if (creds.length > 0) setCredits(creds);
+                                        if (!description) {
+                                            const desc = suggestDescription(title);
+                                            setDescription(desc);
+                                        }
+                                        const suggestedTags = suggestTags(title, description, url);
+                                        if (suggestedTags.length > 0) {
+                                            const currentTags = tags.split(',').map(t => t.trim()).filter(Boolean);
+                                            const newTags = Array.from(new Set([...currentTags, ...suggestedTags]));
+                                            setTags(newTags.join(', '));
+                                        }
+                                    }}
+                                    id="ai-quick-autofill"
+                                    title="Autofill Description, Tags, Categories and Credits using AI"
+                                >
+                                    ✨ Magic AI Autofill
+                                </button>
+                            </div>
 
                             <div className="form-group">
                                 <label className="form-label">Title *</label>
@@ -186,7 +220,21 @@ export default function EditResourcePage() {
                             </div>
 
                             <div className="form-group">
-                                <label className="form-label">Description *</label>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-2)' }}>
+                                    <label className="form-label" style={{ marginBottom: 0 }}>Description *</label>
+                                    <button
+                                        type="button"
+                                        className="btn btn-secondary btn-sm"
+                                        onClick={() => {
+                                            const desc = suggestDescription(title);
+                                            if (desc) setDescription(desc);
+                                        }}
+                                        id="ai-suggest-description"
+                                        disabled={!title}
+                                    >
+                                        ✨ AI Suggest
+                                    </button>
+                                </div>
                                 <textarea className="form-textarea" value={description} onChange={(e) => setDescription(e.target.value)} required />
                             </div>
 
@@ -252,14 +300,43 @@ export default function EditResourcePage() {
                             </div>
 
                             <div className="form-group">
-                                <label className="form-label">Tags (comma separated)</label>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-2)' }}>
+                                    <label className="form-label" style={{ marginBottom: 0 }}>Tags (comma separated)</label>
+                                    <button
+                                        type="button"
+                                        className="btn btn-secondary btn-sm"
+                                        onClick={() => {
+                                            const suggestedTags = suggestTags(title, description, url);
+                                            const currentTags = tags.split(',').map(t => t.trim()).filter(Boolean);
+                                            const newTags = Array.from(new Set([...currentTags, ...suggestedTags]));
+                                            setTags(newTags.join(', '));
+                                        }}
+                                        id="ai-suggest-tags"
+                                        disabled={!title}
+                                    >
+                                        ✨ AI Suggest
+                                    </button>
+                                </div>
                                 <input type="text" className="form-input" value={tags} onChange={(e) => setTags(e.target.value)} />
                             </div>
                         </div>
 
                         {/* Categories */}
                         <div className="glass-card" style={{ marginBottom: 'var(--space-6)' }}>
-                            <h3 style={{ fontSize: 'var(--text-lg)', marginBottom: 'var(--space-4)' }}>🏷️ Categories</h3>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-4)' }}>
+                                <h3 style={{ fontSize: 'var(--text-lg)', marginBottom: 0 }}>🏷️ Categories</h3>
+                                <button
+                                    type="button"
+                                    className="btn btn-secondary btn-sm"
+                                    onClick={() => {
+                                        const cats = suggestCategories(title, description, url);
+                                        setSelectedCategories(Array.from(new Set([...selectedCategories, ...cats])));
+                                    }}
+                                    id="ai-suggest-categories"
+                                >
+                                    ✨ AI Suggest
+                                </button>
+                            </div>
                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-2)', marginBottom: 'var(--space-4)' }}>
                                 {selectedCategories.map((cat) => (
                                     <span key={cat} className="badge badge-primary" style={{ cursor: 'pointer', padding: 'var(--space-2) var(--space-3)' }} onClick={() => removeCategory(cat)}>
@@ -288,7 +365,20 @@ export default function EditResourcePage() {
 
                         {/* Credits */}
                         <div className="glass-card" style={{ marginBottom: 'var(--space-6)' }}>
-                            <h3 style={{ fontSize: 'var(--text-lg)', marginBottom: 'var(--space-4)' }}>👤 Credits</h3>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-4)' }}>
+                                <h3 style={{ fontSize: 'var(--text-lg)', marginBottom: 0 }}>👤 Credits</h3>
+                                <button
+                                    type="button"
+                                    className="btn btn-secondary btn-sm"
+                                    onClick={() => {
+                                        const creds = suggestCredits(url, title);
+                                        if (creds.length > 0) setCredits(creds);
+                                    }}
+                                    id="ai-suggest-credits"
+                                >
+                                    ✨ AI Suggest
+                                </button>
+                            </div>
                             {credits.map((credit, idx) => (
                                 <div key={idx} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: 'var(--space-3)', marginBottom: 'var(--space-3)' }}>
                                     <input type="text" className="form-input" value={credit.name} onChange={(e) => updateCredit(idx, 'name', e.target.value)} placeholder="Name" />

@@ -1,0 +1,14 @@
+{
+  "hosting": [
+    {
+      "target": "prompt-resources",
+      "source": ".",
+      "ignore": [
+        "firebase.json",
+        "**/.*",
+        "**/node_modules/**"
+      ],
+      "frameworksBackend": {}
+    }
+  ]
+}

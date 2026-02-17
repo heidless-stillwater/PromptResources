@@ -39,12 +39,12 @@ export default function ResourceDetailPage() {
                     console.error('API Error:', result.error);
                 }
 
-                // Check if saved
+                // Check if saved via API
                 if (user) {
-                    const userResRef = doc(db, 'userResources', user.uid);
-                    const userResSnap = await getDoc(userResRef);
-                    if (userResSnap.exists()) {
-                        setIsSaved(userResSnap.data().savedResources?.includes(resourceId) || false);
+                    const userResResponse = await fetch(`/api/user-resources?uid=${user.uid}`);
+                    const userResResult = await userResResponse.json();
+                    if (userResResult.success) {
+                        setIsSaved(userResResult.data.savedResources?.includes(resourceId) || false);
                     }
                 }
             } catch (error) {
@@ -59,19 +59,24 @@ export default function ResourceDetailPage() {
     const handleSave = async () => {
         if (!user) return router.push('/auth/login');
         try {
-            const userResRef = doc(db, 'userResources', user.uid);
-            if (isSaved) {
-                await updateDoc(userResRef, { savedResources: arrayRemove(resourceId) });
-            } else {
-                await updateDoc(userResRef, { savedResources: arrayUnion(resourceId) });
+            const response = await fetch('/api/user-resources', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    uid: user.uid,
+                    resourceId,
+                    action: isSaved ? 'unsave' : 'save'
+                }),
+            });
+
+            const result = await response.json();
+            if (result.success) {
+                setIsSaved(!isSaved);
             }
-            setIsSaved(!isSaved);
         } catch (error) {
-            // If doc doesn't exist, create it
-            const { setDoc } = await import('firebase/firestore');
-            const userResRef = doc(db, 'userResources', user.uid);
-            await setDoc(userResRef, { savedResources: [resourceId], notes: {}, progress: {} });
-            setIsSaved(true);
+            console.error('Error updating saved status:', error);
         }
     };
 

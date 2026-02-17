@@ -28,30 +28,38 @@ export default function DashboardPage() {
         async function fetchDashboardData() {
             if (!user) return;
             try {
-                // Fetch user resource data
-                const userResRef = doc(db, 'userResources', user.uid);
-                const userResSnap = await getDoc(userResRef);
-                if (userResSnap.exists()) {
-                    const data = userResSnap.data() as UserResourceData;
-                    setUserResData(data);
+                // Fetch user resource data via API
+                const userResResponse = await fetch(`/api/user-resources?uid=${user.uid}`);
+                const userResResult = await userResResponse.json();
 
-                    // Fetch saved resources details
-                    if (data.savedResources?.length > 0) {
-                        const resourcePromises = data.savedResources.slice(0, 10).map(async (id) => {
-                            const rDoc = await getDoc(doc(db, 'resources', id));
-                            if (rDoc.exists()) {
-                                return { id: rDoc.id, ...rDoc.data() } as Resource;
-                            }
-                            return null;
-                        });
-                        const resources = (await Promise.all(resourcePromises)).filter(Boolean) as Resource[];
-                        setSavedResources(resources);
-                    }
+                let savedIds: string[] = [];
+                if (userResResult.success) {
+                    const data = userResResult.data as UserResourceData;
+                    setUserResData(data);
+                    savedIds = data.savedResources || [];
                 }
 
-                // Get total resources count
-                const allRes = await getDocs(collection(db, 'resources'));
-                setTotalResources(allRes.size);
+                // Fetch saved resources details via API
+                if (savedIds.length > 0) {
+                    const resourcePromises = savedIds.slice(0, 10).map(async (id) => {
+                        try {
+                            const res = await fetch(`/api/resources/${id}`);
+                            const result = await res.json();
+                            return result.success ? result.data : null;
+                        } catch (err) {
+                            return null;
+                        }
+                    });
+                    const resources = (await Promise.all(resourcePromises)).filter(Boolean) as Resource[];
+                    setSavedResources(resources);
+                }
+
+                // Get total resources count via API
+                const allResResponse = await fetch('/api/resources?pageSize=1');
+                const allResResult = await allResResponse.json();
+                if (allResResult.success) {
+                    setTotalResources(allResResult.total);
+                }
             } catch (error) {
                 console.error('Error fetching dashboard data:', error);
             } finally {

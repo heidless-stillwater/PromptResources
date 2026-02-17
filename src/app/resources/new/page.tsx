@@ -7,7 +7,7 @@ import { db } from '@/lib/firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { useAuth } from '@/contexts/AuthContext';
 import { Credit, Platform, ResourcePricing, ResourceType, MediaFormat } from '@/lib/types';
-import { suggestCategories, suggestCredits, getDefaultCategories } from '@/lib/suggestions';
+import { suggestCategories, suggestCredits, getDefaultCategories, suggestDescription, suggestTags } from '@/lib/suggestions';
 import { extractYouTubeId, isYouTubeUrl } from '@/lib/youtube';
 
 export default function NewResourcePage() {
@@ -99,26 +99,36 @@ export default function NewResourcePage() {
         try {
             const youtubeVideoId = extractYouTubeId(url);
 
-            await addDoc(collection(db, 'resources'), {
-                title: title.trim(),
-                description: description.trim(),
-                url: url.trim(),
-                type,
-                mediaFormat,
-                platform,
-                pricing,
-                pricingDetails: pricingDetails.trim(),
-                categories: selectedCategories,
-                credits: validCredits,
-                youtubeVideoId: youtubeVideoId || null,
-                tags: tags.split(',').map((t) => t.trim()).filter(Boolean),
-                addedBy: user?.uid || 'unknown',
-                status: 'published',
-                createdAt: serverTimestamp(),
-                updatedAt: serverTimestamp(),
+            const response = await fetch('/api/resources', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    title: title.trim(),
+                    description: description.trim(),
+                    url: url.trim(),
+                    type,
+                    mediaFormat,
+                    platform,
+                    pricing,
+                    pricingDetails: pricingDetails.trim(),
+                    categories: selectedCategories,
+                    credits: validCredits,
+                    youtubeVideoId: youtubeVideoId || null,
+                    tags: tags.split(',').map((t) => t.trim()).filter(Boolean),
+                    addedBy: user?.uid || 'unknown',
+                    status: 'published',
+                }),
             });
 
-            router.push('/resources');
+            const result = await response.json();
+
+            if (result.success) {
+                router.push('/resources');
+            } else {
+                setError(result.error || 'Failed to add resource.');
+            }
         } catch (err: unknown) {
             const error = err as { message?: string };
             setError(error.message || 'Failed to add resource.');
@@ -167,14 +177,35 @@ export default function NewResourcePage() {
                         )}
 
                         <div className="glass-card" style={{ marginBottom: 'var(--space-6)' }}>
-                            <h3 style={{
-                                fontSize: 'var(--text-lg)',
-                                marginBottom: 'var(--space-5)',
-                                paddingBottom: 'var(--space-3)',
-                                borderBottom: '1px solid var(--border-subtle)',
-                            }}>
-                                📝 Basic Information
-                            </h3>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-5)', paddingBottom: 'var(--space-3)', borderBottom: '1px solid var(--border-subtle)' }}>
+                                <h3 style={{ fontSize: 'var(--text-lg)', marginBottom: 0 }}>
+                                    📝 Basic Information
+                                </h3>
+                                <button
+                                    type="button"
+                                    className="btn btn-secondary btn-sm"
+                                    onClick={() => {
+                                        const cats = suggestCategories(title, description, url);
+                                        setSelectedCategories(Array.from(new Set([...selectedCategories, ...cats])));
+                                        const creds = suggestCredits(url, title);
+                                        if (creds.length > 0) setCredits(creds);
+                                        if (!description) {
+                                            const desc = suggestDescription(title);
+                                            setDescription(desc);
+                                        }
+                                        const suggestedTags = suggestTags(title, description, url);
+                                        if (suggestedTags.length > 0) {
+                                            const currentTags = tags.split(',').map(t => t.trim()).filter(Boolean);
+                                            const newTags = Array.from(new Set([...currentTags, ...suggestedTags]));
+                                            setTags(newTags.join(', '));
+                                        }
+                                    }}
+                                    id="ai-quick-autofill"
+                                    title="Autofill Description, Tags, Categories and Credits using AI"
+                                >
+                                    ✨ Magic AI Autofill
+                                </button>
+                            </div>
 
                             <div className="form-group">
                                 <label className="form-label" htmlFor="title">Title *</label>
@@ -190,7 +221,21 @@ export default function NewResourcePage() {
                             </div>
 
                             <div className="form-group">
-                                <label className="form-label" htmlFor="description">Description *</label>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-2)' }}>
+                                    <label className="form-label" htmlFor="description" style={{ marginBottom: 0 }}>Description *</label>
+                                    <button
+                                        type="button"
+                                        className="btn btn-secondary btn-sm"
+                                        onClick={() => {
+                                            const desc = suggestDescription(title);
+                                            if (desc) setDescription(desc);
+                                        }}
+                                        id="ai-suggest-description"
+                                        disabled={!title}
+                                    >
+                                        ✨ AI Suggest
+                                    </button>
+                                </div>
                                 <textarea
                                     id="description"
                                     className="form-textarea"
@@ -285,7 +330,23 @@ export default function NewResourcePage() {
                             )}
 
                             <div className="form-group">
-                                <label className="form-label" htmlFor="tags">Tags (comma separated)</label>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-2)' }}>
+                                    <label className="form-label" htmlFor="tags" style={{ marginBottom: 0 }}>Tags (comma separated)</label>
+                                    <button
+                                        type="button"
+                                        className="btn btn-secondary btn-sm"
+                                        onClick={() => {
+                                            const suggestedTags = suggestTags(title, description, url);
+                                            const currentTags = tags.split(',').map(t => t.trim()).filter(Boolean);
+                                            const newTags = Array.from(new Set([...currentTags, ...suggestedTags]));
+                                            setTags(newTags.join(', '));
+                                        }}
+                                        id="ai-suggest-tags"
+                                        disabled={!title}
+                                    >
+                                        ✨ AI Suggest
+                                    </button>
+                                </div>
                                 <input
                                     id="tags"
                                     type="text"
@@ -299,14 +360,20 @@ export default function NewResourcePage() {
 
                         {/* Categories */}
                         <div className="glass-card" style={{ marginBottom: 'var(--space-6)' }}>
-                            <h3 style={{
-                                fontSize: 'var(--text-lg)',
-                                marginBottom: 'var(--space-5)',
-                                paddingBottom: 'var(--space-3)',
-                                borderBottom: '1px solid var(--border-subtle)',
-                            }}>
-                                🏷️ Categories <span style={{ color: 'var(--danger-400)', fontSize: 'var(--text-sm)' }}>* (min 1)</span>
-                            </h3>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-4)' }}>
+                                <h3 style={{ fontSize: 'var(--text-lg)', marginBottom: 0 }}>🏷️ Categories <span style={{ color: 'var(--danger-400)', fontSize: 'var(--text-sm)' }}>* (min 1)</span></h3>
+                                <button
+                                    type="button"
+                                    className="btn btn-secondary btn-sm"
+                                    onClick={() => {
+                                        const cats = suggestCategories(title, description, url);
+                                        setSelectedCategories(Array.from(new Set([...selectedCategories, ...cats])));
+                                    }}
+                                    id="ai-suggest-categories"
+                                >
+                                    ✨ AI Suggest
+                                </button>
+                            </div>
 
                             {/* Selected */}
                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-2)', marginBottom: 'var(--space-4)' }}>
@@ -396,14 +463,20 @@ export default function NewResourcePage() {
 
                         {/* Credits */}
                         <div className="glass-card" style={{ marginBottom: 'var(--space-6)' }}>
-                            <h3 style={{
-                                fontSize: 'var(--text-lg)',
-                                marginBottom: 'var(--space-5)',
-                                paddingBottom: 'var(--space-3)',
-                                borderBottom: '1px solid var(--border-subtle)',
-                            }}>
-                                👤 Credits & Attribution
-                            </h3>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-4)' }}>
+                                <h3 style={{ fontSize: 'var(--text-lg)', marginBottom: 0 }}>👤 Credits & Attribution</h3>
+                                <button
+                                    type="button"
+                                    className="btn btn-secondary btn-sm"
+                                    onClick={() => {
+                                        const creds = suggestCredits(url, title);
+                                        if (creds.length > 0) setCredits(creds);
+                                    }}
+                                    id="ai-suggest-credits"
+                                >
+                                    ✨ AI Suggest Credits
+                                </button>
+                            </div>
 
                             {/* AI Suggested Credits */}
                             {suggestedCredits.length > 0 && (

@@ -1,0 +1,14 @@
+{
+  "projects": {
+    "default": "heidless-apps-0"
+  },
+  "targets": {
+    "heidless-apps-0": {
+      "hosting": {
+        "prompt-resources": [
+          "promptresources-v0"
+        ]
+      }
+    }
+  }
+}

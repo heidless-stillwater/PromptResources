@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, Suspense } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useSearchParams } from 'next/navigation';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
@@ -11,7 +12,7 @@ import { Resource, Platform, ResourcePricing, ResourceType } from '@/lib/types';
 import { useAuth } from '@/contexts/AuthContext';
 import { getYouTubeThumbnail, extractYouTubeId } from '@/lib/youtube';
 
-export default function ResourcesPage() {
+function ResourcesContent() {
     const { isAdmin } = useAuth();
     const searchParams = useSearchParams();
     const [resources, setResources] = useState<Resource[]>([]);
@@ -32,7 +33,7 @@ export default function ResourcesPage() {
             try {
                 const response = await fetch(`/api/resources?pageSize=100&sortBy=${sortBy}&sortOrder=${sortOrder}`);
                 const result = await response.json();
-                
+
                 if (result.success) {
                     const data: Resource[] = result.data.map((r: any) => ({
                         ...r,
@@ -244,11 +245,15 @@ export default function ResourcesPage() {
                                     >
                                         <div className="resource-card-thumb">
                                             {ytId ? (
-                                                <img
-                                                    src={getYouTubeThumbnail(ytId)}
-                                                    alt={resource.title}
-                                                    loading="lazy"
-                                                />
+                                                <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+                                                    <Image
+                                                        src={`https://img.youtube.com/vi/${ytId}/mqdefault.jpg`}
+                                                        alt={resource.title}
+                                                        fill
+                                                        sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                                                        style={{ objectFit: 'cover' }}
+                                                    />
+                                                </div>
                                             ) : (
                                                 <div style={{
                                                     width: '100%',
@@ -306,5 +311,20 @@ export default function ResourcesPage() {
 
             <Footer />
         </div>
+    );
+}
+
+export default function ResourcesPage() {
+    return (
+        <Suspense fallback={
+            <div className="page-wrapper">
+                <Navbar />
+                <div className="loading-page">
+                    <div className="spinner" />
+                </div>
+            </div>
+        }>
+            <ResourcesContent />
+        </Suspense>
     );
 }

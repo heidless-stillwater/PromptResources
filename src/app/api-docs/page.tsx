@@ -34,10 +34,10 @@ export default function ApiDocsPage() {
                             color: 'var(--text-primary)',
                             overflow: 'auto',
                         }}>
-                            <div style={{ color: 'var(--text-muted)' }}>// Header method</div>
+                            <div style={{ color: 'var(--text-muted)' }}>{`// Header method`}</div>
                             <div>x-api-key: pr_placeholder_api_key_change_me</div>
                             <br />
-                            <div style={{ color: 'var(--text-muted)' }}>// Query parameter method</div>
+                            <div style={{ color: 'var(--text-muted)' }}>{`// Query parameter method`}</div>
                             <div>?apiKey=pr_placeholder_api_key_change_me</div>
                         </div>
                     </div>
@@ -200,6 +200,6 @@ fetch('/api/member/USER_UID', {
                 </div>
             </div>
             <Footer />
-        </div>
+        </div >
     );
 }

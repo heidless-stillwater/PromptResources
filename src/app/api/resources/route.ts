@@ -86,3 +86,43 @@ export async function GET(request: NextRequest) {
         );
     }
 }
+
+export async function POST(request: NextRequest) {
+    try {
+        const body = await request.json();
+
+        // Basic validation
+        if (!body.title || !body.url) {
+            return NextResponse.json(
+                { success: false, error: 'Title and URL are required' },
+                { status: 400 }
+            );
+        }
+
+        const now = new Date();
+        const docData = {
+            ...body,
+            createdAt: now,
+            updatedAt: now,
+        };
+
+        const docRef = await adminDb.collection('resources').add(docData);
+
+        return NextResponse.json({
+            success: true,
+            id: docRef.id,
+            data: {
+                ...docData,
+                id: docRef.id,
+                createdAt: now.toISOString(),
+                updatedAt: now.toISOString(),
+            }
+        });
+    } catch (error: any) {
+        console.error('API Error:', error);
+        return NextResponse.json(
+            { success: false, error: error.message || 'Internal server error' },
+            { status: 500 }
+        );
+    }
+}
