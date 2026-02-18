@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useCallback, Suspense } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import { db } from '@/lib/firebase';
@@ -13,9 +13,11 @@ import { useAuth } from '@/contexts/AuthContext';
 import { getYouTubeThumbnail, extractYouTubeId } from '@/lib/youtube';
 
 function ResourcesContent() {
-    const { isAdmin } = useAuth();
+    const { user, isAdmin } = useAuth();
+    const router = useRouter();
     const searchParams = useSearchParams();
     const [resources, setResources] = useState<Resource[]>([]);
+    const [savedResourceIds, setSavedResourceIds] = useState<Set<string>>(new Set());
     const [filteredResources, setFilteredResources] = useState<Resource[]>([]);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
@@ -24,6 +26,7 @@ function ResourcesContent() {
     const [typeFilter, setTypeFilter] = useState<string>('');
     const [categoryFilter, setCategoryFilter] = useState<string>('');
     const [allCategories, setAllCategories] = useState<string[]>([]);
+    const [featuredOnly, setFeaturedOnly] = useState(false);
     const [sortBy, setSortBy] = useState<string>('updatedAt');
     const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
@@ -56,7 +59,21 @@ function ResourcesContent() {
             }
         }
         fetchResources();
-    }, [sortBy, sortOrder]);
+
+        async function fetchSavedResources() {
+            if (!user) return;
+            try {
+                const response = await fetch(`/api/user-resources?uid=${user.uid}`);
+                const result = await response.json();
+                if (result.success) {
+                    setSavedResourceIds(new Set(result.data.savedResources || []));
+                }
+            } catch (error) {
+                console.error('Error fetching saved resources:', error);
+            }
+        }
+        fetchSavedResources();
+    }, [sortBy, sortOrder, user]);
 
     const applyFilters = useCallback(() => {
         let filtered = [...resources];
@@ -86,8 +103,12 @@ function ResourcesContent() {
             filtered = filtered.filter((r) => r.categories?.includes(categoryFilter));
         }
 
+        if (featuredOnly) {
+            filtered = filtered.filter((r) => r.isFavorite);
+        }
+
         setFilteredResources(filtered);
-    }, [resources, search, platformFilter, pricingFilter, typeFilter, categoryFilter]);
+    }, [resources, search, platformFilter, pricingFilter, typeFilter, categoryFilter, featuredOnly]);
 
     useEffect(() => {
         applyFilters();
@@ -96,6 +117,52 @@ function ResourcesContent() {
     const platforms: Platform[] = ['gemini', 'nanobanana', 'chatgpt', 'claude', 'midjourney', 'general', 'other'];
     const pricings: ResourcePricing[] = ['free', 'paid', 'freemium'];
     const types: ResourceType[] = ['video', 'article', 'tool', 'course', 'book', 'tutorial', 'other'];
+
+    const handleToggleSave = async (e: React.MouseEvent, resourceId: string) => {
+        e.preventDefault();
+        e.stopPropagation();
+
+        if (!user) {
+            router.push('/auth/login');
+            return;
+        }
+
+        const isCurrentlySaved = savedResourceIds.has(resourceId);
+
+        // Optimistic update
+        const newSavedIds = new Set(savedResourceIds);
+        if (isCurrentlySaved) {
+            newSavedIds.delete(resourceId);
+        } else {
+            newSavedIds.add(resourceId);
+        }
+        setSavedResourceIds(newSavedIds);
+
+        try {
+            const response = await fetch('/api/user-resources', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    uid: user.uid,
+                    resourceId,
+                    action: isCurrentlySaved ? 'unsave' : 'save'
+                }),
+            });
+
+            const result = await response.json();
+            if (!result.success) {
+                // Rollback if failed
+                setSavedResourceIds(savedResourceIds);
+                console.error('Failed to update saved status:', result.error);
+            }
+        } catch (error) {
+            // Rollback if failed
+            setSavedResourceIds(savedResourceIds);
+            console.error('Error updating saved status:', error);
+        }
+    };
 
     return (
         <div className="page-wrapper">
@@ -184,6 +251,15 @@ function ResourcesContent() {
                             ))}
                         </select>
 
+                        <button
+                            className={`btn ${featuredOnly ? 'btn-primary' : 'btn-secondary'}`}
+                            onClick={() => setFeaturedOnly(!featuredOnly)}
+                            id="filter-featured"
+                            style={{ gap: 'var(--space-2)' }}
+                        >
+                            {featuredOnly ? '⭐ Featured' : '☆ All'}
+                        </button>
+
                         <div style={{ display: 'flex', gap: 'var(--space-2)', marginLeft: 'auto' }}>
                             <select
                                 className="form-select"
@@ -195,6 +271,7 @@ function ResourcesContent() {
                                 <option value="createdAt">Date Created</option>
                                 <option value="updatedAt">Date Updated</option>
                                 <option value="title">Title</option>
+                                <option value="rank">Rank / Priority</option>
                             </select>
 
                             <button
@@ -273,10 +350,51 @@ function ResourcesContent() {
                                                 </div>
                                             )}
                                             <div className="resource-card-pricing">
+                                                {resource.isFavorite && (
+                                                    <span className="badge badge-warning" style={{ marginRight: 'var(--space-1)', fontSize: '1rem' }} title="Featured Resource">
+                                                        ⭐
+                                                    </span>
+                                                )}
                                                 <span className={`badge badge-${resource.pricing}`}>
                                                     {resource.pricing}
                                                 </span>
                                             </div>
+                                            <button
+                                                className={`btn ${savedResourceIds.has(resource.id) ? 'btn-primary' : 'btn-secondary'}`}
+                                                onClick={(e) => handleToggleSave(e, resource.id)}
+                                                style={{
+                                                    position: 'absolute',
+                                                    top: 'var(--space-3)',
+                                                    left: 'var(--space-3)',
+                                                    padding: 'var(--space-1) var(--space-2)',
+                                                    fontSize: '1.1rem',
+                                                    zIndex: 10,
+                                                    borderRadius: 'var(--radius-full)',
+                                                    width: '32px',
+                                                    height: '32px',
+                                                    background: savedResourceIds.has(resource.id) ? 'var(--gradient-primary)' : 'rgba(0,0,0,0.4)',
+                                                    border: 'none',
+                                                }}
+                                                title={savedResourceIds.has(resource.id) ? "Unsave resource" : "Save for later"}
+                                            >
+                                                {savedResourceIds.has(resource.id) ? '⭐' : '☆'}
+                                            </button>
+                                            {resource.rank && (
+                                                <div style={{
+                                                    position: 'absolute',
+                                                    top: 'var(--space-2)',
+                                                    left: 'var(--space-2)',
+                                                    background: 'rgba(0,0,0,0.6)',
+                                                    color: 'white',
+                                                    padding: '2px 8px',
+                                                    borderRadius: 'var(--radius-sm)',
+                                                    fontSize: 'var(--text-xs)',
+                                                    fontWeight: 'bold',
+                                                    zIndex: 1,
+                                                }}>
+                                                    #{resource.rank}
+                                                </div>
+                                            )}
                                         </div>
 
                                         <div className="resource-card-body">

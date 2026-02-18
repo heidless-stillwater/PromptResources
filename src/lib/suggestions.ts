@@ -33,7 +33,7 @@ const CATEGORY_KEYWORDS: Record<string, string[]> = {
 
 // Known resource providers
 const KNOWN_PROVIDERS: Record<string, { name: string; url: string }> = {
-    'youtube.com': { name: 'YouTube', url: 'https://youtube.com' },
+    'youtube.com': { name: 'Youtube', url: 'https://youtube.com' },
     'medium.com': { name: 'Medium', url: 'https://medium.com' },
     'github.com': { name: 'GitHub', url: 'https://github.com' },
     'openai.com': { name: 'OpenAI', url: 'https://openai.com' },
@@ -97,13 +97,16 @@ export function suggestCredits(url: string, title: string = ''): Credit[] {
             }
         }
 
-        // For YouTube, try to extract channel info from URL
+        // For Youtube, try to extract channel info from URL
         if (domain.includes('youtube.com') || domain.includes('youtu.be')) {
-            // Add a placeholder for YouTube channel
-            credits.push({
-                name: 'YouTube Creator',
-                url: url,
-            });
+            const isRoot = urlObj.pathname === '/' || urlObj.pathname === '';
+            if (!isRoot) {
+                // Add a placeholder for Youtube channel
+                credits.push({
+                    name: 'Youtube Creator',
+                    url: url,
+                });
+            }
         }
     } catch {
         // Invalid URL, skip domain checking

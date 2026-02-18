@@ -10,6 +10,7 @@ export async function GET(request: NextRequest) {
         const type = searchParams.get('type');
         const category = searchParams.get('category');
         const search = searchParams.get('search');
+        const isFavorite = searchParams.get('isFavorite') === 'true';
         const sortBy = searchParams.get('sortBy') || 'updatedAt';
         const sortOrder = searchParams.get('sortOrder') || 'desc';
         const page = parseInt(searchParams.get('page') || '1');
@@ -40,6 +41,10 @@ export async function GET(request: NextRequest) {
             resources = resources.filter((r: any) => r.categories?.includes(category));
         }
 
+        if (isFavorite) {
+            resources = resources.filter((r: any) => r.isFavorite === true);
+        }
+
         if (search) {
             const term = search.toLowerCase();
             resources = resources.filter((r: any) =>
@@ -52,6 +57,12 @@ export async function GET(request: NextRequest) {
         resources.sort((a: any, b: any) => {
             let valA = a[sortBy];
             let valB = b[sortBy];
+
+            // Special handling for rank - push nulls to the end regardless of order
+            if (sortBy === 'rank') {
+                if (valA === null || valA === undefined) return 1;
+                if (valB === null || valB === undefined) return -1;
+            }
 
             // Handle title case-insensitivity
             if (sortBy === 'title') {

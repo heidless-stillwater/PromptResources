@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Navbar from '@/components/Navbar';
@@ -10,6 +10,9 @@ import { doc, getDoc, deleteDoc, updateDoc, arrayUnion, arrayRemove } from 'fire
 import { Resource } from '@/lib/types';
 import { useAuth } from '@/contexts/AuthContext';
 import { getYouTubeEmbedUrl, extractYouTubeId } from '@/lib/youtube';
+import Modal from '@/components/Modal';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 export default function ResourceDetailPage() {
     const params = useParams();
@@ -19,6 +22,27 @@ export default function ResourceDetailPage() {
     const [loading, setLoading] = useState(true);
     const [isSaved, setIsSaved] = useState(false);
     const [deleting, setDeleting] = useState(false);
+    const [copyStatus, setCopyStatus] = useState('Copy Link');
+    const [shareOpen, setShareOpen] = useState(false);
+    const shareRef = useRef<HTMLDivElement>(null);
+    const [isNoteModalOpen, setIsNoteModalOpen] = useState(false);
+    const [noteContent, setNoteContent] = useState('');
+    const [initialNoteContent, setInitialNoteContent] = useState('');
+    const [isUnsavedChangesModalOpen, setIsUnsavedChangesModalOpen] = useState(false);
+    const [isPreviewMode, setIsPreviewMode] = useState(false);
+    const [isSavingNote, setIsSavingNote] = useState(false);
+    const [noteMessage, setNoteMessage] = useState({ type: '', text: '' });
+    const noteTextareaRef = useRef<HTMLTextAreaElement>(null);
+
+    // Link Extraction State
+    const [isLinkSelectionOpen, setIsLinkSelectionOpen] = useState(false);
+    const [extractedLinks, setExtractedLinks] = useState<{ url: string; title: string }[]>([]);
+    const [selectedLinks, setSelectedLinks] = useState<Set<string>>(new Set());
+    const [isExtracting, setIsExtracting] = useState(false);
+
+    // Generic URL Extraction State
+    const [isUrlInputOpen, setIsUrlInputOpen] = useState(false);
+    const [extractUrl, setExtractUrl] = useState('');
 
     const resourceId = params.id as string;
 
@@ -54,7 +78,32 @@ export default function ResourceDetailPage() {
             }
         }
         fetchResource();
+
+        async function fetchNote() {
+            if (!user) return;
+            try {
+                const response = await fetch(`/api/user-notes/${resourceId}?uid=${user.uid}`);
+                const result = await response.json();
+                if (result.success && result.data.content) {
+                    setNoteContent(result.data.content);
+                    setInitialNoteContent(result.data.content);
+                }
+            } catch (error) {
+                console.error('Error fetching note:', error);
+            }
+        }
+        fetchNote();
     }, [resourceId, user]);
+
+    useEffect(() => {
+        function handleClickOutside(event: MouseEvent) {
+            if (shareRef.current && !shareRef.current.contains(event.target as Node)) {
+                setShareOpen(false);
+            }
+        }
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
 
     const handleSave = async () => {
         if (!user) return router.push('/auth/login');
@@ -90,6 +139,188 @@ export default function ResourceDetailPage() {
             console.error('Error deleting resource:', error);
             setDeleting(false);
         }
+    };
+
+    const handleCopyLink = (e?: React.MouseEvent) => {
+        if (e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+        const url = window.location.href;
+        navigator.clipboard.writeText(url).then(() => {
+            setCopyStatus('Copied! ✅');
+            setTimeout(() => {
+                setCopyStatus('Copy Link');
+                setShareOpen(false);
+            }, 2000);
+        }).catch(err => {
+            console.error('Could not copy text: ', err);
+            setCopyStatus('Error ❌');
+        });
+    };
+
+    const handleShareTwitter = () => {
+        const url = encodeURIComponent(window.location.href);
+        const text = encodeURIComponent(`Check out this resource: ${resource?.title}`);
+        window.open(`https://twitter.com/intent/tweet?url=${url}&text=${text}`, '_blank');
+        setShareOpen(false);
+    };
+
+    const handleShareLinkedIn = () => {
+        const url = encodeURIComponent(window.location.href);
+        window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${url}`, '_blank');
+        setShareOpen(false);
+    };
+
+    const handleShareEmail = () => {
+        const subject = encodeURIComponent(`Resource: ${resource?.title}`);
+        const body = encodeURIComponent(`Check out this resource on PromptResources: ${window.location.href}`);
+        window.location.href = `mailto:?subject=${subject}&body=${body}`;
+        setShareOpen(false);
+    };
+
+    const handleSaveNote = async () => {
+        if (!user || !resource) return;
+        setIsSavingNote(true);
+        setNoteMessage({ type: '', text: '' });
+        try {
+            const response = await fetch(`/api/user-notes/${resourceId}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ uid: user.uid, content: noteContent }),
+            });
+            const result = await response.json();
+            if (result.success) {
+                setInitialNoteContent(noteContent);
+                setNoteMessage({ type: 'success', text: 'Note saved successfully!' });
+                setTimeout(() => setIsNoteModalOpen(false), 1500);
+            } else {
+                setNoteMessage({ type: 'error', text: result.error || 'Failed to save note.' });
+            }
+        } catch (error) {
+            console.error('Error saving note:', error);
+            setNoteMessage({ type: 'error', text: 'An unexpected error occurred.' });
+        } finally {
+            setIsSavingNote(false);
+        }
+    };
+
+    const insertMarkdown = (prefix: string, suffix: string = '') => {
+        if (!noteTextareaRef.current) return;
+        const textarea = noteTextareaRef.current;
+        const start = textarea.selectionStart;
+        const end = textarea.selectionEnd;
+        const text = textarea.value;
+        const selectedText = text.substring(start, end);
+        const newText = text.substring(0, start) + prefix + selectedText + suffix + text.substring(end);
+        setNoteContent(newText);
+
+        // Focus back and set cursor pos
+        setTimeout(() => {
+            textarea.focus();
+            textarea.setSelectionRange(start + prefix.length, end + prefix.length);
+        }, 0);
+    };
+
+    const extractYouTubeLinks = async () => {
+        // Find YouTube link in content or resource URL
+        let videoId = resource?.youtubeVideoId;
+
+        if (!videoId && resource?.url) {
+            videoId = extractYouTubeId(resource.url) || undefined;
+        }
+
+        // Also check note content for youtube links if not found in resource
+        if (!videoId) {
+            const ytRegex = /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/v\/)([a-zA-Z0-9_-]{11})/;
+            const match = noteContent.match(ytRegex);
+            if (match) {
+                videoId = match[1];
+            }
+        }
+
+        if (!videoId) {
+            alert('No YouTube video found in this resource or note.');
+            return;
+        }
+
+        setIsExtracting(true);
+        try {
+            const response = await fetch(`/api/youtube/extract?videoId=${videoId}`);
+            const result = await response.json();
+
+            if (result.success && result.data.links.length > 0) {
+                setExtractedLinks(result.data.links);
+                setSelectedLinks(new Set(result.data.links.map((l: any) => l.url))); // Select all by default
+                setIsLinkSelectionOpen(true);
+            } else {
+                alert('No links found in the video description.');
+            }
+        } catch (error) {
+            console.error('Error extracting links:', error);
+            alert('Failed to extract links. Please try again.');
+        } finally {
+            setIsExtracting(false);
+        }
+    };
+
+    const extractLinksFromUrl = async () => {
+        if (!extractUrl.trim()) {
+            alert('Please enter a URL.');
+            return;
+        }
+
+        // Validate URL
+        try {
+            new URL(extractUrl);
+        } catch {
+            alert('Please enter a valid URL (starting with http:// or https://).');
+            return;
+        }
+
+        setIsExtracting(true);
+        setIsUrlInputOpen(false);
+        try {
+            const response = await fetch(`/api/links/extract?url=${encodeURIComponent(extractUrl)}`);
+            const result = await response.json();
+
+            if (result.success && result.data.links.length > 0) {
+                setExtractedLinks(result.data.links);
+                setSelectedLinks(new Set(result.data.links.map((l: any) => l.url)));
+                setIsLinkSelectionOpen(true);
+            } else {
+                alert(result.error || 'No links found on that page.');
+            }
+        } catch (error) {
+            console.error('Error extracting links:', error);
+            alert('Failed to extract links. Please try again.');
+        } finally {
+            setIsExtracting(false);
+            setExtractUrl('');
+        }
+    };
+
+    const toggleLinkSelection = (link: string) => {
+        const newSelected = new Set(selectedLinks);
+        if (newSelected.has(link)) {
+            newSelected.delete(link);
+        } else {
+            newSelected.add(link);
+        }
+        setSelectedLinks(newSelected);
+    };
+
+    const insertSelectedLinks = () => {
+        if (selectedLinks.size === 0) return;
+
+        const linksText = extractedLinks
+            .filter(link => selectedLinks.has(link.url))
+            .map(link => `- [${link.title || 'Link'}](${link.url})`)
+            .join('\n');
+
+        insertMarkdown('\n' + linksText + '\n');
+        setIsLinkSelectionOpen(false);
+        setExtractedLinks([]);
     };
 
     if (loading) {
@@ -167,8 +398,22 @@ export default function ResourceDetailPage() {
                                 marginBottom: 'var(--space-6)',
                             }}>
                                 <div style={{ flex: 1 }}>
-                                    <h1 style={{ fontSize: 'var(--text-2xl)', marginBottom: 'var(--space-3)' }}>
+                                    <h1 style={{ fontSize: 'var(--text-2xl)', marginBottom: 'var(--space-3)', display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+                                        {resource.isFavorite && <span title="Featured Resource">⭐</span>}
                                         {resource.title}
+                                        {resource.rank && (
+                                            <span style={{
+                                                fontSize: 'var(--text-xs)',
+                                                background: 'var(--bg-card)',
+                                                padding: '2px 8px',
+                                                borderRadius: 'var(--radius-full)',
+                                                border: '1px solid var(--border-subtle)',
+                                                verticalAlign: 'middle',
+                                                marginLeft: 'var(--space-2)'
+                                            }}>
+                                                Rank #{resource.rank}
+                                            </span>
+                                        )}
                                     </h1>
                                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-2)' }}>
                                         <span className={`badge badge-${resource.pricing}`}>{resource.pricing}</span>
@@ -187,6 +432,72 @@ export default function ResourceDetailPage() {
                                             {isSaved ? '⭐ Saved' : '☆ Save'}
                                         </button>
                                     )}
+                                    {user && (
+                                        <button
+                                            className="btn btn-secondary"
+                                            onClick={() => setIsNoteModalOpen(true)}
+                                            id="open-notes"
+                                        >
+                                            {noteContent ? '📝 Edit Note' : '➕ Add Note'}
+                                        </button>
+                                    )}
+                                    <div style={{ position: 'relative' }} ref={shareRef}>
+                                        <button
+                                            className="btn btn-secondary"
+                                            onClick={() => setShareOpen(!shareOpen)}
+                                            id="share-resource"
+                                        >
+                                            📤 Share
+                                        </button>
+
+                                        {shareOpen && (
+                                            <div
+                                                className="glass-card"
+                                                style={{
+                                                    position: 'absolute',
+                                                    top: 'calc(100% + 10px)',
+                                                    right: 0,
+                                                    width: '200px',
+                                                    zIndex: 100,
+                                                    padding: 'var(--space-2)',
+                                                    display: 'flex',
+                                                    flexDirection: 'column',
+                                                    gap: 'var(--space-1)',
+                                                    boxShadow: 'var(--shadow-lg)',
+                                                    border: '1px solid var(--border-subtle)',
+                                                }}
+                                            >
+                                                <button
+                                                    className="user-menu-item"
+                                                    style={{ width: '100%', textAlign: 'left', border: 'none', background: 'transparent' }}
+                                                    onClick={handleCopyLink}
+                                                >
+                                                    {copyStatus === 'Copy Link' ? '🔗 ' + copyStatus : copyStatus}
+                                                </button>
+                                                <button
+                                                    className="user-menu-item"
+                                                    style={{ width: '100%', textAlign: 'left', border: 'none', background: 'transparent' }}
+                                                    onClick={handleShareTwitter}
+                                                >
+                                                    🐦 Share on X / Twitter
+                                                </button>
+                                                <button
+                                                    className="user-menu-item"
+                                                    style={{ width: '100%', textAlign: 'left', border: 'none', background: 'transparent' }}
+                                                    onClick={handleShareLinkedIn}
+                                                >
+                                                    💼 Share on LinkedIn
+                                                </button>
+                                                <button
+                                                    className="user-menu-item"
+                                                    style={{ width: '100%', textAlign: 'left', border: 'none', background: 'transparent' }}
+                                                    onClick={handleShareEmail}
+                                                >
+                                                    ✉️ Share via Email
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
                                     <a
                                         href={resource.url}
                                         target="_blank"
@@ -194,7 +505,7 @@ export default function ResourceDetailPage() {
                                         className="btn btn-primary"
                                         id="open-resource"
                                     >
-                                        🔗 Open Resource
+                                        🌐 Open Resource
                                     </a>
                                 </div>
                             </div>
@@ -350,7 +661,256 @@ export default function ResourceDetailPage() {
                     </div>
                 </div>
             </div>
+            {/* Note Editor Modal */}
+            <Modal
+                isOpen={isNoteModalOpen}
+                onClose={() => {
+                    if (noteContent !== initialNoteContent) {
+                        setIsUnsavedChangesModalOpen(true);
+                    } else {
+                        setIsNoteModalOpen(false);
+                        setNoteMessage({ type: '', text: '' });
+                    }
+                }}
+                title={`Notes for ${resource.title}`}
+                maxWidth="800px"
+                footer={
+                    <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center' }}>
+                        <div style={{ fontSize: 'var(--text-xs)', color: noteMessage.type === 'success' ? 'var(--success-500)' : 'var(--danger-500)' }}>
+                            {noteMessage.text}
+                        </div>
+                        <div style={{ display: 'flex', gap: 'var(--space-3)' }}>
+                            <button className="btn btn-secondary" onClick={() => setIsNoteModalOpen(false)}>
+                                Cancel
+                            </button>
+                            <button
+                                className="btn btn-primary"
+                                onClick={handleSaveNote}
+                                disabled={isSavingNote}
+                            >
+                                {isSavingNote ? 'Saving...' : '💾 Save Note'}
+                            </button>
+                        </div>
+                    </div>
+                }
+            >
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div className="markdown-toolbar" style={{ borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)' }}>
+                            <button className="toolbar-btn" onClick={() => insertMarkdown('**', '**')} title="Bold">B</button>
+                            <button className="toolbar-btn" onClick={() => insertMarkdown('*', '*')} title="Italic">I</button>
+                            <button className="toolbar-btn" onClick={() => insertMarkdown('### ')} title="Heading">H</button>
+                            <button className="toolbar-btn" onClick={() => insertMarkdown('[', '](url)')} title="Link">🔗</button>
+                            <button className="toolbar-btn" onClick={() => insertMarkdown('![alt text](', ')')} title="Image">🖼️</button>
+                            <button className="toolbar-btn" onClick={() => insertMarkdown('- ')} title="Bullet List">•</button>
+                            <button className="toolbar-btn" onClick={() => insertMarkdown('```\n', '\n```')} title="Code Block">{'<>'}</button>
+                            <button className="toolbar-btn" onClick={() => insertMarkdown('[PDF](', ')')} title="PDF Link">📄</button>
+                            <button
+                                className="toolbar-btn"
+                                onClick={extractYouTubeLinks}
+                                title="Extract Links from YouTube Description"
+                                disabled={isExtracting}
+                            >
+                                {isExtracting ? '⏳' : '📺'}
+                            </button>
+                            <button
+                                className="toolbar-btn"
+                                onClick={() => setIsUrlInputOpen(true)}
+                                title="Extract Links from any URL"
+                                disabled={isExtracting}
+                            >
+                                {isExtracting ? '⏳' : '🌐'}
+                            </button>
+                        </div>
+                        <button
+                            className="btn btn-secondary"
+                            style={{ padding: 'var(--space-1) var(--space-3)', fontSize: 'var(--text-xs)' }}
+                            onClick={() => setIsPreviewMode(!isPreviewMode)}
+                        >
+                            {isPreviewMode ? '✏️ Edit' : '👁️ Preview'}
+                        </button>
+                    </div>
+
+                    {!isPreviewMode ? (
+                        <textarea
+                            ref={noteTextareaRef}
+                            className="form-input"
+                            style={{
+                                width: '100%',
+                                minHeight: '300px',
+                                fontFamily: 'var(--font-mono)',
+                                lineHeight: '1.6',
+                                background: 'var(--bg-input)',
+                                resize: 'vertical'
+                            }}
+                            placeholder="Write your private notes here using Markdown..."
+                            value={noteContent}
+                            onChange={(e) => setNoteContent(e.target.value)}
+                        />
+                    ) : (
+                        <div
+                            className="glass-card prose"
+                            style={{
+                                minHeight: '300px',
+                                padding: 'var(--space-4)',
+                                overflowY: 'auto',
+                                background: 'var(--bg-elevated)',
+                                border: '1px solid var(--border-subtle)'
+                            }}
+                        >
+                            {noteContent ? (
+                                <ReactMarkdown
+                                    remarkPlugins={[remarkGfm]}
+                                    components={{
+                                        a: ({ node, ...props }) => <a {...props} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--primary-light)', textDecoration: 'underline' }} />
+                                    }}
+                                >
+                                    {noteContent}
+                                </ReactMarkdown>
+                            ) : (
+                                <div style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>No content to preview.</div>
+                            )}
+                        </div>
+                    )}
+
+                    <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
+                        Support for images, PDFs, and links via standard Markdown logic.
+                    </div>
+                </div>
+            </Modal>
+
+            {/* Link Selection Modal */}
+            <Modal
+                isOpen={isLinkSelectionOpen}
+                onClose={() => setIsLinkSelectionOpen(false)}
+                title="Select Links to Insert"
+                maxWidth="600px"
+                footer={
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 'var(--space-3)', width: '100%' }}>
+                        <button className="btn btn-secondary" onClick={() => setIsLinkSelectionOpen(false)}>
+                            Cancel
+                        </button>
+                        <button className="btn btn-primary" onClick={insertSelectedLinks}>
+                            Insert {selectedLinks.size} Links
+                        </button>
+                    </div>
+                }
+            >
+                <div style={{ maxHeight: '400px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+                    <div style={{ padding: 'var(--space-2)', borderBottom: '1px solid var(--border-subtle)', marginBottom: 'var(--space-2)' }}>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', cursor: 'pointer', fontWeight: 'bold' }}>
+                            <input
+                                type="checkbox"
+                                checked={selectedLinks.size === extractedLinks.length}
+                                onChange={(e) => {
+                                    if (e.target.checked) {
+                                        setSelectedLinks(new Set(extractedLinks.map(l => l.url)));
+                                    } else {
+                                        setSelectedLinks(new Set());
+                                    }
+                                }}
+                            />
+                            Select All
+                        </label>
+                    </div>
+                    {extractedLinks.map((link, index) => (
+                        <div key={index} className="card" style={{ padding: 'var(--space-2)', display: 'flex', alignItems: 'flex-start', gap: 'var(--space-3)' }}>
+                            <input
+                                type="checkbox"
+                                checked={selectedLinks.has(link.url)}
+                                onChange={() => toggleLinkSelection(link.url)}
+                                style={{ marginTop: '5px' }}
+                            />
+                            <div style={{ wordBreak: 'break-all', fontSize: 'var(--text-sm)' }}>
+                                <div style={{ fontWeight: 'bold' }}>{link.title}</div>
+                                <div style={{ color: 'var(--text-muted)', fontSize: 'var(--text-xs)' }}>{link.url}</div>
+                            </div>
+                        </div>
+                    ))}
+                    {extractedLinks.length === 0 && (
+                        <div style={{ padding: 'var(--space-4)', textAlign: 'center', color: 'var(--text-muted)' }}>
+                            No links found to extract.
+                        </div>
+                    )}
+                </div>
+            </Modal>
+            {/* Unsaved Changes Modal */}
+
+            {/* URL Input Modal */}
+            <Modal
+                isOpen={isUrlInputOpen}
+                onClose={() => { setIsUrlInputOpen(false); setExtractUrl(''); }}
+                title="Extract Links from URL"
+                maxWidth="500px"
+                footer={
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 'var(--space-3)', width: '100%' }}>
+                        <button className="btn btn-secondary" onClick={() => { setIsUrlInputOpen(false); setExtractUrl(''); }}>
+                            Cancel
+                        </button>
+                        <button
+                            className="btn btn-primary"
+                            onClick={extractLinksFromUrl}
+                            disabled={!extractUrl.trim()}
+                        >
+                            🔍 Extract Links
+                        </button>
+                    </div>
+                }
+            >
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+                    <p style={{ fontSize: 'var(--text-sm)', color: 'var(--text-muted)', margin: 0 }}>
+                        Enter a URL to extract all links from that page. You can then select which links to insert into your note.
+                    </p>
+                    <input
+                        type="url"
+                        className="form-input"
+                        placeholder="https://example.com/page-with-links"
+                        value={extractUrl}
+                        onChange={(e) => setExtractUrl(e.target.value)}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter' && extractUrl.trim()) {
+                                extractLinksFromUrl();
+                            }
+                        }}
+                        autoFocus
+                        style={{ width: '100%' }}
+                    />
+                </div>
+            </Modal>
+
+
+            <Modal
+                isOpen={isUnsavedChangesModalOpen}
+                onClose={() => setIsUnsavedChangesModalOpen(false)}
+                title="Unsaved Changes"
+                maxWidth="400px"
+                footer={
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 'var(--space-3)', width: '100%' }}>
+                        <button
+                            className="btn btn-secondary"
+                            onClick={() => setIsUnsavedChangesModalOpen(false)}
+                        >
+                            Keep Editing
+                        </button>
+                        <button
+                            className="btn btn-danger"
+                            onClick={() => {
+                                setIsUnsavedChangesModalOpen(false);
+                                setIsNoteModalOpen(false);
+                                setNoteContent(initialNoteContent);
+                                setNoteMessage({ type: '', text: '' });
+                            }}
+                        >
+                            Discard Changes
+                        </button>
+                    </div>
+                }
+            >
+                <div style={{ padding: 'var(--space-2)' }}>
+                    <p>You have unsaved changes in your note. Are you sure you want to discard them?</p>
+                </div>
+            </Modal>
             <Footer />
-        </div>
+        </div >
     );
 }

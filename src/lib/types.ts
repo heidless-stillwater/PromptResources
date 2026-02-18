@@ -43,6 +43,8 @@ export interface Resource {
     createdAt: Date;
     updatedAt: Date;
     status: ResourceStatus;
+    isFavorite?: boolean;
+    rank?: number;
 }
 
 export interface Category {

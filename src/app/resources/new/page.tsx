@@ -27,6 +27,8 @@ export default function NewResourcePage() {
     const [suggestedCategories, setSuggestedCategories] = useState<string[]>([]);
     const [credits, setCredits] = useState<Credit[]>([{ name: '', url: '' }]);
     const [suggestedCredits, setSuggestedCredits] = useState<Credit[]>([]);
+    const [isFavorite, setIsFavorite] = useState(false);
+    const [rank, setRank] = useState<number | ''>('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
 
@@ -37,6 +39,51 @@ export default function NewResourcePage() {
         if (url && isYouTubeUrl(url)) {
             setMediaFormat('youtube');
             setType('video');
+
+            // Fetch channel name via oEmbed
+            const fetchChannelName = async () => {
+                try {
+                    // Skip fetching for root YouTube URL as it should just be "Youtube"
+                    try {
+                        const urlObj = new URL(url);
+                        if (urlObj.pathname === '/' || urlObj.pathname === '') return;
+                    } catch (e) { }
+
+                    const oembedUrl = `https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`;
+                    const response = await fetch(oembedUrl);
+                    if (response.ok) {
+                        const data = await response.json();
+                        if (data.author_name) {
+                            const channelName = data.author_name;
+
+                            setSuggestedCredits(prev => {
+                                const newCreds = [...prev];
+                                const ytIdx = newCreds.findIndex(c => c.name === 'Youtube Creator' || c.name === 'Youtube');
+                                if (ytIdx >= 0) {
+                                    newCreds[ytIdx] = { ...newCreds[ytIdx], name: channelName };
+                                } else if (!newCreds.some(c => c.name === channelName)) {
+                                    newCreds.push({ name: channelName, url: url });
+                                }
+                                return newCreds;
+                            });
+
+                            setCredits(prev => {
+                                // If there's only one empty credit or it's a placeholder, fill it
+                                if (prev.length === 1 && (!prev[0].name || prev[0].name === 'Youtube Creator' || prev[0].name === 'Youtube')) {
+                                    return [{ name: channelName, url: url }];
+                                }
+                                // Otherwise update placeholders
+                                return prev.map(c =>
+                                    (c.name === 'Youtube Creator' || c.name === 'Youtube') ? { ...c, name: channelName } : c
+                                );
+                            });
+                        }
+                    }
+                } catch (err) {
+                    console.error('Error fetching YouTube channel name:', err);
+                }
+            };
+            fetchChannelName();
         }
     }, [url]);
 
@@ -119,6 +166,8 @@ export default function NewResourcePage() {
                     tags: tags.split(',').map((t) => t.trim()).filter(Boolean),
                     addedBy: user?.uid || 'unknown',
                     status: 'published',
+                    isFavorite,
+                    rank: rank === '' ? null : Number(rank),
                 }),
             });
 
@@ -355,6 +404,30 @@ export default function NewResourcePage() {
                                     onChange={(e) => setTags(e.target.value)}
                                     placeholder="prompt, AI, tutorial, beginner"
                                 />
+                            </div>
+
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-4)', marginTop: 'var(--space-4)' }}>
+                                <div className="form-group" style={{ marginBottom: 0 }}>
+                                    <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', cursor: 'pointer' }}>
+                                        <input
+                                            type="checkbox"
+                                            checked={isFavorite}
+                                            onChange={(e) => setIsFavorite(e.target.checked)}
+                                            style={{ width: '18px', height: '18px' }}
+                                        />
+                                        ⭐ Favorite / Featured
+                                    </label>
+                                </div>
+                                <div className="form-group" style={{ marginBottom: 0 }}>
+                                    <label className="form-label">Rank (Priority)</label>
+                                    <input
+                                        type="number"
+                                        className="form-input"
+                                        value={rank}
+                                        onChange={(e) => setRank(e.target.value === '' ? '' : Number(e.target.value))}
+                                        placeholder="e.g. 1 (Top priority)"
+                                    />
+                                </div>
                             </div>
                         </div>
 

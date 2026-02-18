@@ -6,12 +6,24 @@ import Footer from '@/components/Footer';
 import { useAuth } from '@/contexts/AuthContext';
 import { db } from '@/lib/firebase';
 import { doc, updateDoc } from 'firebase/firestore';
+import { storage } from '@/lib/firebase';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
 export default function SettingsPage() {
     const { user, profile, loading: authLoading } = useAuth();
     const [displayName, setDisplayName] = useState(profile?.displayName || '');
+    const [photoURL, setPhotoURL] = useState(profile?.photoURL || '');
+    const [uploading, setUploading] = useState(false);
     const [saving, setSaving] = useState(false);
     const [message, setMessage] = useState({ type: '', text: '' });
+
+    // Update state when profile loads
+    React.useEffect(() => {
+        if (profile) {
+            setDisplayName(profile.displayName || '');
+            setPhotoURL(profile.photoURL || '');
+        }
+    }, [profile]);
 
     if (authLoading || !user) {
         return (
@@ -33,6 +45,7 @@ export default function SettingsPage() {
             const userRef = doc(db, 'users', user.uid);
             await updateDoc(userRef, {
                 displayName,
+                photoURL,
                 updatedAt: new Date(),
             });
             setMessage({ type: 'success', text: 'Profile updated successfully!' });
@@ -41,6 +54,39 @@ export default function SettingsPage() {
             setMessage({ type: 'error', text: 'Failed to update profile.' });
         } finally {
             setSaving(false);
+        }
+    };
+
+    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file || !user) return;
+
+        // Basic validation
+        if (!file.type.startsWith('image/')) {
+            setMessage({ type: 'error', text: 'Please upload an image file.' });
+            return;
+        }
+
+        if (file.size > 2 * 1024 * 1024) { // 2MB limit
+            setMessage({ type: 'error', text: 'Image size should be less than 2MB.' });
+            return;
+        }
+
+        setUploading(true);
+        setMessage({ type: '', text: '' });
+
+        try {
+            const storageRef = ref(storage, `avatars/${user.uid}/${Date.now()}_${file.name}`);
+            const snapshot = await uploadBytes(storageRef, file);
+            const downloadURL = await getDownloadURL(snapshot.ref);
+
+            setPhotoURL(downloadURL);
+            setMessage({ type: 'success', text: 'Image uploaded! Remember to save changes.' });
+        } catch (error) {
+            console.error('Error uploading file:', error);
+            setMessage({ type: 'error', text: 'Failed to upload image.' });
+        } finally {
+            setUploading(false);
         }
     };
 
@@ -101,6 +147,62 @@ export default function SettingsPage() {
                                     onChange={(e) => setDisplayName(e.target.value)}
                                     placeholder="Your Name"
                                 />
+                            </div>
+
+                            <div className="form-group">
+                                <label className="form-label">Avatar URL</label>
+                                <div style={{ display: 'flex', gap: 'var(--space-4)', alignItems: 'center' }}>
+                                    <div className="avatar" style={{
+                                        width: '64px',
+                                        height: '64px',
+                                        fontSize: '1.5rem',
+                                        flexShrink: 0
+                                    }}>
+                                        {photoURL ? (
+                                            <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+                                                <img
+                                                    src={photoURL}
+                                                    alt="Avatar Preview"
+                                                    style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }}
+                                                    onError={(e) => {
+                                                        (e.target as HTMLImageElement).style.display = 'none';
+                                                        (e.target as HTMLImageElement).parentElement!.parentElement!.innerHTML = (displayName?.[0] || 'U').toUpperCase();
+                                                    }}
+                                                />
+                                            </div>
+                                        ) : (
+                                            (displayName?.[0] || 'U').toUpperCase()
+                                        )}
+                                    </div>
+                                    <div style={{ flex: 1 }}>
+                                        <input
+                                            type="text"
+                                            className="form-input"
+                                            value={photoURL}
+                                            onChange={(e) => setPhotoURL(e.target.value)}
+                                            placeholder="https://example.com/avatar.jpg"
+                                        />
+                                        <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginTop: 'var(--space-1)' }}>
+                                            Link to an image (URL) or upload a file
+                                        </div>
+                                        <div style={{ marginTop: 'var(--space-3)' }}>
+                                            <input
+                                                type="file"
+                                                accept="image/*"
+                                                onChange={handleFileUpload}
+                                                style={{ display: 'none' }}
+                                                id="avatar-upload"
+                                            />
+                                            <label
+                                                htmlFor="avatar-upload"
+                                                className={`btn btn-secondary btn-sm ${uploading ? 'disabled' : ''}`}
+                                                style={{ cursor: uploading ? 'not-allowed' : 'pointer' }}
+                                            >
+                                                {uploading ? '⬆️ Uploading...' : '📁 Upload New Image'}
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
 
                             <button

@@ -69,6 +69,41 @@ export default function DashboardPage() {
         if (user) fetchDashboardData();
     }, [user]);
 
+    const handleUnsave = async (e: React.MouseEvent, resourceId: string) => {
+        e.preventDefault();
+        e.stopPropagation();
+
+        if (!user) return;
+
+        try {
+            const response = await fetch('/api/user-resources', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    uid: user.uid,
+                    resourceId,
+                    action: 'unsave'
+                }),
+            });
+
+            const result = await response.json();
+            if (result.success) {
+                // Remove from local state
+                setSavedResources(savedResources.filter(r => r.id !== resourceId));
+                if (userResData) {
+                    setUserResData({
+                        ...userResData,
+                        savedResources: userResData.savedResources.filter(id => id !== resourceId)
+                    });
+                }
+            }
+        } catch (error) {
+            console.error('Error unsaving resource:', error);
+        }
+    };
+
     if (authLoading || !user) {
         return (
             <div className="page-wrapper">
@@ -101,13 +136,28 @@ export default function DashboardPage() {
                         justifyContent: 'space-between',
                         alignItems: 'center',
                     }}>
-                        <div>
-                            <h1 style={{ marginBottom: 'var(--space-2)' }}>
-                                Welcome, {profile?.displayName || 'User'} 👋
-                            </h1>
-                            <p style={{ color: 'var(--text-muted)' }}>
-                                Here&apos;s your learning progress overview
-                            </p>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-4)' }}>
+                            <div className="avatar" style={{ width: '64px', height: '64px', fontSize: '1.5rem' }}>
+                                {profile?.photoURL ? (
+                                    <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+                                        <img
+                                            src={profile.photoURL}
+                                            alt={profile.displayName}
+                                            style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }}
+                                        />
+                                    </div>
+                                ) : (
+                                    (profile?.displayName?.[0] || user.email?.[0] || 'U').toUpperCase()
+                                )}
+                            </div>
+                            <div>
+                                <h1 style={{ marginBottom: 'var(--space-2)' }}>
+                                    Welcome, {profile?.displayName || 'User'} 👋
+                                </h1>
+                                <p style={{ color: 'var(--text-muted)' }}>
+                                    Here&apos;s your learning progress overview
+                                </p>
+                            </div>
                         </div>
                         <div style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'center' }}>
                             <span className={`badge badge-${profile?.subscriptionType === 'pro' ? 'accent' : profile?.subscriptionType === 'standard' ? 'primary' : 'success'}`}>
@@ -268,6 +318,14 @@ export default function DashboardPage() {
                                                 <span>{resource.platform}</span>
                                             </div>
                                         </div>
+                                        <button
+                                            className="btn btn-ghost btn-sm"
+                                            onClick={(e) => handleUnsave(e, resource.id)}
+                                            style={{ color: 'var(--text-muted)' }}
+                                            title="Remove from saved"
+                                        >
+                                            ✕
+                                        </button>
                                         <span style={{ color: 'var(--text-muted)', fontSize: 'var(--text-sm)' }}>→</span>
                                     </Link>
                                 ))}

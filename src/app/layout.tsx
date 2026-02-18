@@ -8,6 +8,8 @@ export const metadata: Metadata = {
     keywords: 'AI prompts, prompt engineering, Gemini, NanoBanana, ChatGPT, Claude, Midjourney, AI education',
 };
 
+import { Agentation } from 'agentation';
+
 export default function RootLayout({
     children,
 }: {
@@ -19,6 +21,7 @@ export default function RootLayout({
                 <AuthProvider>
                     {children}
                 </AuthProvider>
+                {process.env.NODE_ENV === 'development' && <Agentation />}
             </body>
         </html>
     );

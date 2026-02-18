@@ -9,6 +9,10 @@ module.exports = {
                 protocol: 'https',
                 hostname: 'img.youtube.com',
             },
+            {
+                protocol: 'https',
+                hostname: 'firebasestorage.googleapis.com',
+            },
         ],
     },
 };

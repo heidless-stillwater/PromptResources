@@ -28,6 +28,8 @@ export default function EditResourcePage() {
     const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
     const [credits, setCredits] = useState<Credit[]>([{ name: '', url: '' }]);
     const [status, setStatus] = useState<'published' | 'draft'>('published');
+    const [isFavorite, setIsFavorite] = useState(false);
+    const [rank, setRank] = useState<number | ''>('');
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState('');
@@ -54,6 +56,8 @@ export default function EditResourcePage() {
                     setSelectedCategories(data.categories || []);
                     setCredits(data.credits?.length > 0 ? data.credits : [{ name: '', url: '' }]);
                     setStatus(data.status || 'published');
+                    setIsFavorite(data.isFavorite || false);
+                    setRank(data.rank ?? '');
                 } else {
                     console.error('API Error:', result.error);
                 }
@@ -65,6 +69,38 @@ export default function EditResourcePage() {
         }
         fetchResource();
     }, [resourceId]);
+
+    // Auto-detect YouTube and fetch channel name
+    useEffect(() => {
+        if (url && isYouTubeUrl(url)) {
+            const fetchChannelName = async () => {
+                try {
+                    // Skip fetching for root YouTube URL
+                    try {
+                        const urlObj = new URL(url);
+                        if (urlObj.pathname === '/' || urlObj.pathname === '') return;
+                    } catch (e) { }
+
+                    const oembedUrl = `https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`;
+                    const response = await fetch(oembedUrl);
+                    if (response.ok) {
+                        const data = await response.json();
+                        if (data.author_name) {
+                            const channelName = data.author_name;
+                            setCredits(prev => prev.map(c =>
+                                (c.name === 'Youtube Creator' || c.name === 'Youtube' || !c.name) && (c.url === url || !c.url)
+                                    ? { ...c, name: channelName, url: url }
+                                    : c
+                            ));
+                        }
+                    }
+                } catch (err) {
+                    console.error('Error fetching YouTube channel name:', err);
+                }
+            };
+            fetchChannelName();
+        }
+    }, [url]);
 
     const addCategory = (cat: string) => {
         if (!selectedCategories.includes(cat)) {
@@ -117,6 +153,8 @@ export default function EditResourcePage() {
                     youtubeVideoId: youtubeVideoId || null,
                     tags: tags.split(',').map((t) => t.trim()).filter(Boolean),
                     status,
+                    isFavorite,
+                    rank: rank === '' ? null : Number(rank),
                 }),
             });
 
@@ -318,6 +356,30 @@ export default function EditResourcePage() {
                                     </button>
                                 </div>
                                 <input type="text" className="form-input" value={tags} onChange={(e) => setTags(e.target.value)} />
+                            </div>
+
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-4)', marginTop: 'var(--space-4)' }}>
+                                <div className="form-group" style={{ marginBottom: 0 }}>
+                                    <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', cursor: 'pointer' }}>
+                                        <input
+                                            type="checkbox"
+                                            checked={isFavorite}
+                                            onChange={(e) => setIsFavorite(e.target.checked)}
+                                            style={{ width: '18px', height: '18px' }}
+                                        />
+                                        ⭐ Favorite / Featured
+                                    </label>
+                                </div>
+                                <div className="form-group" style={{ marginBottom: 0 }}>
+                                    <label className="form-label">Rank (Priority)</label>
+                                    <input
+                                        type="number"
+                                        className="form-input"
+                                        value={rank}
+                                        onChange={(e) => setRank(e.target.value === '' ? '' : Number(e.target.value))}
+                                        placeholder="e.g. 1 (Top priority)"
+                                    />
+                                </div>
                             </div>
                         </div>
 
