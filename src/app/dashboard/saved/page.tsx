@@ -107,7 +107,7 @@ export default function SavedResourcesPage() {
                                                 </div>
                                             )}
                                             <div className="resource-type-badge">
-                                                {resource.type.toUpperCase()}
+                                                {resource.type?.toUpperCase() || 'RESOURCE'}
                                             </div>
                                         </div>
                                         <div className="resource-content">

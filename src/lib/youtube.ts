@@ -47,3 +47,24 @@ export function getYouTubeEmbedUrl(videoId: string): string {
 export function isYouTubeUrl(url: string): boolean {
     return /(?:youtube\.com|youtu\.be)/.test(url);
 }
+
+/**
+ * Fetch YouTube video metadata via server-side proxy
+ */
+export async function fetchYouTubeMetadata(url: string) {
+    if (!isYouTubeUrl(url)) return null;
+
+    try {
+        const urlObj = new URL(url);
+        if (urlObj.pathname === '/' || urlObj.pathname === '') return null;
+
+        const response = await fetch(`/api/youtube/metadata?url=${encodeURIComponent(url)}`);
+        if (!response.ok) return null;
+
+        const result = await response.json();
+        return result.success ? result.data : null;
+    } catch (err) {
+        console.error('Error fetching YouTube metadata:', err);
+        return null;
+    }
+}

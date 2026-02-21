@@ -8,7 +8,7 @@ import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { useAuth } from '@/contexts/AuthContext';
 import { Credit, Platform, ResourcePricing, ResourceType, MediaFormat } from '@/lib/types';
 import { suggestCategories, suggestCredits, getDefaultCategories, suggestDescription, suggestTags } from '@/lib/suggestions';
-import { extractYouTubeId, isYouTubeUrl } from '@/lib/youtube';
+import { extractYouTubeId, isYouTubeUrl, fetchYouTubeMetadata } from '@/lib/youtube';
 
 export default function NewResourcePage() {
     const { user, isAdmin } = useAuth();
@@ -27,6 +27,7 @@ export default function NewResourcePage() {
     const [suggestedCategories, setSuggestedCategories] = useState<string[]>([]);
     const [credits, setCredits] = useState<Credit[]>([{ name: '', url: '' }]);
     const [suggestedCredits, setSuggestedCredits] = useState<Credit[]>([]);
+    const [ytMetadata, setYtMetadata] = useState<any>(null);
     const [isFavorite, setIsFavorite] = useState(false);
     const [rank, setRank] = useState<number | ''>('');
     const [loading, setLoading] = useState(false);
@@ -41,49 +42,36 @@ export default function NewResourcePage() {
             setType('video');
 
             // Fetch channel name via oEmbed
-            const fetchChannelName = async () => {
-                try {
-                    // Skip fetching for root YouTube URL as it should just be "Youtube"
-                    try {
-                        const urlObj = new URL(url);
-                        if (urlObj.pathname === '/' || urlObj.pathname === '') return;
-                    } catch (e) { }
+            const fetchYouTubeData = async () => {
+                const data = await fetchYouTubeMetadata(url);
+                if (data && data.author_name) {
+                    const channelName = data.author_name;
+                    setYtMetadata(data);
 
-                    const oembedUrl = `https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`;
-                    const response = await fetch(oembedUrl);
-                    if (response.ok) {
-                        const data = await response.json();
-                        if (data.author_name) {
-                            const channelName = data.author_name;
-
-                            setSuggestedCredits(prev => {
-                                const newCreds = [...prev];
-                                const ytIdx = newCreds.findIndex(c => c.name === 'Youtube Creator' || c.name === 'Youtube');
-                                if (ytIdx >= 0) {
-                                    newCreds[ytIdx] = { ...newCreds[ytIdx], name: channelName };
-                                } else if (!newCreds.some(c => c.name === channelName)) {
-                                    newCreds.push({ name: channelName, url: url });
-                                }
-                                return newCreds;
-                            });
-
-                            setCredits(prev => {
-                                // If there's only one empty credit or it's a placeholder, fill it
-                                if (prev.length === 1 && (!prev[0].name || prev[0].name === 'Youtube Creator' || prev[0].name === 'Youtube')) {
-                                    return [{ name: channelName, url: url }];
-                                }
-                                // Otherwise update placeholders
-                                return prev.map(c =>
-                                    (c.name === 'Youtube Creator' || c.name === 'Youtube') ? { ...c, name: channelName } : c
-                                );
-                            });
+                    setSuggestedCredits(prev => {
+                        const newCreds = [...prev];
+                        const ytIdx = newCreds.findIndex(c => c.name === 'Youtube');
+                        if (ytIdx >= 0) {
+                            newCreds[ytIdx] = { ...newCreds[ytIdx], name: channelName };
+                        } else if (!newCreds.some(c => c.name === channelName)) {
+                            newCreds.push({ name: channelName, url: url });
                         }
-                    }
-                } catch (err) {
-                    console.error('Error fetching YouTube channel name:', err);
+                        return newCreds;
+                    });
+
+                    setCredits(prev => {
+                        if (prev.length === 1 && (!prev[0].name || prev[0].name === 'Youtube')) {
+                            return [{ name: channelName, url: url }];
+                        }
+                        return prev.map(c =>
+                            (c.name === 'Youtube') ? { ...c, name: channelName } : c
+                        );
+                    });
                 }
             };
-            fetchChannelName();
+            fetchYouTubeData();
+        } else {
+            setYtMetadata(null);
         }
     }, [url]);
 
@@ -91,10 +79,10 @@ export default function NewResourcePage() {
         if (title || url) {
             const cats = suggestCategories(title, description, url);
             setSuggestedCategories(cats);
-            const creds = suggestCredits(url, title);
+            const creds = suggestCredits(url, title, { authorName: ytMetadata?.author_name });
             setSuggestedCredits(creds);
         }
-    }, [title, description, url]);
+    }, [title, description, url, ytMetadata]);
 
     const addCategory = (cat: string) => {
         if (!selectedCategories.includes(cat)) {
@@ -236,7 +224,7 @@ export default function NewResourcePage() {
                                     onClick={() => {
                                         const cats = suggestCategories(title, description, url);
                                         setSelectedCategories(Array.from(new Set([...selectedCategories, ...cats])));
-                                        const creds = suggestCredits(url, title);
+                                        const creds = suggestCredits(url, title, { authorName: ytMetadata?.author_name });
                                         if (creds.length > 0) setCredits(creds);
                                         if (!description) {
                                             const desc = suggestDescription(title);
@@ -542,7 +530,7 @@ export default function NewResourcePage() {
                                     type="button"
                                     className="btn btn-secondary btn-sm"
                                     onClick={() => {
-                                        const creds = suggestCredits(url, title);
+                                        const creds = suggestCredits(url, title, { authorName: ytMetadata?.author_name });
                                         if (creds.length > 0) setCredits(creds);
                                     }}
                                     id="ai-suggest-credits"

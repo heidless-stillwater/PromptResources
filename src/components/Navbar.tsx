@@ -96,7 +96,7 @@ export default function Navbar() {
                                         <div className="user-menu-name">{profile?.displayName || 'User'}</div>
                                         <div className="user-menu-email">{user.email}</div>
                                         <span className={`badge badge-primary user-menu-role`}>
-                                            {activeRole.toUpperCase()}
+                                            {activeRole?.toUpperCase() || 'MEMBER'}
                                         </span>
                                     </div>
                                     <Link href="/dashboard" className="user-menu-item" onClick={() => setMenuOpen(false)} id="menu-dashboard">

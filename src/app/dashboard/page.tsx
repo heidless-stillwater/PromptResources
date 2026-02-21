@@ -164,7 +164,7 @@ export default function DashboardPage() {
                                 {profile?.subscriptionType?.toUpperCase() || 'FREE'} Plan
                             </span>
                             <span className="badge badge-primary">
-                                {activeRole.toUpperCase()}
+                                {activeRole?.toUpperCase() || 'MEMBER'}
                             </span>
                         </div>
                     </div>
@@ -354,7 +354,7 @@ export default function DashboardPage() {
                             </div>
                             <div>
                                 <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginBottom: 'var(--space-1)' }}>Role</div>
-                                <div style={{ fontSize: 'var(--text-sm)', fontWeight: 500 }}>{profile?.role?.toUpperCase()}</div>
+                                <div style={{ fontSize: 'var(--text-sm)', fontWeight: 500 }}>{profile?.role?.toUpperCase() || 'MEMBER'}</div>
                             </div>
                             <div>
                                 <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginBottom: 'var(--space-1)' }}>Subscription</div>

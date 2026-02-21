@@ -51,7 +51,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 email: data.email,
                 displayName: data.displayName,
                 photoURL: data.photoURL,
-                role: data.role,
+                role: data.role || 'member',
                 subscriptionType: data.subscriptionType || 'free',
                 createdAt: data.createdAt?.toDate() || new Date(),
                 updatedAt: data.updatedAt?.toDate() || new Date(),

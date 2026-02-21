@@ -82,8 +82,17 @@ export function suggestCategories(title: string, description: string = '', url: 
 /**
  * Suggest credits based on URL and title
  */
-export function suggestCredits(url: string, title: string = ''): Credit[] {
+export function suggestCredits(url: string, title: string = '', metadata?: { authorName?: string }): Credit[] {
     const credits: Credit[] = [];
+
+    // Prioritize metadata if provided
+    if (metadata?.authorName) {
+        credits.push({
+            name: metadata.authorName,
+            url: url,
+        });
+        return credits;
+    }
 
     // Check URL domain against known providers
     try {
@@ -92,20 +101,8 @@ export function suggestCredits(url: string, title: string = ''): Credit[] {
 
         for (const [providerDomain, provider] of Object.entries(KNOWN_PROVIDERS)) {
             if (domain.includes(providerDomain)) {
-                credits.push(provider);
+                credits.push({ ...provider });
                 break;
-            }
-        }
-
-        // For Youtube, try to extract channel info from URL
-        if (domain.includes('youtube.com') || domain.includes('youtu.be')) {
-            const isRoot = urlObj.pathname === '/' || urlObj.pathname === '';
-            if (!isRoot) {
-                // Add a placeholder for Youtube channel
-                credits.push({
-                    name: 'Youtube Creator',
-                    url: url,
-                });
             }
         }
     } catch {
@@ -117,10 +114,18 @@ export function suggestCredits(url: string, title: string = ''): Credit[] {
         const titleLower = title.toLowerCase();
         for (const [, provider] of Object.entries(KNOWN_PROVIDERS)) {
             if (titleLower.includes(provider.name.toLowerCase())) {
-                credits.push(provider);
+                credits.push({ ...provider });
             }
         }
     }
+
+    // Defensive cleanup: Never return "Youtube Creator"
+    credits.forEach(c => {
+        if (c.name === 'Youtube Creator') {
+            console.warn('[AI Suggest] Intercepted legacy "Youtube Creator" string. Correcting to "Youtube".');
+            c.name = 'Youtube';
+        }
+    });
 
     return credits;
 }
