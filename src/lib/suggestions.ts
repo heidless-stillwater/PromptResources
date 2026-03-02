@@ -109,6 +109,21 @@ export function suggestCredits(url: string, title: string = '', metadata?: { aut
         // Invalid URL, skip domain checking
     }
 
+    // If no credits found or only generic YouTube found, try authorName
+    if (metadata?.authorName) {
+        // Replace generic YouTube entries with the specific author name
+        const ytGenIdx = credits.findIndex(c => c.name === 'Youtube' || c.name === 'Youtube Creator' || c.name === 'YouTube');
+        if (ytGenIdx >= 0) {
+            credits[ytGenIdx] = { name: metadata.authorName, url: url };
+        } else if (credits.length === 0) {
+            credits.push({
+                name: metadata.authorName,
+                url: url,
+            });
+        }
+        return credits;
+    }
+
     // If no credits found, suggest based on title keywords
     if (credits.length === 0 && title) {
         const titleLower = title.toLowerCase();
@@ -119,10 +134,9 @@ export function suggestCredits(url: string, title: string = '', metadata?: { aut
         }
     }
 
-    // Defensive cleanup: Never return "Youtube Creator"
+    // Defensive cleanup: Never return "Youtube Creator" or generic "Youtube" if we have better info
     credits.forEach(c => {
-        if (c.name === 'Youtube Creator') {
-            console.warn('[AI Suggest] Intercepted legacy "Youtube Creator" string. Correcting to "Youtube".');
+        if (c.name === 'Youtube Creator' || c.name === 'YouTube') {
             c.name = 'Youtube';
         }
     });

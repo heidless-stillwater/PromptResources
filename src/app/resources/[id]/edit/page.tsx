@@ -81,7 +81,7 @@ export default function EditResourcePage() {
                     setYtMetadata(data);
 
                     setCredits(prev => prev.map(c =>
-                        (c.name === 'Youtube' || !c.name) && (c.url === url || !c.url)
+                        (c.name === 'Youtube' || c.name === 'Youtube Creator' || c.name === 'YouTube' || !c.name) && (c.url === url || !c.url)
                             ? { ...c, name: channelName, url: url }
                             : c
                     ));

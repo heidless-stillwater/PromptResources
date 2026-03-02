@@ -179,6 +179,9 @@ export default function AdminPage() {
                                             onClick={() => setActiveTab('resources')}>
                                             📚 Manage Resources
                                         </Link>
+                                        <Link href="/admin/audit/youtube" className="btn btn-secondary" style={{ justifyContent: 'flex-start' }}>
+                                            📺 YouTube Audit Tool
+                                        </Link>
                                     </div>
                                 </div>
                             </div>

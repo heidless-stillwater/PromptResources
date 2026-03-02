@@ -60,11 +60,11 @@ export default function NewResourcePage() {
                     });
 
                     setCredits(prev => {
-                        if (prev.length === 1 && (!prev[0].name || prev[0].name === 'Youtube')) {
+                        if (prev.length === 1 && (!prev[0].name || prev[0].name === 'Youtube' || prev[0].name === 'Youtube Creator')) {
                             return [{ name: channelName, url: url }];
                         }
                         return prev.map(c =>
-                            (c.name === 'Youtube') ? { ...c, name: channelName } : c
+                            (c.name === 'Youtube' || c.name === 'Youtube Creator' || c.name === 'YouTube') ? { ...c, name: channelName } : c
                         );
                     });
                 }
