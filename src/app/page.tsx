@@ -8,6 +8,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { db } from '@/lib/firebase';
 import { collection, getDocs, query, limit, orderBy } from 'firebase/firestore';
 import { Resource } from '@/lib/types';
+import { isYouTubeUrl, isGenericYouTubeName, deduplicateCredits } from '@/lib/youtube';
+import { Credit } from '@/lib/types';
 
 export default function HomePage() {
     const { user } = useAuth();
@@ -237,7 +239,14 @@ export default function HomePage() {
                                     </div>
                                     <div className="resource-card-footer">
                                         <div className="resource-card-credits">
-                                            {resource.credits?.[0]?.name || 'Community'}
+                                            {(() => {
+                                                const uniqueCredits = deduplicateCredits(resource.credits || []);
+                                                const firstCredit = uniqueCredits?.[0];
+                                                if (firstCredit && isGenericYouTubeName(firstCredit.name) && resource.url && isYouTubeUrl(resource.url)) {
+                                                    return 'YouTube';
+                                                }
+                                                return firstCredit?.name || 'Community';
+                                            })()}
                                         </div>
                                         <span style={{
                                             fontSize: 'var(--text-xs)',

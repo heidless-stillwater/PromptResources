@@ -9,7 +9,7 @@ import { db } from '@/lib/firebase';
 import { doc, getDoc, deleteDoc, updateDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
 import { Resource } from '@/lib/types';
 import { useAuth } from '@/contexts/AuthContext';
-import { getYouTubeEmbedUrl, extractYouTubeId } from '@/lib/youtube';
+import { getYouTubeEmbedUrl, extractYouTubeId, isYouTubeUrl, isGenericYouTubeName, deduplicateCredits } from '@/lib/youtube';
 import Modal from '@/components/Modal';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -364,15 +364,28 @@ export default function ResourceDetailPage() {
                     {/* Breadcrumb */}
                     <div style={{
                         display: 'flex',
+                        justifyContent: 'space-between',
                         alignItems: 'center',
-                        gap: 'var(--space-2)',
-                        marginBottom: 'var(--space-6)',
-                        fontSize: 'var(--text-sm)',
-                        color: 'var(--text-muted)',
+                        marginBottom: 'var(--space-6)'
                     }}>
-                        <Link href="/resources" style={{ color: 'var(--text-muted)' }}>Resources</Link>
-                        <span>→</span>
-                        <span style={{ color: 'var(--text-secondary)' }}>{resource.title}</span>
+                        <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 'var(--space-2)',
+                            fontSize: 'var(--text-sm)',
+                            color: 'var(--text-muted)',
+                        }}>
+                            <Link href="/resources" style={{ color: 'var(--text-muted)' }}>Resources</Link>
+                            <span>→</span>
+                            <span style={{ color: 'var(--text-secondary)' }}>{resource.title}</span>
+                        </div>
+                        <button
+                            className="btn btn-secondary btn-sm"
+                            onClick={() => router.push('/resources')}
+                            style={{ padding: 'var(--space-1) var(--space-4)' }}
+                        >
+                            ← Back
+                        </button>
                     </div>
 
                     <div className="glass-card animate-slide-up" style={{ padding: 0, overflow: 'hidden' }}>
@@ -423,6 +436,13 @@ export default function ResourceDetailPage() {
                                     </div>
                                 </div>
                                 <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
+                                    <button
+                                        className="btn btn-secondary"
+                                        onClick={() => router.push('/resources')}
+                                        id="cancel-view"
+                                    >
+                                        ✕ Cancel
+                                    </button>
                                     {user && (
                                         <button
                                             className={`btn ${isSaved ? 'btn-primary' : 'btn-secondary'}`}
@@ -498,15 +518,23 @@ export default function ResourceDetailPage() {
                                             </div>
                                         )}
                                     </div>
-                                    <a
-                                        href={resource.url}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="btn btn-primary"
-                                        id="open-resource"
-                                    >
-                                        🌐 Open Resource
-                                    </a>
+                                    <div style={{ display: 'flex', gap: 'var(--space-3)' }}>
+                                        <button
+                                            className="btn btn-secondary"
+                                            onClick={() => router.push('/resources')}
+                                        >
+                                            ✕ Cancel
+                                        </button>
+                                        <a
+                                            href={resource.url}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="btn btn-primary"
+                                            id="open-resource"
+                                        >
+                                            🌐 Open Resource
+                                        </a>
+                                    </div>
                                 </div>
                             </div>
 
@@ -562,7 +590,11 @@ export default function ResourceDetailPage() {
                                         Credits & Attribution
                                     </h3>
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
-                                        {resource.credits.map((credit, idx) => (
+                                        {deduplicateCredits(resource.credits || []).map((c) => {
+                                            const isGeneric = isGenericYouTubeName(c.name) && resource.url && isYouTubeUrl(resource.url);
+                                            const name = isGeneric ? 'YouTube' : c.name;
+                                            return { ...c, name };
+                                        }).map((credit, idx) => (
                                             <a
                                                 key={idx}
                                                 href={credit.url}
@@ -647,6 +679,13 @@ export default function ResourceDetailPage() {
                                     <Link href={`/resources/${resource.id}/edit`} className="btn btn-secondary" id="edit-resource">
                                         ✏️ Edit
                                     </Link>
+                                    <button
+                                        className="btn btn-secondary"
+                                        onClick={() => router.push('/resources')}
+                                        id="cancel-admin-view"
+                                    >
+                                        ✕ Cancel
+                                    </button>
                                     <button
                                         className="btn btn-danger"
                                         onClick={handleDelete}

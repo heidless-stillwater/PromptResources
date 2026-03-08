@@ -8,6 +8,6 @@
 
 ## Ongoing Tasks
 - [x] Fix dashboard runtime error (toUpperCase on undefined)
-- [x] Deploy to live (promptresources-v0.web.app)
+- [x] Deploy to live (https://promptresources-v0.web.app)
 - [ ] Enhance Search indexing
 - [ ] Implement user voting on resources

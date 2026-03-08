@@ -7,7 +7,7 @@ import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import { useAuth } from '@/contexts/AuthContext';
 import { Resource, Credit } from '@/lib/types';
-import { isYouTubeUrl, fetchYouTubeMetadata } from '@/lib/youtube';
+import { isYouTubeUrl, fetchYouTubeMetadata, isGenericYouTubeName } from '@/lib/youtube';
 
 interface AuditItem {
     resource: Resource;
@@ -42,12 +42,7 @@ export default function YouTubeAuditPage() {
                     const ytResources = allResources.filter(r => isYouTubeUrl(r.url));
 
                     const items: AuditItem[] = ytResources.map(r => {
-                        const ytCredit = r.credits?.find(c =>
-                            c.name === 'Youtube' ||
-                            c.name === 'Youtube Creator' ||
-                            c.name === 'YouTube' ||
-                            !c.name
-                        );
+                        const ytCredit = r.credits?.find(c => isGenericYouTubeName(c.name));
 
                         return {
                             resource: r,
@@ -111,7 +106,7 @@ export default function YouTubeAuditPage() {
 
         try {
             const updatedCredits = item.resource.credits.map(c => {
-                if (c.name === 'Youtube' || c.name === 'Youtube Creator' || c.name === 'YouTube' || !c.name) {
+                if (isGenericYouTubeName(c.name)) {
                     return { ...c, name: item.suggestedName! };
                 }
                 return c;
@@ -224,7 +219,7 @@ export default function YouTubeAuditPage() {
                                                 </div>
                                             </td>
                                             <td>
-                                                <span className={`badge ${item.currentName === 'Youtube' || item.currentName === 'Youtube Creator' ? 'badge-accent' : ''}`}>
+                                                <span className={`badge ${isGenericYouTubeName(item.currentName) ? 'badge-accent' : ''}`}>
                                                     {item.currentName}
                                                 </span>
                                             </td>

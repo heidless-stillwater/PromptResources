@@ -49,7 +49,35 @@ export function isYouTubeUrl(url: string): boolean {
 }
 
 /**
- * Fetch YouTube video metadata via server-side proxy
+ * Fetch YouTube video metadata from server-side (for use in API routes)
+ */
+export async function getYouTubeMetadataServer(url: string) {
+    if (!isYouTubeUrl(url)) return null;
+
+    try {
+        const oembedUrl = `https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`;
+        const response = await fetch(oembedUrl, {
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+            },
+        });
+
+        if (!response.ok) return null;
+        const data = await response.json();
+        return {
+            title: data.title,
+            author_name: data.author_name,
+            author_url: data.author_url,
+            thumbnail_url: data.thumbnail_url
+        };
+    } catch (err) {
+        console.error('Error in getYouTubeMetadataServer:', err);
+        return null;
+    }
+}
+
+/**
+ * Fetch YouTube video metadata via server-side proxy (for use in client-side)
  */
 export async function fetchYouTubeMetadata(url: string) {
     if (!isYouTubeUrl(url)) return null;
@@ -67,4 +95,41 @@ export async function fetchYouTubeMetadata(url: string) {
         console.error('Error fetching YouTube metadata:', err);
         return null;
     }
+}
+
+/**
+ * Common generic names for YouTube resources that should be replaced with actual channel names
+ */
+export const GENERIC_YOUTUBE_NAMES = [
+    'youtube',
+    'youtube creator',
+    'youtube video',
+    'unknown creator',
+    'creator/provider name',
+    'creator name',
+    'link',
+    'unknown',
+    'community'
+];
+
+/**
+ * Check if a name is a generic placeholder that should be updated
+ */
+export function isGenericYouTubeName(name: string | null | undefined): boolean {
+    if (!name) return true;
+    const normalized = name.toLowerCase().trim();
+    return GENERIC_YOUTUBE_NAMES.some(generic => normalized.includes(generic)) || normalized === '';
+}
+
+/**
+ * Deduplicate credits based on name and URL
+ */
+export function deduplicateCredits<T extends { name: string; url: string }>(credits: T[]): T[] {
+    const seen = new Set<string>();
+    return credits.filter(credit => {
+        const key = `${credit.name.trim().toLowerCase()}|${credit.url.trim().toLowerCase()}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+    });
 }

@@ -10,7 +10,7 @@ import { db } from '@/lib/firebase';
 import { collection, getDocs, query, orderBy, where } from 'firebase/firestore';
 import { Resource, Platform, ResourcePricing, ResourceType } from '@/lib/types';
 import { useAuth } from '@/contexts/AuthContext';
-import { getYouTubeThumbnail, extractYouTubeId } from '@/lib/youtube';
+import { getYouTubeThumbnail, extractYouTubeId, isYouTubeUrl, isGenericYouTubeName, deduplicateCredits } from '@/lib/youtube';
 
 function ResourcesContent() {
     const { user, isAdmin } = useAuth();
@@ -410,7 +410,12 @@ function ResourcesContent() {
 
                                         <div className="resource-card-footer">
                                             <div className="resource-card-credits">
-                                                {resource.credits?.map((c) => c.name).join(', ') || 'Community'}
+                                                {deduplicateCredits(resource.credits || []).map((c) => {
+                                                    if (isGenericYouTubeName(c.name) && resource.url && isYouTubeUrl(resource.url)) {
+                                                        return { ...c, name: 'YouTube' };
+                                                    }
+                                                    return c;
+                                                }).map(c => c.name).join(', ') || 'Community'}
                                             </div>
                                             <span style={{
                                                 fontSize: 'var(--text-xs)',

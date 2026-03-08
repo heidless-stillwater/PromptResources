@@ -8,7 +8,7 @@ import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { useAuth } from '@/contexts/AuthContext';
 import { Credit, Platform, ResourcePricing, ResourceType, MediaFormat } from '@/lib/types';
 import { suggestCategories, suggestCredits, getDefaultCategories, suggestDescription, suggestTags } from '@/lib/suggestions';
-import { extractYouTubeId, isYouTubeUrl, fetchYouTubeMetadata } from '@/lib/youtube';
+import { extractYouTubeId, isYouTubeUrl, fetchYouTubeMetadata, isGenericYouTubeName, deduplicateCredits } from '@/lib/youtube';
 
 export default function NewResourcePage() {
     const { user, isAdmin } = useAuth();
@@ -49,23 +49,21 @@ export default function NewResourcePage() {
                     setYtMetadata(data);
 
                     setSuggestedCredits(prev => {
-                        const newCreds = [...prev];
-                        const ytIdx = newCreds.findIndex(c => c.name === 'Youtube');
-                        if (ytIdx >= 0) {
-                            newCreds[ytIdx] = { ...newCreds[ytIdx], name: channelName };
-                        } else if (!newCreds.some(c => c.name === channelName)) {
+                        const newCreds = isYouTubeUrl(url) ?
+                            prev.map(c => c.name === 'Youtube' ? { ...c, name: channelName } : c) :
+                            [...prev];
+
+                        if (!newCreds.some(c => c.name === channelName)) {
                             newCreds.push({ name: channelName, url: url });
                         }
-                        return newCreds;
+                        return deduplicateCredits(newCreds);
                     });
 
                     setCredits(prev => {
-                        if (prev.length === 1 && (!prev[0].name || prev[0].name === 'Youtube' || prev[0].name === 'Youtube Creator')) {
-                            return [{ name: channelName, url: url }];
-                        }
-                        return prev.map(c =>
-                            (c.name === 'Youtube' || c.name === 'Youtube Creator' || c.name === 'YouTube') ? { ...c, name: channelName } : c
-                        );
+                        const updated = (prev.length === 1 && (isGenericYouTubeName(prev[0].name))) ?
+                            [{ name: channelName, url: url }] :
+                            prev.map(c => isGenericYouTubeName(c.name) ? { ...c, name: channelName } : c);
+                        return deduplicateCredits(updated);
                     });
                 }
             };

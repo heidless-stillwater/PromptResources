@@ -8,7 +8,7 @@ import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { useAuth } from '@/contexts/AuthContext';
 import { Credit, Platform, ResourcePricing, ResourceType, MediaFormat, Resource } from '@/lib/types';
 import { suggestCategories, suggestCredits, getDefaultCategories, suggestDescription, suggestTags } from '@/lib/suggestions';
-import { isYouTubeUrl, extractYouTubeId, fetchYouTubeMetadata } from '@/lib/youtube';
+import { isYouTubeUrl, extractYouTubeId, fetchYouTubeMetadata, isGenericYouTubeName, deduplicateCredits } from '@/lib/youtube';
 
 export default function EditResourcePage() {
     const params = useParams();
@@ -80,11 +80,14 @@ export default function EditResourcePage() {
                     const channelName = data.author_name;
                     setYtMetadata(data);
 
-                    setCredits(prev => prev.map(c =>
-                        (c.name === 'Youtube' || c.name === 'Youtube Creator' || c.name === 'YouTube' || !c.name) && (c.url === url || !c.url)
-                            ? { ...c, name: channelName, url: url }
-                            : c
-                    ));
+                    setCredits(prev => {
+                        const updated = prev.map(c =>
+                            (isGenericYouTubeName(c.name)) && (c.url === url || !c.url)
+                                ? { ...c, name: channelName, url: url }
+                                : c
+                        );
+                        return deduplicateCredits(updated);
+                    });
                 }
             };
             fetchYouTubeData();

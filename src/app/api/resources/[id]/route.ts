@@ -1,6 +1,7 @@
-// API: GET /api/resources/[id] - Get a single resource by ID
 import { NextRequest, NextResponse } from 'next/server';
 import { adminDb } from '@/lib/firebase-admin';
+import { isYouTubeUrl, getYouTubeMetadataServer, isGenericYouTubeName, deduplicateCredits } from '@/lib/youtube';
+import { Resource } from '@/lib/types';
 
 export async function GET(
     request: NextRequest,
@@ -18,12 +19,40 @@ export async function GET(
         }
 
         const data = docSnap.data();
-        const resource = {
+        let resource = {
             id: docSnap.id,
             ...data,
             createdAt: data?.createdAt?.toDate()?.toISOString() || null,
             updatedAt: data?.updatedAt?.toDate()?.toISOString() || null,
-        };
+        } as Resource;
+
+        // --- SELF-HEALING LOGIC ---
+        // If it's a YouTube resource and has generic credits, auto-enrich and update in background
+        const hasGenericYT = resource.url && isYouTubeUrl(resource.url) &&
+            (resource.credits?.length === 0 || resource.credits?.some(c => isGenericYouTubeName(c.name)));
+
+        if (hasGenericYT) {
+            try {
+                const metadata = await getYouTubeMetadataServer(resource.url!);
+                if (metadata && metadata.author_name) {
+                    const newCredits = deduplicateCredits(resource.credits?.length > 0
+                        ? resource.credits.map(c => isGenericYouTubeName(c.name) ? { ...c, name: metadata.author_name, url: metadata.author_url || c.url } : c)
+                        : [{ name: metadata.author_name, url: metadata.author_url || resource.url! }]);
+
+                    // Update local copy immediately for faster UI response
+                    resource.credits = newCredits;
+
+                    // Update Firestore in background (fire and forget)
+                    adminDb.collection('resources').doc(params.id).update({
+                        credits: newCredits,
+                        updatedAt: new Date()
+                    }).catch(e => console.error('Background self-healing update failed:', e));
+                }
+            } catch (err) {
+                console.error('Self-healing metadata enrichment failed:', err);
+            }
+        }
+        // -------------------------
 
         return NextResponse.json({
             success: true,

@@ -1,5 +1,5 @@
-// AI suggestion utilities for categories and credits
 import { Credit } from '@/lib/types';
+import { isYouTubeUrl, isGenericYouTubeName, deduplicateCredits } from '@/lib/youtube';
 
 // Common AI prompt-related categories
 const CATEGORY_KEYWORDS: Record<string, string[]> = {
@@ -33,7 +33,7 @@ const CATEGORY_KEYWORDS: Record<string, string[]> = {
 
 // Known resource providers
 const KNOWN_PROVIDERS: Record<string, { name: string; url: string }> = {
-    'youtube.com': { name: 'Youtube', url: 'https://youtube.com' },
+    'youtube.com': { name: 'YouTube', url: 'https://youtube.com' },
     'medium.com': { name: 'Medium', url: 'https://medium.com' },
     'github.com': { name: 'GitHub', url: 'https://github.com' },
     'openai.com': { name: 'OpenAI', url: 'https://openai.com' },
@@ -79,6 +79,7 @@ export function suggestCategories(title: string, description: string = '', url: 
         .map((s) => s.category);
 }
 
+
 /**
  * Suggest credits based on URL and title
  */
@@ -109,10 +110,10 @@ export function suggestCredits(url: string, title: string = '', metadata?: { aut
         // Invalid URL, skip domain checking
     }
 
-    // If no credits found or only generic YouTube found, try authorName
+    // If only generic YouTube/placeholders found, try authorName
     if (metadata?.authorName) {
-        // Replace generic YouTube entries with the specific author name
-        const ytGenIdx = credits.findIndex(c => c.name === 'Youtube' || c.name === 'Youtube Creator' || c.name === 'YouTube');
+        const ytGenIdx = credits.findIndex(c => isGenericYouTubeName(c.name));
+
         if (ytGenIdx >= 0) {
             credits[ytGenIdx] = { name: metadata.authorName, url: url };
         } else if (credits.length === 0) {
@@ -134,14 +135,14 @@ export function suggestCredits(url: string, title: string = '', metadata?: { aut
         }
     }
 
-    // Defensive cleanup: Never return "Youtube Creator" or generic "Youtube" if we have better info
+    // Defensive cleanup: Normalize generic placeholders to "YouTube"
     credits.forEach(c => {
-        if (c.name === 'Youtube Creator' || c.name === 'YouTube') {
-            c.name = 'Youtube';
+        if (isGenericYouTubeName(c.name) && isYouTubeUrl(url)) {
+            c.name = 'YouTube';
         }
     });
 
-    return credits;
+    return deduplicateCredits(credits);
 }
 
 /**
