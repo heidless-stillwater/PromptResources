@@ -67,11 +67,29 @@ export async function GET(
     }
 }
 
+import { getAuthUser, isAdmin } from '@/lib/auth-server';
+
 export async function PATCH(
     request: NextRequest,
     { params }: { params: { id: string } }
 ) {
     try {
+        const decodedToken = await getAuthUser(request);
+        if (!decodedToken) {
+            return NextResponse.json(
+                { success: false, error: 'Unauthorized' },
+                { status: 401 }
+            );
+        }
+
+        const adminStatus = await isAdmin(decodedToken.uid);
+        if (!adminStatus) {
+            return NextResponse.json(
+                { success: false, error: 'Forbidden: Admins only' },
+                { status: 403 }
+            );
+        }
+
         const body = await request.json();
         const docRef = adminDb.collection('resources').doc(params.id);
         const docSnap = await docRef.get();

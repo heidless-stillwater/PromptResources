@@ -182,7 +182,7 @@ function ResourcesContent() {
                                 {filteredResources.length} resource{filteredResources.length !== 1 ? 's' : ''} found
                             </p>
                         </div>
-                        {isAdmin && (
+                        {user && (
                             <Link href="/resources/new" className="btn btn-primary" id="add-resource-btn">
                                 ➕ Add Resource
                             </Link>
@@ -301,7 +301,7 @@ function ResourcesContent() {
                                     ? 'Try adjusting your filters'
                                     : 'No resources have been added yet'}
                             </div>
-                            {isAdmin && (
+                            {user && (
                                 <Link href="/resources/new" className="btn btn-primary">
                                     ➕ Add First Resource
                                 </Link>

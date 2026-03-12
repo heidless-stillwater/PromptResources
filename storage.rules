@@ -1,0 +1,50 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    // User's images folder
+    match /users/{userId}/images/{imageId} {
+      // Users can read their own images
+      allow read: if isOwner(userId);
+      
+      // Allow write with strict validation:
+      // 1. Must be the owner
+      // 2. Size limit (10MB)
+      // 3. MIME type must be an image
+      allow write: if isOwner(userId) && 
+                     request.resource.size < 10 * 1024 * 1024 &&
+                     request.resource.contentType.matches('image/.*');
+    }
+    
+    // Public assets (fonts, etc.)
+    match /public/{allPaths=**} {
+      allow read: if true;
+      allow write: if false; // Admin SDK only
+    }
+
+    // Avatars: Users can read/write their own avatars
+    match /avatars/{userId}/{allPaths=**} {
+      allow read: if true;
+      allow write: if isOwner(userId) && 
+                     request.resource.size < 2 * 1024 * 1024 &&
+                     request.resource.contentType.matches('image/.*');
+    }
+
+    // Banners: Users can read/write their own banners
+    match /banners/{userId}/{allPaths=**} {
+      allow read: if true;
+      allow write: if isOwner(userId) && 
+                     request.resource.size < 5 * 1024 * 1024 &&
+                     request.resource.contentType.matches('image/.*');
+    }
+  }
+}

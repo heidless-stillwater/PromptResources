@@ -98,8 +98,26 @@ export async function GET(request: NextRequest) {
     }
 }
 
+import { getAuthUser, isAdmin } from '@/lib/auth-server';
+
 export async function POST(request: NextRequest) {
     try {
+        const decodedToken = await getAuthUser(request);
+        if (!decodedToken) {
+            return NextResponse.json(
+                { success: false, error: 'Unauthorized' },
+                { status: 401 }
+            );
+        }
+
+        const adminStatus = await isAdmin(decodedToken.uid);
+        if (!adminStatus) {
+            return NextResponse.json(
+                { success: false, error: 'Forbidden: Admins only' },
+                { status: 403 }
+            );
+        }
+
         const body = await request.json();
 
         // Basic validation
@@ -113,6 +131,7 @@ export async function POST(request: NextRequest) {
         const now = new Date();
         const docData = {
             ...body,
+            addedBy: decodedToken.uid,
             createdAt: now,
             updatedAt: now,
         };

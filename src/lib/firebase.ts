@@ -1,7 +1,7 @@
 // Firebase Client SDK Configuration
 import { initializeApp, getApps } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+import { getAuth, connectAuthEmulator } from 'firebase/auth';
+import { getFirestore, connectFirestoreEmulator } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 
 const firebaseConfig = {
@@ -20,4 +20,18 @@ const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const storage = getStorage(app);
+
+if (typeof window !== 'undefined') {
+    if (!(window as any).__EMULATORS_CONNECTED__) {
+        if (process.env.NEXT_PUBLIC_FIREBASE_AUTH_EMULATOR_HOST) {
+            connectAuthEmulator(auth, `http://${process.env.NEXT_PUBLIC_FIREBASE_AUTH_EMULATOR_HOST}`);
+        }
+        if (process.env.NEXT_PUBLIC_FIRESTORE_EMULATOR_HOST) {
+            const [host, port] = process.env.NEXT_PUBLIC_FIRESTORE_EMULATOR_HOST.split(':');
+            connectFirestoreEmulator(db, host, parseInt(port));
+        }
+        (window as any).__EMULATORS_CONNECTED__ = true;
+    }
+}
+
 export default app;

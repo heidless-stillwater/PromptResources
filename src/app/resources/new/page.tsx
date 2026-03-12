@@ -11,7 +11,7 @@ import { suggestCategories, suggestCredits, getDefaultCategories, suggestDescrip
 import { extractYouTubeId, isYouTubeUrl, fetchYouTubeMetadata, isGenericYouTubeName, deduplicateCredits } from '@/lib/youtube';
 
 export default function NewResourcePage() {
-    const { user, isAdmin } = useAuth();
+    const { user, loading: authLoading, isAdmin } = useAuth();
     const router = useRouter();
 
     const [title, setTitle] = useState('');
@@ -172,21 +172,27 @@ export default function NewResourcePage() {
         }
     };
 
-    if (!isAdmin) {
+    useEffect(() => {
+        if (!authLoading && !user) {
+            router.push('/auth/login?redirect=/resources/new');
+        }
+    }, [user, authLoading, router]);
+
+    if (authLoading) {
         return (
             <div className="page-wrapper">
                 <Navbar />
                 <div className="main-content">
-                    <div className="container">
-                        <div className="empty-state">
-                            <div className="empty-state-icon">🔒</div>
-                            <div className="empty-state-title">Access Denied</div>
-                            <div className="empty-state-desc">Only admins can add resources.</div>
-                        </div>
+                    <div className="loading-page">
+                        <div className="spinner" />
                     </div>
                 </div>
             </div>
         );
+    }
+
+    if (!user) {
+        return null; // Will redirect via useEffect
     }
 
     return (
