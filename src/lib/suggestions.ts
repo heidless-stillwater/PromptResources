@@ -83,14 +83,14 @@ export function suggestCategories(title: string, description: string = '', url: 
 /**
  * Suggest credits based on URL and title
  */
-export function suggestCredits(url: string, title: string = '', metadata?: { authorName?: string }): Credit[] {
+export function suggestCredits(url: string, title: string = '', metadata?: { authorName?: string, authorUrl?: string }): Credit[] {
     const credits: Credit[] = [];
 
     // Prioritize metadata if provided
     if (metadata?.authorName) {
         credits.push({
             name: metadata.authorName,
-            url: url,
+            url: metadata.authorUrl || url,
         });
         return credits;
     }
@@ -115,11 +115,11 @@ export function suggestCredits(url: string, title: string = '', metadata?: { aut
         const ytGenIdx = credits.findIndex(c => isGenericYouTubeName(c.name));
 
         if (ytGenIdx >= 0) {
-            credits[ytGenIdx] = { name: metadata.authorName, url: url };
+            credits[ytGenIdx] = { name: metadata.authorName, url: metadata.authorUrl || url };
         } else if (credits.length === 0) {
             credits.push({
                 name: metadata.authorName,
-                url: url,
+                url: metadata.authorUrl || url,
             });
         }
         return credits;

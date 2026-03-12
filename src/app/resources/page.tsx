@@ -177,6 +177,11 @@ function ResourcesContent() {
                         marginBottom: 'var(--space-6)',
                     }}>
                         <div>
+                            {searchParams.get('suggested') === 'true' && (
+                                <div className="badge badge-success" style={{ padding: 'var(--space-2) var(--space-4)', width: '100%', marginBottom: 'var(--space-4)', fontSize: 'var(--text-sm)', display: 'block', textAlign: 'center' }}>
+                                    ✨ Your suggestion has been submitted for review! Thank you for contributing.
+                                </div>
+                            )}
                             <h1 style={{ marginBottom: 'var(--space-2)' }}>📚 Resources</h1>
                             <p style={{ color: 'var(--text-muted)' }}>
                                 {filteredResources.length} resource{filteredResources.length !== 1 ? 's' : ''} found
@@ -408,22 +413,54 @@ function ResourcesContent() {
                                             </div>
                                         </div>
 
-                                        <div className="resource-card-footer">
-                                            <div className="resource-card-credits">
-                                                {deduplicateCredits(resource.credits || []).map((c) => {
-                                                    if (isGenericYouTubeName(c.name) && resource.url && isYouTubeUrl(resource.url)) {
-                                                        return { ...c, name: 'YouTube' };
-                                                    }
-                                                    return c;
-                                                }).map(c => c.name).join(', ') || 'Community'}
+                                        <div className="resource-card-footer" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: 'var(--space-2)' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', width: '100%' }}>
+                                                {resource.creator?.photoURL ? (
+                                                    <Image
+                                                        src={resource.creator.photoURL}
+                                                        alt={resource.creator.displayName}
+                                                        width={20}
+                                                        height={20}
+                                                        style={{ borderRadius: 'var(--radius-full)', objectFit: 'cover' }}
+                                                    />
+                                                ) : (
+                                                    <div style={{
+                                                        width: '20px',
+                                                        height: '20px',
+                                                        borderRadius: 'var(--radius-full)',
+                                                        background: 'var(--bg-accent)',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        justifyContent: 'center',
+                                                        fontSize: '10px',
+                                                        color: 'var(--text-main)'
+                                                    }}>
+                                                        👤
+                                                    </div>
+                                                )}
+                                                <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                    By {resource.creator?.displayName || 'Community'}
+                                                </span>
                                             </div>
-                                            <span style={{
-                                                fontSize: 'var(--text-xs)',
-                                                color: 'var(--text-muted)',
-                                            }}>
-                                                {resource.type}
-                                            </span>
+
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center' }}>
+                                                <div className="resource-card-credits">
+                                                    {deduplicateCredits(resource.credits || []).map((c) => {
+                                                        if (isGenericYouTubeName(c.name) && resource.url && isYouTubeUrl(resource.url)) {
+                                                            return { ...c, name: 'YouTube' };
+                                                        }
+                                                        return c;
+                                                    }).map(c => c.name).join(', ') || 'Community'}
+                                                </div>
+                                                <span style={{
+                                                    fontSize: 'var(--text-xs)',
+                                                    color: 'var(--text-muted)',
+                                                }}>
+                                                    {resource.type}
+                                                </span>
+                                            </div>
                                         </div>
+
                                     </Link>
                                 );
                             })}

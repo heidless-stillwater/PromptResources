@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import { useAuth } from '@/contexts/AuthContext';
@@ -25,17 +26,19 @@ export default function SavedResourcesPage() {
                     const data = userResResult.data as UserResourceData;
                     const savedIds = data.savedResources || [];
                     if (savedIds.length > 0) {
-                        const resourcePromises = savedIds.map(async (id) => {
-                            try {
-                                const res = await fetch(`/api/resources/${id}`);
-                                const result = await res.json();
-                                return result.success ? result.data : null;
-                            } catch (err) {
-                                return null;
+                        try {
+                            const res = await fetch('/api/resources/bulk', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ ids: savedIds })
+                            });
+                            const result = await res.json();
+                            if (result.success) {
+                                setSavedResources(result.data);
                             }
-                        });
-                        const resources = (await Promise.all(resourcePromises)).filter(Boolean) as Resource[];
-                        setSavedResources(resources);
+                        } catch (err) {
+                            console.error('Error fetching bulk resources:', err);
+                        }
                     }
                 }
             } catch (error) {
@@ -97,10 +100,14 @@ export default function SavedResourcesPage() {
                                     <div className="resource-card glass-card h-full">
                                         <div className="resource-thumbnail">
                                             {resource.youtubeVideoId ? (
-                                                <img
-                                                    src={`https://img.youtube.com/vi/${resource.youtubeVideoId}/mqdefault.jpg`}
-                                                    alt={resource.title}
-                                                />
+                                                <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+                                                    <Image
+                                                        src={`https://img.youtube.com/vi/${resource.youtubeVideoId}/mqdefault.jpg`}
+                                                        alt={resource.title || 'Video thumbnail'}
+                                                        fill
+                                                        style={{ objectFit: 'cover' }}
+                                                    />
+                                                </div>
                                             ) : (
                                                 <div className="resource-placeholder">
                                                     {resource.type === 'article' ? '📝' : '🔧'}

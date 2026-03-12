@@ -1,6 +1,7 @@
 // API: GET /api/resources - List resources with optional filtering
 import { NextRequest, NextResponse } from 'next/server';
 import { adminDb } from '@/lib/firebase-admin';
+import { getAuthUser, isAdmin } from '@/lib/auth-server';
 
 export async function GET(request: NextRequest) {
     try {
@@ -10,11 +11,16 @@ export async function GET(request: NextRequest) {
         const type = searchParams.get('type');
         const category = searchParams.get('category');
         const search = searchParams.get('search');
+        const addedBy = searchParams.get('addedBy');
         const isFavorite = searchParams.get('isFavorite') === 'true';
         const sortBy = searchParams.get('sortBy') || 'updatedAt';
         const sortOrder = searchParams.get('sortOrder') || 'desc';
         const page = parseInt(searchParams.get('page') || '1');
         const pageSize = Math.min(parseInt(searchParams.get('pageSize') || '20'), 100);
+
+        const decodedToken = await getAuthUser(request);
+        const userUid = decodedToken?.uid;
+        const userIsAdmin = userUid ? await isAdmin(userUid) : false;
 
         let querySnapshot = await adminDb.collection('resources').get();
         let resources = querySnapshot.docs.map((doc) => ({
@@ -22,7 +28,19 @@ export async function GET(request: NextRequest) {
             ...doc.data(),
             createdAt: doc.data().createdAt?.toDate()?.toISOString() || null,
             updatedAt: doc.data().updatedAt?.toDate()?.toISOString() || null,
-        }));
+        })) as any[];
+
+        // Access Control Filtering
+        if (!userIsAdmin) {
+            resources = resources.filter((r: any) => {
+                // Public resources are those with status 'published'
+                const isPublished = r.status === 'published';
+                // Own resources are those where addedBy matches userUid
+                const isOwn = userUid && r.addedBy === userUid;
+                
+                return isPublished || isOwn;
+            });
+        }
 
         // Filtering
         if (platform) {
@@ -39,6 +57,10 @@ export async function GET(request: NextRequest) {
 
         if (category) {
             resources = resources.filter((r: any) => r.categories?.includes(category));
+        }
+        
+        if (addedBy) {
+            resources = resources.filter((r: any) => r.addedBy === addedBy);
         }
 
         if (isFavorite) {
@@ -79,9 +101,34 @@ export async function GET(request: NextRequest) {
         const start = (page - 1) * pageSize;
         const paginatedResources = resources.slice(start, start + pageSize);
 
+        // Fetch creator profiles for the paginated resources
+        const userIds = Array.from(new Set(paginatedResources.map((r: any) => r.addedBy).filter(Boolean)));
+        const creatorProfiles: Record<string, any> = {};
+
+        if (userIds.length > 0) {
+            // Firestore 'in' query has a limit of 30, but pageSize is max 100.
+            // For simplicity in this app, we'll fetch them in chunks if needed or just fetch individual docs since it's admin SDK.
+            // Let's use individual fetches for reliability or a chunked approach.
+            for (const uid of userIds as string[]) {
+                const userDoc = await adminDb.collection('users').doc(uid).get();
+                if (userDoc.exists) {
+                    const userData = userDoc.data();
+                    creatorProfiles[uid] = {
+                        displayName: userData?.displayName || 'Unknown User',
+                        photoURL: userData?.photoURL || null
+                    };
+                }
+            }
+        }
+
+        const resourcesWithCreators = paginatedResources.map((r: any) => ({
+            ...r,
+            creator: r.addedBy ? creatorProfiles[r.addedBy] : { displayName: 'Community' }
+        }));
+
         return NextResponse.json({
             success: true,
-            data: paginatedResources,
+            data: resourcesWithCreators,
             total,
             page,
             pageSize,
@@ -98,7 +145,7 @@ export async function GET(request: NextRequest) {
     }
 }
 
-import { getAuthUser, isAdmin } from '@/lib/auth-server';
+
 
 export async function POST(request: NextRequest) {
     try {
@@ -110,14 +157,7 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        const adminStatus = await isAdmin(decodedToken.uid);
-        if (!adminStatus) {
-            return NextResponse.json(
-                { success: false, error: 'Forbidden: Admins only' },
-                { status: 403 }
-            );
-        }
-
+        const isAdminUser = await isAdmin(decodedToken.uid);
         const body = await request.json();
 
         // Basic validation
@@ -134,6 +174,10 @@ export async function POST(request: NextRequest) {
             addedBy: decodedToken.uid,
             createdAt: now,
             updatedAt: now,
+            status: isAdminUser ? (body.status || 'published') : (['draft', 'suggested'].includes(body.status) ? body.status : 'suggested'),
+            // Non-admins cannot set rank or favorite status
+            isFavorite: isAdminUser ? (body.isFavorite || false) : false,
+            rank: isAdminUser ? (body.rank || null) : null,
         };
 
         const docRef = await adminDb.collection('resources').add(docData);

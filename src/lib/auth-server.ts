@@ -18,7 +18,7 @@ export async function getAuthUser(request: NextRequest) {
 }
 
 export async function isAdmin(uid: string) {
-    const { db } = await import('./firebase-admin');
+    const { adminDb: db } = await import('./firebase-admin');
     const userDoc = await db.collection('users').doc(uid).get();
     if (!userDoc.exists) return false;
     const userData = userDoc.data();

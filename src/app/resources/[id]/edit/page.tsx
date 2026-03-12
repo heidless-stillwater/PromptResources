@@ -1,20 +1,18 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useRouter, useParams } from 'next/navigation';
 import Navbar from '@/components/Navbar';
-import { db } from '@/lib/firebase';
-import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { useAuth } from '@/contexts/AuthContext';
-import { Credit, Platform, ResourcePricing, ResourceType, MediaFormat, Resource } from '@/lib/types';
+import { Credit, Platform, ResourcePricing, ResourceType, MediaFormat, ResourceStatus, Resource } from '@/lib/types';
 import { suggestCategories, suggestCredits, getDefaultCategories, suggestDescription, suggestTags } from '@/lib/suggestions';
-import { isYouTubeUrl, extractYouTubeId, fetchYouTubeMetadata, isGenericYouTubeName, deduplicateCredits } from '@/lib/youtube';
+import { extractYouTubeId, isYouTubeUrl, fetchYouTubeMetadata, isGenericYouTubeName, deduplicateCredits } from '@/lib/youtube';
+import Link from 'next/link';
 
 export default function EditResourcePage() {
-    const params = useParams();
-    const { user, isAdmin } = useAuth();
+    const { user, loading: authLoading, isAdmin } = useAuth();
     const router = useRouter();
-    const resourceId = params.id as string;
+    const { id } = useParams();
 
     const [title, setTitle] = useState('');
     const [description, setDescription] = useState('');
@@ -26,67 +24,131 @@ export default function EditResourcePage() {
     const [pricingDetails, setPricingDetails] = useState('');
     const [tags, setTags] = useState('');
     const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+    const [suggestedCategories, setSuggestedCategories] = useState<string[]>([]);
     const [credits, setCredits] = useState<Credit[]>([{ name: '', url: '' }]);
-    const [status, setStatus] = useState<'published' | 'draft'>('published');
+    const [status, setStatus] = useState<ResourceStatus>('suggested');
+    const [suggestedCredits, setSuggestedCredits] = useState<Credit[]>([]);
+    const [ytMetadata, setYtMetadata] = useState<any>(null);
     const [isFavorite, setIsFavorite] = useState(false);
     const [rank, setRank] = useState<number | ''>('');
-    const [ytMetadata, setYtMetadata] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState('');
+    const [originalResource, setOriginalResource] = useState<Resource | null>(null);
 
     const allCategories = getDefaultCategories();
 
+    // Fetch existing resource
     useEffect(() => {
-        async function fetchResource() {
+        if (!id || !user) return;
+
+        const fetchResource = async () => {
             try {
-                const response = await fetch(`/api/resources/${resourceId}`);
+                const response = await fetch(`/api/resources/${id}`);
                 const result = await response.json();
 
                 if (result.success) {
-                    const data = result.data as Resource;
-                    setTitle(data.title || '');
-                    setDescription(data.description || '');
-                    setUrl(data.url || '');
-                    setType(data.type || 'article');
-                    setMediaFormat(data.mediaFormat || 'webpage');
-                    setPlatform(data.platform || 'general');
-                    setPricing(data.pricing || 'free');
-                    setPricingDetails(data.pricingDetails || '');
-                    setTags(data.tags?.join(', ') || '');
-                    setSelectedCategories(data.categories || []);
-                    setCredits(data.credits?.length > 0 ? data.credits : [{ name: '', url: '' }]);
-                    setStatus(data.status || 'published');
-                    setIsFavorite(data.isFavorite || false);
-                    setRank(data.rank ?? '');
+                    const res = result.data;
+                    
+                    // Security check: Only owner or admin can edit
+                    if (!isAdmin && res.addedBy !== user.uid) {
+                        router.push('/dashboard');
+                        return;
+                    }
+
+                    setOriginalResource(res);
+                    setTitle(res.title || '');
+                    setDescription(res.description || '');
+                    setUrl(res.url || '');
+                    setType(res.type || 'article');
+                    setMediaFormat(res.mediaFormat || 'webpage');
+                    setPlatform(res.platform || 'general');
+                    setPricing(res.pricing || 'free');
+                    setPricingDetails(res.pricingDetails || '');
+                    setTags(res.tags?.join(', ') || '');
+                    setSelectedCategories(res.categories || []);
+                    setCredits(res.credits && res.credits.length > 0 ? res.credits : [{ name: '', url: '' }]);
+                    setStatus(res.status || 'suggested');
+                    setIsFavorite(res.isFavorite || false);
+                    setRank(res.rank === null ? '' : res.rank);
                 } else {
-                    console.error('API Error:', result.error);
+                    setError('Resource not found.');
                 }
             } catch (err) {
-                console.error('Error fetching resource:', err);
+                setError('Failed to load resource data.');
+                console.error(err);
             } finally {
                 setLoading(false);
             }
-        }
-        fetchResource();
-    }, [resourceId]);
+        };
 
-    // Auto-detect YouTube and fetch channel name
+        fetchResource();
+    }, [id, user, isAdmin, router]);
+
+    // Auto-detect YouTube and suggest categories/credits (only if URL changes)
     useEffect(() => {
-        if (url && isYouTubeUrl(url)) {
+        if (url && isYouTubeUrl(url) && url !== originalResource?.url) {
+            setMediaFormat('youtube');
+            setType('video');
+
+            // Fetch channel name via oEmbed
             const fetchYouTubeData = async () => {
                 const data = await fetchYouTubeMetadata(url);
                 if (data && data.author_name) {
                     const channelName = data.author_name;
                     setYtMetadata(data);
 
+                    setSuggestedCredits(prev => {
+                        const newCreds = isYouTubeUrl(url) ?
+                            prev.map(c => c.name === 'Youtube' ? { ...c, name: channelName, url: data.author_url || url } : c) :
+                            [...prev];
+
+                        if (!newCreds.some(c => c.name === channelName)) {
+                            newCreds.push({ name: channelName, url: data.author_url || url });
+                        }
+                        return deduplicateCredits(newCreds);
+                    });
+
+                    // Autofill Title
+                    setTitle(prev => {
+                        if (!prev && data.title) return data.title;
+                        return prev;
+                    });
+
+                    // Autofill description
+                    setDescription(prev => {
+                        if (!prev && data.title) {
+                            return suggestDescription(data.title);
+                        }
+                        return prev;
+                    });
+
+                    // Autofill Categories
+                    setSelectedCategories(prev => {
+                        if (prev.length === 0 && data.title) {
+                             const cats = suggestCategories(data.title, suggestDescription(data.title), url);
+                             return Array.from(new Set([...prev, ...cats]));
+                        }
+                        return prev;
+                    });
+
+                    // Autofill Tags
+                    setTags(prev => {
+                        if (!prev && data.title) {
+                            const suggestedTags = suggestTags(data.title, suggestDescription(data.title), url);
+                            if (suggestedTags.length > 0) {
+                                return suggestedTags.join(', ');
+                            }
+                        }
+                        return prev;
+                    });
+
+                    // Only autofill credits if they are empty or just have placeholders
                     setCredits(prev => {
-                        const updated = prev.map(c =>
-                            (isGenericYouTubeName(c.name)) && (c.url === url || !c.url)
-                                ? { ...c, name: channelName, url: url }
-                                : c
-                        );
-                        return deduplicateCredits(updated);
+                        if (prev.length === 0 || (prev.length === 1 && !prev[0].name && !prev[0].url)) {
+                            return [{ name: channelName, url: data.author_url || url }];
+                        }
+                        return prev.map(c => isGenericYouTubeName(c.name) ? { ...c, name: channelName, url: data.author_url || url } : c);
                     });
                 }
             };
@@ -94,7 +156,16 @@ export default function EditResourcePage() {
         } else {
             setYtMetadata(null);
         }
-    }, [url]);
+    }, [url, originalResource?.url]);
+
+    useEffect(() => {
+        if (title || url) {
+            const cats = suggestCategories(title, description, url);
+            setSuggestedCategories(cats);
+            const creds = suggestCredits(url, title, { authorName: ytMetadata?.author_name, authorUrl: ytMetadata?.author_url });
+            setSuggestedCredits(creds);
+        }
+    }, [title, description, url, ytMetadata]);
 
     const addCategory = (cat: string) => {
         if (!selectedCategories.includes(cat)) {
@@ -106,33 +177,56 @@ export default function EditResourcePage() {
         setSelectedCategories(selectedCategories.filter((c) => c !== cat));
     };
 
-    const addCredit = () => setCredits([...credits, { name: '', url: '' }]);
-    const removeCredit = (idx: number) => setCredits(credits.filter((_, i) => i !== idx));
+    const addCredit = () => {
+        setCredits([...credits, { name: '', url: '' }]);
+    };
+
+    const removeCredit = (idx: number) => {
+        setCredits(credits.filter((_, i) => i !== idx));
+    };
+
     const updateCredit = (idx: number, field: keyof Credit, value: string) => {
         const updated = [...credits];
         updated[idx] = { ...updated[idx], [field]: value };
         setCredits(updated);
     };
 
+    const applySuggestedCredit = (credit: Credit) => {
+        const empty = credits.findIndex((c) => !c.name && !c.url);
+        if (empty >= 0) {
+            const updated = [...credits];
+            updated[empty] = credit;
+            setCredits(updated);
+        } else {
+            setCredits([...credits, credit]);
+        }
+    };
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setError('');
+
         if (selectedCategories.length === 0) {
             setError('Please select at least one category.');
             return;
         }
 
         const validCredits = credits.filter((c) => c.name.trim() && c.url.trim());
-        setSaving(true);
 
+        setSaving(true);
         try {
             const youtubeVideoId = extractYouTubeId(url);
+            const token = user ? await user.getIdToken() : '';
+            const headers: Record<string, string> = {
+                'Content-Type': 'application/json',
+            };
+            if (token) {
+                headers['Authorization'] = `Bearer ${token}`;
+            }
 
-            const response = await fetch(`/api/resources/${resourceId}`, {
+            const response = await fetch(`/api/resources/${id}`, {
                 method: 'PATCH',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
+                headers,
                 body: JSON.stringify({
                     title: title.trim(),
                     description: description.trim(),
@@ -146,7 +240,7 @@ export default function EditResourcePage() {
                     credits: validCredits,
                     youtubeVideoId: youtubeVideoId || null,
                     tags: tags.split(',').map((t) => t.trim()).filter(Boolean),
-                    status,
+                    status: isAdmin ? status : originalResource?.status || 'suggested',
                     isFavorite,
                     rank: rank === '' ? null : Number(rank),
                 }),
@@ -155,50 +249,58 @@ export default function EditResourcePage() {
             const result = await response.json();
 
             if (result.success) {
-                router.push(`/resources/${resourceId}`);
+                router.push(`/resources/${id}`);
             } else {
                 setError(result.error || 'Failed to update resource.');
             }
-        } catch (err: any) {
-            setError(err.message || 'Failed to update resource.');
+        } catch (err: unknown) {
+            const error = err as { message?: string };
+            setError(error.message || 'Failed to update resource.');
         } finally {
             setSaving(false);
         }
     };
 
-    if (!isAdmin) {
+    useEffect(() => {
+        if (!authLoading && !user) {
+            router.push(`/auth/login?redirect=/resources/${id}/edit`);
+        }
+    }, [user, authLoading, router, id]);
+
+    if (authLoading || loading) {
         return (
             <div className="page-wrapper">
                 <Navbar />
                 <div className="main-content">
-                    <div className="container">
-                        <div className="empty-state">
-                            <div className="empty-state-icon">🔒</div>
-                            <div className="empty-state-title">Access Denied</div>
-                        </div>
+                    <div className="loading-page">
+                        <div className="spinner" />
                     </div>
                 </div>
             </div>
         );
     }
 
-    if (loading) {
-        return (
-            <div className="page-wrapper">
-                <Navbar />
-                <div className="loading-page"><div className="spinner" /></div>
-            </div>
-        );
+    if (!user) {
+        return null;
     }
-
-    const suggestedCats = suggestCategories(title, description, url).filter((c) => !selectedCategories.includes(c));
 
     return (
         <div className="page-wrapper">
             <Navbar />
             <div className="main-content">
                 <div className="container" style={{ maxWidth: '800px' }}>
-                    <h1 style={{ marginBottom: 'var(--space-6)' }}>✏️ Edit Resource</h1>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-4)', marginBottom: 'var(--space-6)' }}>
+                        <button 
+                            type="button" 
+                            className="btn btn-ghost btn-sm"
+                            onClick={() => router.back()}
+                        >
+                            ← Back
+                        </button>
+                        <h1 style={{ marginBottom: 0 }}>
+                            ✏️ Edit Resource
+                        </h1>
+                    </div>
 
                     <form onSubmit={handleSubmit}>
                         {error && (
@@ -226,11 +328,11 @@ export default function EditResourcePage() {
                                     onClick={() => {
                                         const cats = suggestCategories(title, description, url);
                                         setSelectedCategories(Array.from(new Set([...selectedCategories, ...cats])));
-                                        const creds = suggestCredits(url, title, { authorName: ytMetadata?.author_name });
+                                        const creds = suggestCredits(url, title, { authorName: ytMetadata?.author_name, authorUrl: ytMetadata?.author_url });
                                         if (creds.length > 0) setCredits(creds);
                                         if (!description) {
                                             const desc = suggestDescription(title);
-                                            setDescription(desc);
+                                            if (desc) setDescription(desc);
                                         }
                                         const suggestedTags = suggestTags(title, description, url);
                                         if (suggestedTags.length > 0) {
@@ -247,13 +349,39 @@ export default function EditResourcePage() {
                             </div>
 
                             <div className="form-group">
-                                <label className="form-label">Title *</label>
-                                <input type="text" className="form-input" value={title} onChange={(e) => setTitle(e.target.value)} required />
+                                <label className="form-label" htmlFor="url">URL *</label>
+                                <input
+                                    id="url"
+                                    type="url"
+                                    className="form-input"
+                                    value={url}
+                                    onChange={(e) => setUrl(e.target.value)}
+                                    placeholder="https://..."
+                                    required
+                                />
+                                {url && isYouTubeUrl(url) && (
+                                    <div className="form-helper" style={{ color: 'var(--success-400)' }}>
+                                        ✓ YouTube video detected - will auto-embed
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="form-group">
+                                <label className="form-label" htmlFor="title">Title *</label>
+                                <input
+                                    id="title"
+                                    type="text"
+                                    className="form-input"
+                                    value={title}
+                                    onChange={(e) => setTitle(e.target.value)}
+                                    placeholder="e.g. Ultimate Guide to Gemini Prompt Engineering"
+                                    required
+                                />
                             </div>
 
                             <div className="form-group">
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-2)' }}>
-                                    <label className="form-label" style={{ marginBottom: 0 }}>Description *</label>
+                                    <label className="form-label" htmlFor="description" style={{ marginBottom: 0 }}>Description *</label>
                                     <button
                                         type="button"
                                         className="btn btn-secondary btn-sm"
@@ -267,18 +395,21 @@ export default function EditResourcePage() {
                                         ✨ AI Suggest
                                     </button>
                                 </div>
-                                <textarea className="form-textarea" value={description} onChange={(e) => setDescription(e.target.value)} required />
+                                <textarea
+                                    id="description"
+                                    className="form-textarea"
+                                    value={description}
+                                    onChange={(e) => setDescription(e.target.value)}
+                                    placeholder="Describe what this resource covers..."
+                                    required
+                                />
                             </div>
 
-                            <div className="form-group">
-                                <label className="form-label">URL *</label>
-                                <input type="url" className="form-input" value={url} onChange={(e) => setUrl(e.target.value)} required />
-                            </div>
 
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-4)' }}>
                                 <div className="form-group">
-                                    <label className="form-label">Type</label>
-                                    <select className="form-select" value={type} onChange={(e) => setType(e.target.value as ResourceType)}>
+                                    <label className="form-label" htmlFor="type">Resource Type *</label>
+                                    <select id="type" className="form-select" value={type} onChange={(e) => setType(e.target.value as ResourceType)}>
                                         <option value="video">Video</option>
                                         <option value="article">Article</option>
                                         <option value="tool">Tool</option>
@@ -288,9 +419,10 @@ export default function EditResourcePage() {
                                         <option value="other">Other</option>
                                     </select>
                                 </div>
+
                                 <div className="form-group">
-                                    <label className="form-label">Media Format</label>
-                                    <select className="form-select" value={mediaFormat} onChange={(e) => setMediaFormat(e.target.value as MediaFormat)}>
+                                    <label className="form-label" htmlFor="mediaFormat">Media Format *</label>
+                                    <select id="mediaFormat" className="form-select" value={mediaFormat} onChange={(e) => setMediaFormat(e.target.value as MediaFormat)}>
                                         <option value="youtube">YouTube</option>
                                         <option value="webpage">Webpage</option>
                                         <option value="pdf">PDF</option>
@@ -301,10 +433,10 @@ export default function EditResourcePage() {
                                 </div>
                             </div>
 
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 'var(--space-4)' }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-4)' }}>
                                 <div className="form-group">
-                                    <label className="form-label">Platform</label>
-                                    <select className="form-select" value={platform} onChange={(e) => setPlatform(e.target.value as Platform)}>
+                                    <label className="form-label" htmlFor="platform">Platform *</label>
+                                    <select id="platform" className="form-select" value={platform} onChange={(e) => setPlatform(e.target.value as Platform)}>
                                         <option value="gemini">Gemini</option>
                                         <option value="nanobanana">NanoBanana</option>
                                         <option value="chatgpt">ChatGPT</option>
@@ -314,26 +446,34 @@ export default function EditResourcePage() {
                                         <option value="other">Other</option>
                                     </select>
                                 </div>
+
                                 <div className="form-group">
-                                    <label className="form-label">Pricing</label>
-                                    <select className="form-select" value={pricing} onChange={(e) => setPricing(e.target.value as ResourcePricing)}>
+                                    <label className="form-label" htmlFor="pricing">Pricing *</label>
+                                    <select id="pricing" className="form-select" value={pricing} onChange={(e) => setPricing(e.target.value as ResourcePricing)}>
                                         <option value="free">Free</option>
                                         <option value="paid">Paid</option>
                                         <option value="freemium">Freemium</option>
                                     </select>
                                 </div>
-                                <div className="form-group">
-                                    <label className="form-label">Status</label>
-                                    <select className="form-select" value={status} onChange={(e) => setStatus(e.target.value as 'published' | 'draft')}>
-                                        <option value="published">Published</option>
-                                        <option value="draft">Draft</option>
-                                    </select>
-                                </div>
                             </div>
+
+                            {pricing !== 'free' && (
+                                <div className="form-group">
+                                    <label className="form-label" htmlFor="pricingDetails">Pricing Details</label>
+                                    <input
+                                        id="pricingDetails"
+                                        type="text"
+                                        className="form-input"
+                                        value={pricingDetails}
+                                        onChange={(e) => setPricingDetails(e.target.value)}
+                                        placeholder="e.g. $29/month, $99 one-time"
+                                    />
+                                </div>
+                            )}
 
                             <div className="form-group">
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-2)' }}>
-                                    <label className="form-label" style={{ marginBottom: 0 }}>Tags (comma separated)</label>
+                                    <label className="form-label" htmlFor="tags" style={{ marginBottom: 0 }}>Tags (comma separated)</label>
                                     <button
                                         type="button"
                                         className="btn btn-secondary btn-sm"
@@ -349,38 +489,57 @@ export default function EditResourcePage() {
                                         ✨ AI Suggest
                                     </button>
                                 </div>
-                                <input type="text" className="form-input" value={tags} onChange={(e) => setTags(e.target.value)} />
+                                <input
+                                    id="tags"
+                                    type="text"
+                                    className="form-input"
+                                    value={tags}
+                                    onChange={(e) => setTags(e.target.value)}
+                                    placeholder="prompt, AI, tutorial, beginner"
+                                />
                             </div>
 
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-4)', marginTop: 'var(--space-4)' }}>
-                                <div className="form-group" style={{ marginBottom: 0 }}>
-                                    <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', cursor: 'pointer' }}>
+                            {isAdmin && (
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-4)', marginTop: 'var(--space-4)' }}>
+                                    <div className="form-group">
+                                        <label className="form-label" htmlFor="status">Status</label>
+                                        <select id="status" className="form-select" value={status} onChange={(e) => setStatus(e.target.value as ResourceStatus)}>
+                                            <option value="suggested">Suggested</option>
+                                            <option value="reviewing">Reviewing</option>
+                                            <option value="published">Published</option>
+                                            <option value="archived">Archived</option>
+                                            <option value="rejected">Rejected</option>
+                                        </select>
+                                    </div>
+                                    <div className="form-group">
+                                        <label className="form-label">Rank (Priority)</label>
                                         <input
-                                            type="checkbox"
-                                            checked={isFavorite}
-                                            onChange={(e) => setIsFavorite(e.target.checked)}
-                                            style={{ width: '18px', height: '18px' }}
+                                            type="number"
+                                            className="form-input"
+                                            value={rank}
+                                            onChange={(e) => setRank(e.target.value === '' ? '' : Number(e.target.value))}
+                                            placeholder="e.g. 1 (Top priority)"
                                         />
-                                        ⭐ Favorite / Featured
-                                    </label>
+                                    </div>
+                                    <div className="form-group" style={{ gridColumn: 'span 2' }}>
+                                        <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', cursor: 'pointer' }}>
+                                            <input
+                                                type="checkbox"
+                                                checked={isFavorite}
+                                                onChange={(e) => setIsFavorite(e.target.checked)}
+                                                style={{ width: '18px', height: '18px' }}
+                                            />
+                                            ⭐ Favorite / Featured
+                                        </label>
+                                    </div>
                                 </div>
-                                <div className="form-group" style={{ marginBottom: 0 }}>
-                                    <label className="form-label">Rank (Priority)</label>
-                                    <input
-                                        type="number"
-                                        className="form-input"
-                                        value={rank}
-                                        onChange={(e) => setRank(e.target.value === '' ? '' : Number(e.target.value))}
-                                        placeholder="e.g. 1 (Top priority)"
-                                    />
-                                </div>
-                            </div>
+                            )}
                         </div>
 
                         {/* Categories */}
                         <div className="glass-card" style={{ marginBottom: 'var(--space-6)' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-4)' }}>
-                                <h3 style={{ fontSize: 'var(--text-lg)', marginBottom: 0 }}>🏷️ Categories</h3>
+                                <h3 style={{ fontSize: 'var(--text-lg)', marginBottom: 0 }}>🏷️ Categories <span style={{ color: 'var(--danger-400)', fontSize: 'var(--text-sm)' }}>* (min 1)</span></h3>
                                 <button
                                     type="button"
                                     className="btn btn-secondary btn-sm"
@@ -393,36 +552,90 @@ export default function EditResourcePage() {
                                     ✨ AI Suggest
                                 </button>
                             </div>
+
                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-2)', marginBottom: 'var(--space-4)' }}>
                                 {selectedCategories.map((cat) => (
-                                    <span key={cat} className="badge badge-primary" style={{ cursor: 'pointer', padding: 'var(--space-2) var(--space-3)' }} onClick={() => removeCategory(cat)}>
+                                    <span
+                                        key={cat}
+                                        className="badge badge-primary"
+                                        style={{ cursor: 'pointer', padding: 'var(--space-2) var(--space-3)' }}
+                                        onClick={() => removeCategory(cat)}
+                                    >
                                         {cat} ✕
                                     </span>
                                 ))}
                             </div>
-                            {suggestedCats.length > 0 && (
-                                <div style={{ marginBottom: 'var(--space-3)' }}>
-                                    <span style={{ fontSize: 'var(--text-xs)', color: 'var(--accent-400)', fontWeight: 600 }}>🤖 Suggested: </span>
-                                    {suggestedCats.map((cat) => (
-                                        <button key={cat} type="button" className="badge badge-accent" style={{ cursor: 'pointer', marginRight: 'var(--space-1)' }} onClick={() => addCategory(cat)}>
-                                            + {cat}
-                                        </button>
-                                    ))}
+
+                            {/* AI Suggestions */}
+                            {suggestedCategories.length > 0 && suggestedCategories.some(c => !selectedCategories.includes(c)) && (
+                                <div style={{ marginBottom: 'var(--space-4)' }}>
+                                    <div style={{
+                                        fontSize: 'var(--text-xs)',
+                                        color: 'var(--accent-400)',
+                                        fontWeight: 600,
+                                        marginBottom: 'var(--space-2)',
+                                        textTransform: 'uppercase',
+                                    }}>
+                                        🤖 AI Suggested
+                                    </div>
+                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-2)' }}>
+                                        {suggestedCategories
+                                            .filter((c) => !selectedCategories.includes(c))
+                                            .map((cat) => (
+                                                <button
+                                                    key={cat}
+                                                    type="button"
+                                                    className="badge badge-accent"
+                                                    style={{
+                                                        cursor: 'pointer',
+                                                        padding: 'var(--space-2) var(--space-3)',
+                                                        background: 'rgba(249, 115, 22, 0.1)',
+                                                    }}
+                                                    onClick={() => addCategory(cat)}
+                                                >
+                                                    + {cat}
+                                                </button>
+                                            ))}
+                                    </div>
                                 </div>
                             )}
-                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-1)' }}>
-                                {allCategories.filter((c) => !selectedCategories.includes(c)).map((cat) => (
-                                    <button key={cat} type="button" className="badge badge-primary" style={{ cursor: 'pointer', opacity: 0.5, fontSize: '0.65rem' }} onClick={() => addCategory(cat)}>
-                                        + {cat}
-                                    </button>
-                                ))}
+
+                            <div>
+                                <div style={{
+                                    fontSize: 'var(--text-xs)',
+                                    color: 'var(--text-muted)',
+                                    fontWeight: 600,
+                                    marginBottom: 'var(--space-2)',
+                                    textTransform: 'uppercase',
+                                }}>
+                                    All Categories
+                                </div>
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-2)' }}>
+                                    {allCategories
+                                        .filter((c) => !selectedCategories.includes(c))
+                                        .map((cat) => (
+                                            <button
+                                                key={cat}
+                                                type="button"
+                                                className="badge badge-primary"
+                                                style={{
+                                                    cursor: 'pointer',
+                                                    padding: 'var(--space-1) var(--space-3)',
+                                                    opacity: 0.6,
+                                                }}
+                                                onClick={() => addCategory(cat)}
+                                            >
+                                                + {cat}
+                                            </button>
+                                        ))}
+                                </div>
                             </div>
                         </div>
 
                         {/* Credits */}
                         <div className="glass-card" style={{ marginBottom: 'var(--space-6)' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-4)' }}>
-                                <h3 style={{ fontSize: 'var(--text-lg)', marginBottom: 0 }}>👤 Credits</h3>
+                                <h3 style={{ fontSize: 'var(--text-lg)', marginBottom: 0 }}>👤 Credits & Attribution</h3>
                                 <button
                                     type="button"
                                     className="btn btn-secondary btn-sm"
@@ -432,24 +645,96 @@ export default function EditResourcePage() {
                                     }}
                                     id="ai-suggest-credits"
                                 >
-                                    ✨ AI Suggest
+                                    ✨ AI Suggest Credits
                                 </button>
                             </div>
+
+                            {/* AI Suggested Credits */}
+                            {suggestedCredits.length > 0 && suggestedCredits.some(sc => !credits.some(c => c.name === sc.name)) && (
+                                <div style={{ marginBottom: 'var(--space-4)' }}>
+                                    <div style={{
+                                        fontSize: 'var(--text-xs)',
+                                        color: 'var(--accent-400)',
+                                        fontWeight: 600,
+                                        marginBottom: 'var(--space-2)',
+                                        textTransform: 'uppercase',
+                                    }}>
+                                        🤖 AI Suggested Credits
+                                    </div>
+                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-2)' }}>
+                                        {suggestedCredits
+                                            .filter(sc => !credits.some(c => c.name === sc.name))
+                                            .map((credit, idx) => (
+                                                <button
+                                                    key={idx}
+                                                    type="button"
+                                                    className="btn btn-sm btn-secondary"
+                                                    onClick={() => applySuggestedCredit(credit)}
+                                                >
+                                                    + {credit.name}
+                                                </button>
+                                            ))}
+                                    </div>
+                                </div>
+                            )}
+
                             {credits.map((credit, idx) => (
-                                <div key={idx} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: 'var(--space-3)', marginBottom: 'var(--space-3)' }}>
-                                    <input type="text" className="form-input" value={credit.name} onChange={(e) => updateCredit(idx, 'name', e.target.value)} placeholder="Name" />
-                                    <input type="url" className="form-input" value={credit.url} onChange={(e) => updateCredit(idx, 'url', e.target.value)} placeholder="URL" />
+                                <div key={idx} style={{
+                                    display: 'grid',
+                                    gridTemplateColumns: '1fr 1fr auto',
+                                    gap: 'var(--space-3)',
+                                    marginBottom: 'var(--space-3)',
+                                    alignItems: 'end',
+                                }}>
+                                    <div className="form-group" style={{ marginBottom: 0 }}>
+                                        <label className="form-label">Provider Name</label>
+                                        <input
+                                            type="text"
+                                            className="form-input"
+                                            value={credit.name}
+                                            onChange={(e) => updateCredit(idx, 'name', e.target.value)}
+                                            placeholder="Creator/Provider name"
+                                        />
+                                    </div>
+                                    <div className="form-group" style={{ marginBottom: 0 }}>
+                                        <label className="form-label">Provider URL</label>
+                                        <input
+                                            type="url"
+                                            className="form-input"
+                                            value={credit.url}
+                                            onChange={(e) => updateCredit(idx, 'url', e.target.value)}
+                                            placeholder="https://..."
+                                        />
+                                    </div>
                                     {credits.length > 1 && (
-                                        <button type="button" className="btn btn-ghost btn-sm" onClick={() => removeCredit(idx)} style={{ color: 'var(--danger-400)' }}>✕</button>
+                                        <button
+                                            type="button"
+                                            className="btn btn-ghost btn-sm"
+                                            onClick={() => removeCredit(idx)}
+                                            style={{ color: 'var(--danger-400)' }}
+                                        >
+                                            ✕
+                                        </button>
                                     )}
                                 </div>
                             ))}
-                            <button type="button" className="btn btn-ghost btn-sm" onClick={addCredit}>+ Add Credit</button>
+
+                            <button type="button" className="btn btn-ghost btn-sm" onClick={addCredit}>
+                                + Add Another Credit
+                            </button>
                         </div>
 
+                        {/* Submit */}
                         <div style={{ display: 'flex', gap: 'var(--space-3)', justifyContent: 'flex-end' }}>
-                            <button type="button" className="btn btn-secondary" onClick={() => router.back()}>Cancel</button>
-                            <button type="submit" className="btn btn-primary btn-lg" disabled={saving} id="save-resource">
+                            <button type="button" className="btn btn-secondary" onClick={() => router.back()}>
+                                Cancel
+                            </button>
+                            <button
+                                type="submit"
+                                className="btn btn-primary btn-lg"
+                                disabled={saving}
+                                id="submit-update"
+                            >
                                 {saving ? 'Saving...' : '✅ Save Changes'}
                             </button>
                         </div>

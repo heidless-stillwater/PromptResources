@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import Navbar from '@/components/Navbar';
+import Image from 'next/image';
 import Footer from '@/components/Footer';
 import { useAuth } from '@/contexts/AuthContext';
 import { db } from '@/lib/firebase';
@@ -16,12 +17,14 @@ export default function SettingsPage() {
     const [uploading, setUploading] = useState(false);
     const [saving, setSaving] = useState(false);
     const [message, setMessage] = useState({ type: '', text: '' });
+    const [imgError, setImgError] = useState(false);
 
     // Update state when profile loads
     React.useEffect(() => {
         if (profile) {
             setDisplayName(profile.displayName || '');
             setPhotoURL(profile.photoURL || '');
+            setImgError(false);
         }
     }, [profile]);
 
@@ -81,6 +84,7 @@ export default function SettingsPage() {
             const downloadURL = await getDownloadURL(snapshot.ref);
 
             setPhotoURL(downloadURL);
+            setImgError(false);
             setMessage({ type: 'success', text: 'Image uploaded! Remember to save changes.' });
         } catch (error) {
             console.error('Error uploading file:', error);
@@ -158,16 +162,14 @@ export default function SettingsPage() {
                                         fontSize: '1.5rem',
                                         flexShrink: 0
                                     }}>
-                                        {photoURL ? (
+                                        {photoURL && !imgError ? (
                                             <div style={{ position: 'relative', width: '100%', height: '100%' }}>
-                                                <img
+                                                <Image
                                                     src={photoURL}
                                                     alt="Avatar Preview"
-                                                    style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }}
-                                                    onError={(e) => {
-                                                        (e.target as HTMLImageElement).style.display = 'none';
-                                                        (e.target as HTMLImageElement).parentElement!.parentElement!.innerHTML = (displayName?.[0] || 'U').toUpperCase();
-                                                    }}
+                                                    fill
+                                                    style={{ objectFit: 'cover', borderRadius: '50%' }}
+                                                    onError={() => setImgError(true)}
                                                 />
                                             </div>
                                         ) : (
@@ -179,7 +181,10 @@ export default function SettingsPage() {
                                             type="text"
                                             className="form-input"
                                             value={photoURL}
-                                            onChange={(e) => setPhotoURL(e.target.value)}
+                                            onChange={(e) => {
+                                                setPhotoURL(e.target.value);
+                                                setImgError(false);
+                                            }}
                                             placeholder="https://example.com/avatar.jpg"
                                         />
                                         <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginTop: 'var(--space-1)' }}>

@@ -133,10 +133,23 @@ export default function ResourceDetailPage() {
         if (!confirm('Are you sure you want to delete this resource?')) return;
         setDeleting(true);
         try {
-            await deleteDoc(doc(db, 'resources', resourceId));
-            router.push('/resources');
-        } catch (error) {
+            const token = await user?.getIdToken();
+            const response = await fetch(`/api/resources/${resourceId}`, {
+                method: 'DELETE',
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+
+            const result = await response.json();
+            if (result.success) {
+                router.push('/resources');
+            } else {
+                throw new Error(result.error || 'Failed to delete resource');
+            }
+        } catch (error: any) {
             console.error('Error deleting resource:', error);
+            alert(error.message || 'Error deleting resource');
             setDeleting(false);
         }
     };
@@ -435,24 +448,9 @@ export default function ResourceDetailPage() {
                                         <span className="badge badge-warning">{resource.mediaFormat}</span>
                                     </div>
                                 </div>
-                                <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
-                                    <button
-                                        className="btn btn-secondary"
-                                        onClick={() => router.push('/resources')}
-                                        id="cancel-view"
-                                    >
-                                        ✕ Cancel
-                                    </button>
-                                    {user && (
-                                        <button
-                                            className={`btn ${isSaved ? 'btn-primary' : 'btn-secondary'}`}
-                                            onClick={handleSave}
-                                            id="save-resource"
-                                        >
-                                            {isSaved ? '⭐ Saved' : '☆ Save'}
-                                        </button>
-                                    )}
-                                    {user && (
+
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-3)', justifyContent: 'flex-end', alignItems: 'center' }}>
+                                    <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
                                         <button
                                             className="btn btn-secondary"
                                             onClick={() => setIsNoteModalOpen(true)}
@@ -460,83 +458,84 @@ export default function ResourceDetailPage() {
                                         >
                                             {noteContent ? '📝 Edit Note' : '➕ Add Note'}
                                         </button>
-                                    )}
-                                    <div style={{ position: 'relative' }} ref={shareRef}>
-                                        <button
-                                            className="btn btn-secondary"
-                                            onClick={() => setShareOpen(!shareOpen)}
-                                            id="share-resource"
-                                        >
-                                            📤 Share
-                                        </button>
 
-                                        {shareOpen && (
-                                            <div
-                                                className="glass-card"
-                                                style={{
-                                                    position: 'absolute',
-                                                    top: 'calc(100% + 10px)',
-                                                    right: 0,
-                                                    width: '200px',
-                                                    zIndex: 100,
-                                                    padding: 'var(--space-2)',
-                                                    display: 'flex',
-                                                    flexDirection: 'column',
-                                                    gap: 'var(--space-1)',
-                                                    boxShadow: 'var(--shadow-lg)',
-                                                    border: '1px solid var(--border-subtle)',
-                                                }}
-                                            >
-                                                <button
-                                                    className="user-menu-item"
-                                                    style={{ width: '100%', textAlign: 'left', border: 'none', background: 'transparent' }}
-                                                    onClick={handleCopyLink}
-                                                >
-                                                    {copyStatus === 'Copy Link' ? '🔗 ' + copyStatus : copyStatus}
-                                                </button>
-                                                <button
-                                                    className="user-menu-item"
-                                                    style={{ width: '100%', textAlign: 'left', border: 'none', background: 'transparent' }}
-                                                    onClick={handleShareTwitter}
-                                                >
-                                                    🐦 Share on X / Twitter
-                                                </button>
-                                                <button
-                                                    className="user-menu-item"
-                                                    style={{ width: '100%', textAlign: 'left', border: 'none', background: 'transparent' }}
-                                                    onClick={handleShareLinkedIn}
-                                                >
-                                                    💼 Share on LinkedIn
-                                                </button>
-                                                <button
-                                                    className="user-menu-item"
-                                                    style={{ width: '100%', textAlign: 'left', border: 'none', background: 'transparent' }}
-                                                    onClick={handleShareEmail}
-                                                >
-                                                    ✉️ Share via Email
-                                                </button>
-                                            </div>
+                                        {(isAdmin || (user && resource.addedBy === user.uid)) && (
+                                            <Link href={`/resources/${resource.id}/edit`} className="btn btn-secondary" id="edit-resource-top">
+                                                ✏️ Edit
+                                            </Link>
                                         )}
+
+                                        <div style={{ position: 'relative' }} ref={shareRef}>
+                                            <button
+                                                className="btn btn-secondary"
+                                                onClick={() => setShareOpen(!shareOpen)}
+                                                id="share-resource"
+                                            >
+                                                📤 Share
+                                            </button>
+
+                                            {shareOpen && (
+                                                <div
+                                                    className="glass-card"
+                                                    style={{
+                                                        position: 'absolute',
+                                                        top: 'calc(100% + 10px)',
+                                                        right: 0,
+                                                        width: '200px',
+                                                        zIndex: 100,
+                                                        padding: 'var(--space-2)',
+                                                        display: 'flex',
+                                                        flexDirection: 'column',
+                                                        gap: 'var(--space-1)',
+                                                        boxShadow: 'var(--shadow-lg)',
+                                                        border: '1px solid var(--border-subtle)',
+                                                    }}
+                                                >
+                                                    <button
+                                                        className="user-menu-item"
+                                                        style={{ width: '100%', textAlign: 'left', border: 'none', background: 'transparent' }}
+                                                        onClick={handleCopyLink}
+                                                    >
+                                                        {copyStatus === 'Copy Link' ? '🔗 ' + copyStatus : copyStatus}
+                                                    </button>
+                                                    <button
+                                                        className="user-menu-item"
+                                                        style={{ width: '100%', textAlign: 'left', border: 'none', background: 'transparent' }}
+                                                        onClick={handleShareTwitter}
+                                                    >
+                                                        🐦 Share on X / Twitter
+                                                    </button>
+                                                    <button
+                                                        className="user-menu-item"
+                                                        style={{ width: '100%', textAlign: 'left', border: 'none', background: 'transparent' }}
+                                                        onClick={handleShareLinkedIn}
+                                                    >
+                                                        💼 Share on LinkedIn
+                                                    </button>
+                                                    <button
+                                                        className="user-menu-item"
+                                                        style={{ width: '100%', textAlign: 'left', border: 'none', background: 'transparent' }}
+                                                        onClick={handleShareEmail}
+                                                    >
+                                                        ✉️ Share via Email
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
-                                    <div style={{ display: 'flex', gap: 'var(--space-3)' }}>
-                                        <button
-                                            className="btn btn-secondary"
-                                            onClick={() => router.push('/resources')}
-                                        >
-                                            ✕ Cancel
-                                        </button>
-                                        <a
-                                            href={resource.url}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="btn btn-primary"
-                                            id="open-resource"
-                                        >
-                                            🌐 Open Resource
-                                        </a>
-                                    </div>
+
+                                    <a
+                                        href={resource.url}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="btn btn-primary"
+                                        id="open-resource"
+                                    >
+                                        🌐 Open Resource
+                                    </a>
                                 </div>
                             </div>
+
 
                             {/* Description */}
                             <div style={{ marginBottom: 'var(--space-8)' }}>
@@ -668,8 +667,8 @@ export default function ResourceDetailPage() {
                                 </div>
                             )}
 
-                            {/* Admin Actions */}
-                            {isAdmin && (
+                            {/* Owner/Admin Actions */}
+                            {(isAdmin || (user && resource.addedBy === user.uid)) && (
                                 <div style={{
                                     borderTop: '1px solid var(--border-subtle)',
                                     paddingTop: 'var(--space-6)',

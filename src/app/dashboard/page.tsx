@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
@@ -15,8 +16,11 @@ export default function DashboardPage() {
     const router = useRouter();
     const [savedResources, setSavedResources] = useState<Resource[]>([]);
     const [userResData, setUserResData] = useState<UserResourceData | null>(null);
+    const [myAddedResources, setMyAddedResources] = useState<Resource[]>([]);
     const [totalResources, setTotalResources] = useState(0);
     const [loading, setLoading] = useState(true);
+    const [savedExpanded, setSavedExpanded] = useState(false);
+    const [contributionsExpanded, setContributionsExpanded] = useState(false);
 
     useEffect(() => {
         if (!authLoading && !user) {
@@ -41,17 +45,20 @@ export default function DashboardPage() {
 
                 // Fetch saved resources details via API
                 if (savedIds.length > 0) {
-                    const resourcePromises = savedIds.slice(0, 10).map(async (id) => {
+                    const fetchedResources: Resource[] = [];
+                    // Sequential fetch to avoid parallel burst
+                    for (const id of [...savedIds].reverse().slice(0, 4)) {
                         try {
                             const res = await fetch(`/api/resources/${id}`);
                             const result = await res.json();
-                            return result.success ? result.data : null;
+                            if (result.success) {
+                                fetchedResources.push(result.data);
+                            }
                         } catch (err) {
-                            return null;
+                            console.error(`Error fetching resource ${id}:`, err);
                         }
-                    });
-                    const resources = (await Promise.all(resourcePromises)).filter(Boolean) as Resource[];
-                    setSavedResources(resources);
+                    }
+                    setSavedResources(fetchedResources);
                 }
 
                 // Get total resources count via API
@@ -59,6 +66,13 @@ export default function DashboardPage() {
                 const allResResult = await allResResponse.json();
                 if (allResResult.success) {
                     setTotalResources(allResResult.total);
+                }
+
+                // Fetch resources added by user
+                const myResResponse = await fetch(`/api/resources?addedBy=${user.uid}`);
+                const myResResult = await myResResponse.json();
+                if (myResResult.success) {
+                    setMyAddedResources(myResResult.data || []);
                 }
             } catch (error) {
                 console.error('Error fetching dashboard data:', error);
@@ -140,10 +154,11 @@ export default function DashboardPage() {
                             <div className="avatar" style={{ width: '64px', height: '64px', fontSize: '1.5rem' }}>
                                 {profile?.photoURL ? (
                                     <div style={{ position: 'relative', width: '100%', height: '100%' }}>
-                                        <img
+                                        <Image
                                             src={profile.photoURL}
-                                            alt={profile.displayName}
-                                            style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }}
+                                            alt={profile.displayName || ''}
+                                            fill
+                                            style={{ objectFit: 'cover', borderRadius: '50%' }}
                                         />
                                     </div>
                                 ) : (
@@ -160,6 +175,11 @@ export default function DashboardPage() {
                             </div>
                         </div>
                         <div style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'center' }}>
+                            {activeRole === 'admin' && (
+                                <Link href="/admin" className="btn btn-ghost" style={{ marginRight: 'var(--space-2)' }}>
+                                    ⚙️ Admin Panel
+                                </Link>
+                            )}
                             <span className={`badge badge-${profile?.subscriptionType === 'pro' ? 'accent' : profile?.subscriptionType === 'standard' ? 'primary' : 'success'}`}>
                                 {profile?.subscriptionType?.toUpperCase() || 'FREE'} Plan
                             </span>
@@ -180,8 +200,8 @@ export default function DashboardPage() {
                             <div className="stat-label">Completed</div>
                         </div>
                         <div className="glass-card stat-card">
-                            <div className="stat-value">{inProgressCount}</div>
-                            <div className="stat-label">In Progress</div>
+                            <div className="stat-value">{myAddedResources.length}</div>
+                            <div className="stat-label">Contributions</div>
                         </div>
                         <div className="glass-card stat-card">
                             <div className="stat-value">{totalResources}</div>
@@ -239,100 +259,228 @@ export default function DashboardPage() {
                         </Link>
                     </div>
 
-                    {/* Saved Resources */}
-                    <div style={{ marginBottom: 'var(--space-8)' }}>
-                        <div style={{
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center',
-                            marginBottom: 'var(--space-5)',
-                        }}>
-                            <h2>⭐ Saved Resources</h2>
-                            {savedResources.length > 0 && (
-                                <Link href="/dashboard/saved" className="btn btn-ghost">
-                                    View All →
-                                </Link>
-                            )}
+                    <div style={{ 
+                        marginBottom: 'var(--space-4)', // Reduced from space-8 to group header and content better
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center'
+                    }}>
+                        <div 
+                            onClick={() => setSavedExpanded(!savedExpanded)}
+                            style={{ 
+                                display: 'flex', 
+                                alignItems: 'center', 
+                                cursor: 'pointer',
+                                userSelect: 'none',
+                                gap: 'var(--space-2)'
+                            }}
+                        >
+                            <span style={{ 
+                                transform: savedExpanded ? 'rotate(90deg)' : 'rotate(0deg)',
+                                transition: 'transform var(--transition-fast)',
+                                fontSize: '0.8rem',
+                                color: 'var(--text-muted)'
+                            }}>▶</span>
+                            <h2 style={{ marginBottom: 0 }}>⭐ Saved Resources</h2>
+                            <span className="badge badge-primary" style={{ fontSize: '0.7rem' }}>
+                                {savedResources.length}
+                            </span>
                         </div>
-
-                        {loading ? (
-                            <div className="loading-page" style={{ minHeight: '200px' }}>
-                                <div className="spinner" />
-                            </div>
-                        ) : savedResources.length === 0 ? (
-                            <div className="glass-card" style={{
-                                textAlign: 'center',
-                                padding: 'var(--space-10)',
-                            }}>
-                                <div style={{ fontSize: '2rem', marginBottom: 'var(--space-3)' }}>📭</div>
-                                <div style={{
-                                    color: 'var(--text-secondary)',
-                                    fontWeight: 600,
-                                    marginBottom: 'var(--space-2)',
-                                }}>
-                                    No saved resources yet
-                                </div>
-                                <p style={{
-                                    color: 'var(--text-muted)',
-                                    fontSize: 'var(--text-sm)',
-                                    marginBottom: 'var(--space-4)',
-                                }}>
-                                    Browse resources and save your favorites for quick access
-                                </p>
-                                <Link href="/resources" className="btn btn-primary">
-                                    Browse Resources
-                                </Link>
-                            </div>
-                        ) : (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-                                {savedResources.map((resource) => (
-                                    <Link
-                                        href={`/resources/${resource.id}`}
-                                        key={resource.id}
-                                        className="card"
-                                        style={{
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            gap: 'var(--space-4)',
-                                            textDecoration: 'none',
-                                            color: 'inherit',
-                                        }}
-                                    >
-                                        <div style={{ fontSize: '1.5rem' }}>
-                                            {resource.mediaFormat === 'youtube' ? '▶️' :
-                                                resource.type === 'article' ? '📄' :
-                                                    resource.type === 'tool' ? '🔧' : '📚'}
-                                        </div>
-                                        <div style={{ flex: 1 }}>
-                                            <div style={{ fontWeight: 600, fontSize: 'var(--text-sm)' }}>
-                                                {resource.title}
-                                            </div>
-                                            <div style={{
-                                                fontSize: 'var(--text-xs)',
-                                                color: 'var(--text-muted)',
-                                                display: 'flex',
-                                                gap: 'var(--space-2)',
-                                                marginTop: 'var(--space-1)',
-                                            }}>
-                                                <span className={`badge badge-${resource.pricing}`} style={{ fontSize: '0.65rem' }}>{resource.pricing}</span>
-                                                <span>{resource.platform}</span>
-                                            </div>
-                                        </div>
-                                        <button
-                                            className="btn btn-ghost btn-sm"
-                                            onClick={(e) => handleUnsave(e, resource.id)}
-                                            style={{ color: 'var(--text-muted)' }}
-                                            title="Remove from saved"
-                                        >
-                                            ✕
-                                        </button>
-                                        <span style={{ color: 'var(--text-muted)', fontSize: 'var(--text-sm)' }}>→</span>
-                                    </Link>
-                                ))}
-                            </div>
+                        {savedResources.length > 0 && (
+                            <Link href="/dashboard/saved" className="btn btn-ghost btn-sm">
+                                View All →
+                            </Link>
                         )}
                     </div>
 
+                        {savedExpanded && (
+                            loading ? (
+                                <div className="loading-page" style={{ minHeight: '200px' }}>
+                                    <div className="spinner" />
+                                </div>
+                            ) : savedResources.length === 0 ? (
+                                <div className="glass-card" style={{
+                                    textAlign: 'center',
+                                    padding: 'var(--space-10)',
+                                }}>
+                                    <div style={{ fontSize: '2rem', marginBottom: 'var(--space-3)' }}>📭</div>
+                                    <div style={{
+                                        color: 'var(--text-secondary)',
+                                        fontWeight: 600,
+                                        marginBottom: 'var(--space-2)',
+                                    }}>
+                                        No saved resources yet
+                                    </div>
+                                    <p style={{
+                                        color: 'var(--text-muted)',
+                                        fontSize: 'var(--text-sm)',
+                                        marginBottom: 'var(--space-4)',
+                                    }}>
+                                        Browse resources and save your favorites for quick access
+                                    </p>
+                                    <Link href="/resources" className="btn btn-primary">
+                                        Browse Resources
+                                    </Link>
+                                </div>
+                            ) : (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)', animation: 'slideDown var(--transition-base)' }}>
+                                    {savedResources.map((resource) => (
+                                        <Link
+                                            href={`/resources/${resource.id}`}
+                                            key={resource.id}
+                                            className="card"
+                                            style={{
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: 'var(--space-4)',
+                                                textDecoration: 'none',
+                                                color: 'inherit',
+                                            }}
+                                        >
+                                            <div style={{ fontSize: '1.5rem' }}>
+                                                {resource.mediaFormat === 'youtube' ? '▶️' :
+                                                    resource.type === 'article' ? '📄' :
+                                                        resource.type === 'tool' ? '🔧' : '📚'}
+                                            </div>
+                                            <div style={{ flex: 1 }}>
+                                                <div style={{ fontWeight: 600, fontSize: 'var(--text-sm)' }}>
+                                                    {resource.title}
+                                                </div>
+                                                <div style={{
+                                                    fontSize: 'var(--text-xs)',
+                                                    color: 'var(--text-muted)',
+                                                    display: 'flex',
+                                                    gap: 'var(--space-2)',
+                                                    marginTop: 'var(--space-1)',
+                                                }}>
+                                                    <span className={`badge badge-${resource.pricing}`} style={{ fontSize: '0.65rem' }}>{resource.pricing}</span>
+                                                    <span>{resource.platform}</span>
+                                                </div>
+                                            </div>
+                                            <button
+                                                className="btn btn-ghost btn-sm"
+                                                onClick={(e) => handleUnsave(e, resource.id)}
+                                                style={{ color: 'var(--text-muted)' }}
+                                                title="Remove from saved"
+                                            >
+                                                ✕
+                                            </button>
+                                            <span style={{ color: 'var(--text-muted)', fontSize: 'var(--text-sm)' }}>→</span>
+                                        </Link>
+                                    ))}
+                                </div>
+                            )
+                        )}
+                    
+                    {/* My Contributions */}
+                    <div style={{ 
+                        marginBottom: 'var(--space-4)',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        marginTop: 'var(--space-8)' // Keep space-8 as margin top for consistency
+                    }}>
+                        <div 
+                            onClick={() => setContributionsExpanded(!contributionsExpanded)}
+                            style={{ 
+                                display: 'flex', 
+                                alignItems: 'center', 
+                                cursor: 'pointer',
+                                userSelect: 'none',
+                                gap: 'var(--space-2)'
+                            }}
+                        >
+                            <span style={{ 
+                                transform: contributionsExpanded ? 'rotate(90deg)' : 'rotate(0deg)',
+                                transition: 'transform var(--transition-fast)',
+                                fontSize: '0.8rem',
+                                color: 'var(--text-muted)'
+                            }}>▶</span>
+                            <h2 style={{ marginBottom: 0 }}>📝 My Contributions</h2>
+                            <span className="badge badge-primary" style={{ fontSize: '0.7rem' }}>
+                                {myAddedResources.length}
+                            </span>
+                        </div>
+                        <Link href="/resources/add" className="btn btn-primary btn-sm">
+                            + Suggest New
+                        </Link>
+                    </div>
+
+                        {contributionsExpanded && (
+                            loading ? (
+                                <div className="loading-page" style={{ minHeight: '200px' }}>
+                                    <div className="spinner" />
+                                </div>
+                            ) : myAddedResources.length === 0 ? (
+                                <div className="glass-card" style={{
+                                    textAlign: 'center',
+                                    padding: 'var(--space-10)',
+                                }}>
+                                    <p style={{ color: 'var(--text-muted)', marginBottom: 'var(--space-4)' }}>
+                                        You haven&apos;t suggested any resources yet. Contribute to the community!
+                                    </p>
+                                    <Link href="/resources/add" className="btn btn-ghost">
+                                        Suggest a Resource
+                                    </Link>
+                                </div>
+                            ) : (
+                                <div className="custom-scrollbar" style={{ 
+                                    display: 'flex', 
+                                    flexDirection: 'column', 
+                                    gap: 'var(--space-3)',
+                                    maxHeight: '420px',
+                                    overflowY: 'auto',
+                                    paddingRight: 'var(--space-2)',
+                                    animation: 'slideDown var(--transition-base)'
+                                }}>
+                                    {myAddedResources.map((resource) => (
+                                        <div
+                                            key={resource.id}
+                                            className="card"
+                                            style={{
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: 'var(--space-4)',
+                                            }}
+                                        >
+                                            <div style={{ fontSize: '1.5rem' }}>
+                                                {resource.mediaFormat === 'youtube' ? '▶️' :
+                                                    resource.type === 'article' ? '📄' :
+                                                        resource.type === 'tool' ? '🔧' : '📚'}
+                                            </div>
+                                            <div style={{ flex: 1 }}>
+                                                <div style={{ fontWeight: 600, fontSize: 'var(--text-sm)' }}>
+                                                    {resource.title}
+                                                </div>
+                                                <div style={{
+                                                    fontSize: 'var(--text-xs)',
+                                                    color: 'var(--text-muted)',
+                                                    display: 'flex',
+                                                    gap: 'var(--space-3)',
+                                                    marginTop: 'var(--space-1)',
+                                                    alignItems: 'center'
+                                                }}>
+                                                    <span className={`badge badge-${resource.status === 'published' ? 'success' : resource.status === 'suggested' ? 'warning' : 'secondary'}`} style={{ fontSize: '0.6rem' }}>
+                                                        {resource.status?.toUpperCase() || 'PENDING'}
+                                                    </span>
+                                                    <span>{resource.platform}</span>
+                                                    <span>{new Date(resource.updatedAt || resource.createdAt).toLocaleDateString()}</span>
+                                                </div>
+                                            </div>
+                                            <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
+                                                <Link href={`/resources/${resource.id}`} className="btn btn-ghost btn-sm">
+                                                    View
+                                                </Link>
+                                                <Link href={`/resources/${resource.id}/edit`} className="btn btn-secondary btn-sm">
+                                                    Edit
+                                                </Link>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )
+                        )}
+                    
                     {/* Account Info */}
                     <div className="glass-card">
                         <h3 style={{

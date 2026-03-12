@@ -6,7 +6,7 @@ export type ResourcePricing = 'free' | 'paid' | 'freemium';
 export type ResourceType = 'video' | 'article' | 'tool' | 'course' | 'book' | 'tutorial' | 'other';
 export type MediaFormat = 'youtube' | 'webpage' | 'pdf' | 'image' | 'audio' | 'other';
 export type Platform = 'gemini' | 'nanobanana' | 'chatgpt' | 'claude' | 'midjourney' | 'general' | 'other';
-export type ResourceStatus = 'published' | 'draft';
+export type ResourceStatus = 'published' | 'draft' | 'pending' | 'suggested';
 export type ProgressStatus = 'new' | 'in-progress' | 'completed';
 
 export interface Credit {
@@ -40,12 +40,17 @@ export interface Resource {
     platform: Platform;
     tags: string[];
     addedBy: string;
+    creator?: {
+        displayName: string;
+        photoURL?: string;
+    };
     createdAt: Date;
     updatedAt: Date;
     status: ResourceStatus;
     isFavorite?: boolean;
     rank?: number;
 }
+
 
 export interface Category {
     id: string;

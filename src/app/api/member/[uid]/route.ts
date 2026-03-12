@@ -38,22 +38,25 @@ export async function GET(
 
         // Fetch full saved resource details
         let savedResourceDetails: any[] = [];
-        const savedIds = userResData?.savedResources;
-        if (savedIds && savedIds.length > 0) {
-            const resourcePromises = savedIds.map(async (id: string) => {
-                const rDoc = await adminDb.collection('resources').doc(id).get();
-                if (rDoc.exists) {
-                    const data = rDoc.data();
-                    return {
-                        id: rDoc.id,
-                        ...data,
-                        createdAt: data?.createdAt?.toDate()?.toISOString() || null,
-                        updatedAt: data?.updatedAt?.toDate()?.toISOString() || null,
-                    };
+        const savedIds = userResData?.savedResources || [];
+        if (savedIds.length > 0) {
+            for (const id of savedIds) {
+                try {
+                    const rDoc = await adminDb.collection('resources').doc(id).get();
+                    if (rDoc.exists) {
+                        const data = rDoc.data();
+                        savedResourceDetails.push({
+                            id: rDoc.id,
+                            ...data,
+                            createdAt: data?.createdAt?.toDate()?.toISOString() || null,
+                            updatedAt: data?.updatedAt?.toDate()?.toISOString() || null,
+                        });
+                    }
+                } catch (err) {
+                    console.error(`Error fetching resource ${id}:`, err);
+                    // Continue to next resource instead of failing the whole request
                 }
-                return null;
-            });
-            savedResourceDetails = (await Promise.all(resourcePromises)).filter(Boolean);
+            }
         }
 
         return NextResponse.json({

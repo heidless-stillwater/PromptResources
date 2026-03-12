@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, Suspense } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import { useAuth } from '@/contexts/AuthContext';
@@ -11,9 +11,26 @@ import { collection, getDocs, doc, updateDoc, deleteDoc } from 'firebase/firesto
 import { UserProfile, Resource } from '@/lib/types';
 
 export default function AdminPage() {
+    return (
+        <Suspense fallback={
+            <div className="page-wrapper">
+                <Navbar />
+                <div className="loading-page">
+                    <div className="spinner" />
+                </div>
+            </div>
+        }>
+            <AdminContent />
+        </Suspense>
+    );
+}
+
+function AdminContent() {
     const { user, isAdmin, loading: authLoading } = useAuth();
     const router = useRouter();
-    const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'resources' | 'categories'>('overview');
+    const searchParams = useSearchParams();
+    const defaultTab = (searchParams.get('tab') as any) || 'overview';
+    const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'resources' | 'suggestions' | 'categories'>(defaultTab);
     const [users, setUsers] = useState<UserProfile[]>([]);
     const [resources, setResources] = useState<Resource[]>([]);
     const [loading, setLoading] = useState(true);
@@ -63,6 +80,15 @@ export default function AdminPage() {
         }
     };
 
+    const handleApproveResource = async (id: string) => {
+        try {
+            await updateDoc(doc(db, 'resources', id), { status: 'published', updatedAt: new Date() });
+            setResources(resources.map((r) => r.id === id ? { ...r, status: 'published' } : r));
+        } catch (error) {
+            console.error('Error approving resource:', error);
+        }
+    };
+
     const handleRoleChange = async (uid: string, newRole: string) => {
         try {
             await updateDoc(doc(db, 'users', uid), { role: newRole });
@@ -81,6 +107,13 @@ export default function AdminPage() {
         }
     };
 
+    useEffect(() => {
+        const tab = searchParams.get('tab');
+        if (tab && ['overview', 'users', 'resources', 'suggestions', 'categories'].includes(tab)) {
+            setActiveTab(tab as any);
+        }
+    }, [searchParams]);
+
     if (authLoading || !isAdmin) {
         return (
             <div className="page-wrapper">
@@ -92,8 +125,14 @@ export default function AdminPage() {
         );
     }
 
+    const handleTabChange = (tab: typeof activeTab) => {
+        setActiveTab(tab);
+        router.push(`/admin?tab=${tab}`);
+    };
+
     const freeCount = resources.filter((r) => r.pricing === 'free').length;
     const paidCount = resources.filter((r) => r.pricing === 'paid').length;
+    const reviewCount = resources.filter((r) => r.status === 'pending' || r.status === 'suggested').length;
 
     return (
         <div className="page-wrapper">
@@ -104,18 +143,39 @@ export default function AdminPage() {
 
                     {/* Tabs */}
                     <div className="tabs">
-                        {(['overview', 'users', 'resources', 'categories'] as const).map((tab) => (
+                        {(['overview', 'users', 'resources', 'suggestions', 'categories'] as const).map((tab) => (
                             <button
                                 key={tab}
                                 className={`tab ${activeTab === tab ? 'active' : ''}`}
-                                onClick={() => setActiveTab(tab)}
+                                onClick={() => handleTabChange(tab)}
                                 id={`admin-tab-${tab}`}
+                                style={{ position: 'relative' }}
                             >
                                 {tab === 'overview' && '📊 '}
                                 {tab === 'users' && '👥 '}
                                 {tab === 'resources' && '📚 '}
+                                {tab === 'suggestions' && '💡 '}
                                 {tab === 'categories' && '🏷️ '}
                                 {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                                {tab === 'suggestions' && reviewCount > 0 && (
+                                    <span style={{
+                                        position: 'absolute',
+                                        top: '-5px',
+                                        right: '-5px',
+                                        background: 'var(--danger-500)',
+                                        color: 'white',
+                                        borderRadius: '50%',
+                                        width: '18px',
+                                        height: '18px',
+                                        fontSize: '10px',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        fontWeight: 'bold',
+                                    }}>
+                                        {reviewCount}
+                                    </span>
+                                )}
                             </button>
                         ))}
                     </div>
@@ -182,6 +242,12 @@ export default function AdminPage() {
                                         <Link href="/admin/audit/youtube" className="btn btn-secondary" style={{ justifyContent: 'flex-start' }}>
                                             📺 YouTube Audit Tool
                                         </Link>
+                                        <button 
+                                            className="btn btn-secondary" 
+                                            style={{ justifyContent: 'flex-start', width: '100%', textAlign: 'left' }}
+                                            onClick={() => handleTabChange('suggestions')}>
+                                            💡 Review Suggestions ({reviewCount})
+                                        </button>
                                     </div>
                                 </div>
                             </div>
@@ -255,6 +321,75 @@ export default function AdminPage() {
                         </div>
                     )}
 
+                    {/* Suggestions Tab */}
+                    {activeTab === 'suggestions' && (
+                        <div className="animate-fade-in">
+                            <div className="table-wrapper">
+                                <table className="table" id="suggestions-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Title</th>
+                                            <th>Platform</th>
+                                            <th>Type</th>
+                                            <th>Pricing</th>
+                                            <th>Submitted By</th>
+                                            <th>Status</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {resources.filter(r => r.status === 'pending' || r.status === 'suggested').length === 0 ? (
+                                            <tr>
+                                                <td colSpan={7} style={{ textAlign: 'center', padding: 'var(--space-8)', color: 'var(--text-muted)' }}>
+                                                    No suggestions needing review.
+                                                </td>
+                                            </tr>
+                                        ) : resources.filter(r => r.status === 'pending' || r.status === 'suggested').map((r) => (
+                                            <tr key={r.id}>
+                                                <td>
+                                                    <div style={{ fontWeight: 600 }}>{r.title}</div>
+                                                    <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', maxWidth: '300px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                        {r.url}
+                                                    </div>
+                                                </td>
+                                                <td><span className="badge badge-accent">{r.platform}</span></td>
+                                                <td style={{ color: 'var(--text-muted)' }}>{r.type}</td>
+                                                <td><span className={`badge badge-${r.pricing}`}>{r.pricing}</span></td>
+                                                <td>
+                                                    <div style={{ fontSize: 'var(--text-xs)' }}>
+                                                        {users.find(u => u.uid === r.addedBy)?.email || r.addedBy || 'Anonymous'}
+                                                    </div>
+                                                </td>
+                                                <td>
+                                                    <span className={`badge badge-${r.status === 'suggested' ? 'accent' : 'secondary'}`}>
+                                                        {r.status}
+                                                    </span>
+                                                </td>
+                                                <td>
+                                                    <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
+                                                        <button
+                                                            className="btn btn-primary btn-sm"
+                                                            onClick={() => handleApproveResource(r.id)}
+                                                        >
+                                                            ✅ Approve
+                                                        </button>
+                                                        <button
+                                                            className="btn btn-ghost btn-sm"
+                                                            onClick={() => handleDeleteResource(r.id)}
+                                                            style={{ color: 'var(--danger-400)' }}
+                                                        >
+                                                            ❌ Reject
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    )}
+
                     {/* Resources Tab */}
                     {activeTab === 'resources' && (
                         <div className="animate-fade-in">
@@ -273,14 +408,14 @@ export default function AdminPage() {
                                         <tr>
                                             <th>Title</th>
                                             <th>Platform</th>
+                                            <th>Status</th>
                                             <th>Type</th>
                                             <th>Pricing</th>
-                                            <th>Categories</th>
                                             <th>Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {resources.map((r) => (
+                                        {resources.filter(r => r.status !== 'pending' && r.status !== 'suggested').map((r) => (
                                             <tr key={r.id}>
                                                 <td>
                                                     <Link href={`/resources/${r.id}`} style={{
@@ -291,15 +426,13 @@ export default function AdminPage() {
                                                     </Link>
                                                 </td>
                                                 <td><span className="badge badge-accent">{r.platform}</span></td>
+                                                <td>
+                                                    <span className={`badge badge-${r.status === 'published' ? 'success' : 'secondary'}`}>
+                                                        {r.status}
+                                                    </span>
+                                                </td>
                                                 <td style={{ color: 'var(--text-muted)' }}>{r.type}</td>
                                                 <td><span className={`badge badge-${r.pricing}`}>{r.pricing}</span></td>
-                                                <td>
-                                                    <div style={{ display: 'flex', gap: 'var(--space-1)', flexWrap: 'wrap' }}>
-                                                        {r.categories?.slice(0, 2).map((c) => (
-                                                            <span key={c} className="badge badge-primary" style={{ fontSize: '0.6rem' }}>{c}</span>
-                                                        ))}
-                                                    </div>
-                                                </td>
                                                 <td>
                                                     <div style={{ display: 'flex', gap: 'var(--space-1)' }}>
                                                         <Link href={`/resources/${r.id}/edit`} className="btn btn-ghost btn-sm">✏️</Link>

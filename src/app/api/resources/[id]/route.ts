@@ -82,15 +82,6 @@ export async function PATCH(
             );
         }
 
-        const adminStatus = await isAdmin(decodedToken.uid);
-        if (!adminStatus) {
-            return NextResponse.json(
-                { success: false, error: 'Forbidden: Admins only' },
-                { status: 403 }
-            );
-        }
-
-        const body = await request.json();
         const docRef = adminDb.collection('resources').doc(params.id);
         const docSnap = await docRef.get();
 
@@ -101,14 +92,28 @@ export async function PATCH(
             );
         }
 
+        const resourceData = docSnap.data();
+        const adminStatus = await isAdmin(decodedToken.uid);
+        const isOwner = resourceData?.addedBy === decodedToken.uid;
+
+        if (!adminStatus && !isOwner) {
+            return NextResponse.json(
+                { success: false, error: 'Forbidden: You do not have permission to edit this resource' },
+                { status: 403 }
+            );
+        }
+
+        const body = await request.json();
         const now = new Date();
         const updateData = {
             ...body,
             updatedAt: now,
         };
 
-        // Remove ID if present in body to avoid writing it as a field
+        // Remove sensitive fields if present in body to avoid writing them as fields
         delete updateData.id;
+        delete updateData.addedBy;
+        delete updateData.createdAt;
 
         await docRef.update(updateData);
 
@@ -120,6 +125,55 @@ export async function PATCH(
                 id: params.id,
                 updatedAt: now.toISOString(),
             }
+        });
+    } catch (error: any) {
+        console.error('API Error:', error);
+        return NextResponse.json(
+            { success: false, error: error.message || 'Internal server error' },
+            { status: 500 }
+        );
+    }
+}
+
+export async function DELETE(
+    request: NextRequest,
+    { params }: { params: { id: string } }
+) {
+    try {
+        const decodedToken = await getAuthUser(request);
+        if (!decodedToken) {
+            return NextResponse.json(
+                { success: false, error: 'Unauthorized' },
+                { status: 401 }
+            );
+        }
+
+        const docRef = adminDb.collection('resources').doc(params.id);
+        const docSnap = await docRef.get();
+
+        if (!docSnap.exists) {
+            return NextResponse.json(
+                { success: false, error: 'Resource not found' },
+                { status: 404 }
+            );
+        }
+
+        const resourceData = docSnap.data();
+        const adminStatus = await isAdmin(decodedToken.uid);
+        const isOwner = resourceData?.addedBy === decodedToken.uid;
+
+        if (!adminStatus && !isOwner) {
+            return NextResponse.json(
+                { success: false, error: 'Forbidden: You do not have permission to delete this resource' },
+                { status: 403 }
+            );
+        }
+
+        await docRef.delete();
+
+        return NextResponse.json({
+            success: true,
+            message: 'Resource deleted successfully'
         });
     } catch (error: any) {
         console.error('API Error:', error);

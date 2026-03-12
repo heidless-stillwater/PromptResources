@@ -6,7 +6,7 @@ import Navbar from '@/components/Navbar';
 import { db } from '@/lib/firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { useAuth } from '@/contexts/AuthContext';
-import { Credit, Platform, ResourcePricing, ResourceType, MediaFormat } from '@/lib/types';
+import { Credit, Platform, ResourcePricing, ResourceType, MediaFormat, ResourceStatus } from '@/lib/types';
 import { suggestCategories, suggestCredits, getDefaultCategories, suggestDescription, suggestTags } from '@/lib/suggestions';
 import { extractYouTubeId, isYouTubeUrl, fetchYouTubeMetadata, isGenericYouTubeName, deduplicateCredits } from '@/lib/youtube';
 
@@ -26,6 +26,7 @@ export default function NewResourcePage() {
     const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
     const [suggestedCategories, setSuggestedCategories] = useState<string[]>([]);
     const [credits, setCredits] = useState<Credit[]>([{ name: '', url: '' }]);
+    const [status, setStatus] = useState<ResourceStatus>(isAdmin ? 'published' : 'suggested');
     const [suggestedCredits, setSuggestedCredits] = useState<Credit[]>([]);
     const [ytMetadata, setYtMetadata] = useState<any>(null);
     const [isFavorite, setIsFavorite] = useState(false);
@@ -50,19 +51,54 @@ export default function NewResourcePage() {
 
                     setSuggestedCredits(prev => {
                         const newCreds = isYouTubeUrl(url) ?
-                            prev.map(c => c.name === 'Youtube' ? { ...c, name: channelName } : c) :
+                            prev.map(c => c.name === 'Youtube' ? { ...c, name: channelName, url: data.author_url || url } : c) :
                             [...prev];
 
                         if (!newCreds.some(c => c.name === channelName)) {
-                            newCreds.push({ name: channelName, url: url });
+                            newCreds.push({ name: channelName, url: data.author_url || url });
                         }
                         return deduplicateCredits(newCreds);
                     });
 
+                    // Autofill Title
+                    setTitle(prev => {
+                        if (!prev && data.title) return data.title;
+                        return prev;
+                    });
+
+                    // Autofill description
+                    setDescription(prev => {
+                        if (!prev && data.title) {
+                            return suggestDescription(data.title);
+                        }
+                        return prev;
+                    });
+
+                    // Autofill Categories
+                    setSelectedCategories(prev => {
+                        if (prev.length === 0 && data.title) {
+                             const cats = suggestCategories(data.title, suggestDescription(data.title), url);
+                             return Array.from(new Set([...prev, ...cats]));
+                        }
+                        return prev;
+                    });
+
+                    // Autofill Tags
+                    setTags(prev => {
+                        if (!prev && data.title) {
+                            const suggestedTags = suggestTags(data.title, suggestDescription(data.title), url);
+                            if (suggestedTags.length > 0) {
+                                return suggestedTags.join(', ');
+                            }
+                        }
+                        return prev;
+                    });
+
                     setCredits(prev => {
-                        const updated = (prev.length === 1 && (isGenericYouTubeName(prev[0].name))) ?
-                            [{ name: channelName, url: url }] :
-                            prev.map(c => isGenericYouTubeName(c.name) ? { ...c, name: channelName } : c);
+                        if (prev.length === 0 || (prev.length === 1 && !prev[0].name && !prev[0].url)) {
+                            return [{ name: channelName, url: data.author_url || url }];
+                        }
+                        const updated = prev.map(c => isGenericYouTubeName(c.name) ? { ...c, name: channelName, url: data.author_url || url } : c);
                         return deduplicateCredits(updated);
                     });
                 }
@@ -77,7 +113,7 @@ export default function NewResourcePage() {
         if (title || url) {
             const cats = suggestCategories(title, description, url);
             setSuggestedCategories(cats);
-            const creds = suggestCredits(url, title, { authorName: ytMetadata?.author_name });
+            const creds = suggestCredits(url, title, { authorName: ytMetadata?.author_name, authorUrl: ytMetadata?.author_url });
             setSuggestedCredits(creds);
         }
     }, [title, description, url, ytMetadata]);
@@ -131,12 +167,17 @@ export default function NewResourcePage() {
         setLoading(true);
         try {
             const youtubeVideoId = extractYouTubeId(url);
+            const token = user ? await user.getIdToken() : '';
+            const headers: Record<string, string> = {
+                'Content-Type': 'application/json',
+            };
+            if (token) {
+                headers['Authorization'] = `Bearer ${token}`;
+            }
 
             const response = await fetch('/api/resources', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
+                headers,
                 body: JSON.stringify({
                     title: title.trim(),
                     description: description.trim(),
@@ -150,8 +191,8 @@ export default function NewResourcePage() {
                     credits: validCredits,
                     youtubeVideoId: youtubeVideoId || null,
                     tags: tags.split(',').map((t) => t.trim()).filter(Boolean),
-                    addedBy: user?.uid || 'unknown',
-                    status: 'published',
+                    addedBy: user?.uid,
+                    status: isAdmin ? status : 'suggested',
                     isFavorite,
                     rank: rank === '' ? null : Number(rank),
                 }),
@@ -160,9 +201,13 @@ export default function NewResourcePage() {
             const result = await response.json();
 
             if (result.success) {
-                router.push('/resources');
+                if (isAdmin) {
+                    router.push('/resources');
+                } else {
+                    router.push('/resources?suggested=true');
+                }
             } else {
-                setError(result.error || 'Failed to add resource.');
+                setError(result.error || 'Failed to submit resource.');
             }
         } catch (err: unknown) {
             const error = err as { message?: string };
@@ -200,7 +245,9 @@ export default function NewResourcePage() {
             <Navbar />
             <div className="main-content">
                 <div className="container" style={{ maxWidth: '800px' }}>
-                    <h1 style={{ marginBottom: 'var(--space-6)' }}>➕ Add New Resource</h1>
+                    <h1 style={{ marginBottom: 'var(--space-6)' }}>
+                        {isAdmin ? '➕ Add New Resource' : '💡 Suggest a Resource'}
+                    </h1>
 
                     <form onSubmit={handleSubmit}>
                         {error && (
@@ -228,7 +275,7 @@ export default function NewResourcePage() {
                                     onClick={() => {
                                         const cats = suggestCategories(title, description, url);
                                         setSelectedCategories(Array.from(new Set([...selectedCategories, ...cats])));
-                                        const creds = suggestCredits(url, title, { authorName: ytMetadata?.author_name });
+                                        const creds = suggestCredits(url, title, { authorName: ytMetadata?.author_name, authorUrl: ytMetadata?.author_url });
                                         if (creds.length > 0) setCredits(creds);
                                         if (!description) {
                                             const desc = suggestDescription(title);
@@ -246,6 +293,24 @@ export default function NewResourcePage() {
                                 >
                                     ✨ Magic AI Autofill
                                 </button>
+                            </div>
+
+                            <div className="form-group">
+                                <label className="form-label" htmlFor="url">URL *</label>
+                                <input
+                                    id="url"
+                                    type="url"
+                                    className="form-input"
+                                    value={url}
+                                    onChange={(e) => setUrl(e.target.value)}
+                                    placeholder="https://..."
+                                    required
+                                />
+                                {url && isYouTubeUrl(url) && (
+                                    <div className="form-helper" style={{ color: 'var(--success-400)' }}>
+                                        ✓ YouTube video detected - will auto-embed
+                                    </div>
+                                )}
                             </div>
 
                             <div className="form-group">
@@ -287,23 +352,6 @@ export default function NewResourcePage() {
                                 />
                             </div>
 
-                            <div className="form-group">
-                                <label className="form-label" htmlFor="url">URL *</label>
-                                <input
-                                    id="url"
-                                    type="url"
-                                    className="form-input"
-                                    value={url}
-                                    onChange={(e) => setUrl(e.target.value)}
-                                    placeholder="https://..."
-                                    required
-                                />
-                                {url && isYouTubeUrl(url) && (
-                                    <div className="form-helper" style={{ color: 'var(--success-400)' }}>
-                                        ✓ YouTube video detected - will auto-embed
-                                    </div>
-                                )}
-                            </div>
 
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-4)' }}>
                                 <div className="form-group">
@@ -398,29 +446,31 @@ export default function NewResourcePage() {
                                 />
                             </div>
 
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-4)', marginTop: 'var(--space-4)' }}>
-                                <div className="form-group" style={{ marginBottom: 0 }}>
-                                    <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', cursor: 'pointer' }}>
-                                        <input
-                                            type="checkbox"
-                                            checked={isFavorite}
-                                            onChange={(e) => setIsFavorite(e.target.checked)}
-                                            style={{ width: '18px', height: '18px' }}
-                                        />
-                                        ⭐ Favorite / Featured
-                                    </label>
-                                </div>
-                                <div className="form-group" style={{ marginBottom: 0 }}>
-                                    <label className="form-label">Rank (Priority)</label>
-                                    <input
-                                        type="number"
-                                        className="form-input"
-                                        value={rank}
-                                        onChange={(e) => setRank(e.target.value === '' ? '' : Number(e.target.value))}
-                                        placeholder="e.g. 1 (Top priority)"
-                                    />
-                                </div>
-                            </div>
+                                        {isAdmin && (
+                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-4)', marginTop: 'var(--space-4)' }}>
+                                                <div className="form-group" style={{ marginBottom: 0 }}>
+                                                    <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', cursor: 'pointer' }}>
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={isFavorite}
+                                                            onChange={(e) => setIsFavorite(e.target.checked)}
+                                                            style={{ width: '18px', height: '18px' }}
+                                                        />
+                                                        ⭐ Favorite / Featured
+                                                    </label>
+                                                </div>
+                                                <div className="form-group" style={{ marginBottom: 0 }}>
+                                                    <label className="form-label">Rank (Priority)</label>
+                                                    <input
+                                                        type="number"
+                                                        className="form-input"
+                                                        value={rank}
+                                                        onChange={(e) => setRank(e.target.value === '' ? '' : Number(e.target.value))}
+                                                        placeholder="e.g. 1 (Top priority)"
+                                                    />
+                                                </div>
+                                            </div>
+                                        )}
                         </div>
 
                         {/* Categories */}
@@ -627,7 +677,7 @@ export default function NewResourcePage() {
                                 disabled={loading}
                                 id="submit-resource"
                             >
-                                {loading ? 'Adding Resource...' : '✅ Add Resource'}
+                                {loading ? (isAdmin ? 'Adding...' : 'Submitting Suggested Resource...') : (isAdmin ? '✅ Add Resource' : '🚀 Submit for Review')}
                             </button>
                         </div>
                     </form>
