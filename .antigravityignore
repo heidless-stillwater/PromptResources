@@ -1,0 +1,26 @@
+# Build/Output
+node_modules
+build
+dist
+.next
+.turbo
+out
+.cache
+
+# Dependencies/Packages
+.pnpm-store
+.yarn
+
+# Environment/Config
+.env*
+*.log
+
+# IDE/Editor
+.vscode
+.idea
+
+# Other
+coverage
+.firebase
+__pycache__
+.git

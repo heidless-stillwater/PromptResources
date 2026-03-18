@@ -13,14 +13,15 @@ import { getYouTubeEmbedUrl, extractYouTubeId, isYouTubeUrl, isGenericYouTubeNam
 import Modal from '@/components/Modal';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import Rating from '@/components/Rating';
+import CommentSection from '@/components/CommentSection';
 
 export default function ResourceDetailPage() {
     const params = useParams();
     const router = useRouter();
     const { user, isAdmin, activeRole } = useAuth();
-    const [resource, setResource] = useState<Resource | null>(null);
-    const [loading, setLoading] = useState(true);
-    const [isSaved, setIsSaved] = useState(false);
+    const queryClient = useQueryClient();
     const [deleting, setDeleting] = useState(false);
     const [copyStatus, setCopyStatus] = useState('Copy Link');
     const [shareOpen, setShareOpen] = useState(false);
@@ -46,54 +47,58 @@ export default function ResourceDetailPage() {
 
     const resourceId = params.id as string;
 
+    // Fetch Resource
+    const { data: resource, isLoading: resourceLoading } = useQuery({
+        queryKey: ['resource', resourceId],
+        queryFn: async () => {
+            const response = await fetch(`/api/resources/${resourceId}`);
+            const result = await response.json();
+            if (!result.success) throw new Error(result.error);
+            const data = result.data;
+            return {
+                ...data,
+                createdAt: data.createdAt ? new Date(data.createdAt) : new Date(),
+                updatedAt: data.updatedAt ? new Date(data.updatedAt) : new Date(),
+            } as Resource;
+        }
+    });
+
+    // Check if saved
+    const { data: isSaved = false } = useQuery({
+        queryKey: ['resource-saved-status', resourceId, user?.uid],
+        queryFn: async () => {
+            if (!user) return false;
+            const response = await fetch(`/api/user-resources?uid=${user.uid}`);
+            const result = await response.json();
+            if (!result.success) return false;
+            return result.data.savedResources?.includes(resourceId) || false;
+        },
+        enabled: !!user,
+    });
+
+    // Fetch User Note
+    const { data: noteData } = useQuery({
+        queryKey: ['user-note', resourceId, user?.uid],
+        queryFn: async () => {
+            if (!user) return null;
+            const response = await fetch(`/api/user-notes/${resourceId}?uid=${user.uid}`);
+            const result = await response.json();
+            if (result.success && result.data.content) {
+                return result.data.content;
+            }
+            return null;
+        },
+        enabled: !!user,
+    });
+
     useEffect(() => {
-        async function fetchResource() {
-            try {
-                const response = await fetch(`/api/resources/${resourceId}`);
-                const result = await response.json();
-
-                if (result.success) {
-                    const data = result.data;
-                    setResource({
-                        ...data,
-                        createdAt: data.createdAt ? new Date(data.createdAt) : new Date(),
-                        updatedAt: data.updatedAt ? new Date(data.updatedAt) : new Date(),
-                    } as Resource);
-                } else {
-                    console.error('API Error:', result.error);
-                }
-
-                // Check if saved via API
-                if (user) {
-                    const userResResponse = await fetch(`/api/user-resources?uid=${user.uid}`);
-                    const userResResult = await userResResponse.json();
-                    if (userResResult.success) {
-                        setIsSaved(userResResult.data.savedResources?.includes(resourceId) || false);
-                    }
-                }
-            } catch (error) {
-                console.error('Error fetching resource:', error);
-            } finally {
-                setLoading(false);
-            }
+        if (noteData) {
+            setNoteContent(noteData);
+            setInitialNoteContent(noteData);
         }
-        fetchResource();
+    }, [noteData]);
 
-        async function fetchNote() {
-            if (!user) return;
-            try {
-                const response = await fetch(`/api/user-notes/${resourceId}?uid=${user.uid}`);
-                const result = await response.json();
-                if (result.success && result.data.content) {
-                    setNoteContent(result.data.content);
-                    setInitialNoteContent(result.data.content);
-                }
-            } catch (error) {
-                console.error('Error fetching note:', error);
-            }
-        }
-        fetchNote();
-    }, [resourceId, user]);
+    const loading = resourceLoading;
 
     useEffect(() => {
         function handleClickOutside(event: MouseEvent) {
@@ -122,7 +127,8 @@ export default function ResourceDetailPage() {
 
             const result = await response.json();
             if (result.success) {
-                setIsSaved(!isSaved);
+                queryClient.invalidateQueries({ queryKey: ['resource-saved-status', resourceId, user.uid] });
+                queryClient.invalidateQueries({ queryKey: ['user-resources', user.uid] });
             }
         } catch (error) {
             console.error('Error updating saved status:', error);
@@ -204,7 +210,7 @@ export default function ResourceDetailPage() {
             });
             const result = await response.json();
             if (result.success) {
-                setInitialNoteContent(noteContent);
+                queryClient.invalidateQueries({ queryKey: ['user-note', resourceId, user.uid] });
                 setNoteMessage({ type: 'success', text: 'Note saved successfully!' });
                 setTimeout(() => setIsNoteModalOpen(false), 1500);
             } else {
@@ -373,155 +379,109 @@ export default function ResourceDetailPage() {
         <div className="page-wrapper">
             <Navbar />
             <div className="main-content">
-                <div className="container" style={{ maxWidth: '900px' }}>
-                    {/* Breadcrumb */}
-                    <div style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        marginBottom: 'var(--space-6)'
-                    }}>
-                        <div style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 'var(--space-2)',
-                            fontSize: 'var(--text-sm)',
-                            color: 'var(--text-muted)',
-                        }}>
-                            <Link href="/resources" style={{ color: 'var(--text-muted)' }}>Resources</Link>
-                            <span>→</span>
-                            <span style={{ color: 'var(--text-secondary)' }}>{resource.title}</span>
+                <div className="container detail-container">
+                    {/* Breadcrumb & Global Actions */}
+                    <div className="detail-header-nav">
+                        <div className="detail-breadcrumb">
+                            <Link href="/resources">Resources</Link>
+                            <span>/</span>
+                            <span>{resource.title}</span>
                         </div>
                         <button
                             className="btn btn-secondary btn-sm"
                             onClick={() => router.push('/resources')}
-                            style={{ padding: 'var(--space-1) var(--space-4)' }}
                         >
                             ← Back
                         </button>
                     </div>
 
-                    <div className="glass-card animate-slide-up" style={{ padding: 0, overflow: 'hidden' }}>
-                        {/* Video / Media */}
-                        {ytId && (
-                            <div className="youtube-embed">
-                                <iframe
-                                    src={getYouTubeEmbedUrl(ytId)}
-                                    title={resource.title}
-                                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                                    allowFullScreen
+                    <div className="detail-card animate-slide-up">
+                        {/* Video / Media section */}
+                        {ytId ? (
+                            <div className="detail-media-container">
+                                <div className="youtube-embed">
+                                    <iframe
+                                        src={getYouTubeEmbedUrl(ytId)}
+                                        title={resource.title}
+                                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                        allowFullScreen
+                                    />
+                                </div>
+                            </div>
+                        ) : resource.thumbnailUrl && (
+                            <div className="detail-media-container">
+                                <img 
+                                    src={resource.thumbnailUrl} 
+                                    alt={resource.title}
+                                    className="detail-media"
                                 />
                             </div>
                         )}
 
-                        <div style={{ padding: 'var(--space-8)' }}>
-                            {/* Header */}
-                            <div style={{
-                                display: 'flex',
-                                justifyContent: 'space-between',
-                                alignItems: 'flex-start',
-                                gap: 'var(--space-4)',
-                                marginBottom: 'var(--space-6)',
-                            }}>
+                        <div className="detail-content">
+                            {/* Title & Actions Section */}
+                            <div className="detail-title-section">
                                 <div style={{ flex: 1 }}>
-                                    <h1 style={{ fontSize: 'var(--text-2xl)', marginBottom: 'var(--space-3)', display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
-                                        {resource.isFavorite && <span title="Featured Resource">⭐</span>}
+                                    <h1 className="detail-title">
+                                        {resource.isFavorite && <span title="Featured Resource">⭐ </span>}
                                         {resource.title}
                                         {resource.rank && (
-                                            <span style={{
-                                                fontSize: 'var(--text-xs)',
-                                                background: 'var(--bg-card)',
-                                                padding: '2px 8px',
-                                                borderRadius: 'var(--radius-full)',
-                                                border: '1px solid var(--border-subtle)',
-                                                verticalAlign: 'middle',
-                                                marginLeft: 'var(--space-2)'
-                                            }}>
+                                            <span className="detail-rank">
                                                 Rank #{resource.rank}
                                             </span>
                                         )}
                                     </h1>
-                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-2)' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-4)', margin: 'var(--space-2) 0 var(--space-4)' }}>
+                                        <Rating value={resource.averageRating || 0} count={resource.reviewCount || 0} />
+                                    </div>
+                                    <div className="detail-meta-pills">
                                         <span className={`badge badge-${resource.pricing}`}>{resource.pricing}</span>
                                         <span className="badge badge-accent">{resource.platform}</span>
                                         <span className="badge badge-primary">{resource.type}</span>
-                                        <span className="badge badge-warning">{resource.mediaFormat}</span>
+                                        <span className="badge badge-secondary">{resource.mediaFormat}</span>
                                     </div>
                                 </div>
 
-                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-3)', justifyContent: 'flex-end', alignItems: 'center' }}>
-                                    <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
+                                <div className="detail-actions">
+                                    <button
+                                        className="btn btn-secondary"
+                                        onClick={() => setIsNoteModalOpen(true)}
+                                        id="open-notes"
+                                    >
+                                        {noteContent ? '📝 Edit Note' : '➕ Add Note'}
+                                    </button>
+
+                                    {(isAdmin || (user && resource.addedBy === user.uid)) && (
+                                        <Link href={`/resources/${resource.id}/edit`} className="btn btn-secondary" id="edit-resource-top">
+                                            ✏️ Edit
+                                        </Link>
+                                    )}
+
+                                    <div style={{ position: 'relative' }} ref={shareRef}>
                                         <button
                                             className="btn btn-secondary"
-                                            onClick={() => setIsNoteModalOpen(true)}
-                                            id="open-notes"
+                                            onClick={() => setShareOpen(!shareOpen)}
+                                            id="share-resource"
                                         >
-                                            {noteContent ? '📝 Edit Note' : '➕ Add Note'}
+                                            📤 Share
                                         </button>
 
-                                        {(isAdmin || (user && resource.addedBy === user.uid)) && (
-                                            <Link href={`/resources/${resource.id}/edit`} className="btn btn-secondary" id="edit-resource-top">
-                                                ✏️ Edit
-                                            </Link>
+                                        {shareOpen && (
+                                            <div className="share-menu">
+                                                <button className="share-menu-item" onClick={handleCopyLink}>
+                                                    {copyStatus === 'Copy Link' ? '🔗 ' + copyStatus : '✅ ' + copyStatus}
+                                                </button>
+                                                <button className="share-menu-item" onClick={handleShareTwitter}>
+                                                    🐦 Share on X
+                                                </button>
+                                                <button className="share-menu-item" onClick={handleShareLinkedIn}>
+                                                    💼 Share on LinkedIn
+                                                </button>
+                                                <button className="share-menu-item" onClick={handleShareEmail}>
+                                                    ✉️ Share via Email
+                                                </button>
+                                            </div>
                                         )}
-
-                                        <div style={{ position: 'relative' }} ref={shareRef}>
-                                            <button
-                                                className="btn btn-secondary"
-                                                onClick={() => setShareOpen(!shareOpen)}
-                                                id="share-resource"
-                                            >
-                                                📤 Share
-                                            </button>
-
-                                            {shareOpen && (
-                                                <div
-                                                    className="glass-card"
-                                                    style={{
-                                                        position: 'absolute',
-                                                        top: 'calc(100% + 10px)',
-                                                        right: 0,
-                                                        width: '200px',
-                                                        zIndex: 100,
-                                                        padding: 'var(--space-2)',
-                                                        display: 'flex',
-                                                        flexDirection: 'column',
-                                                        gap: 'var(--space-1)',
-                                                        boxShadow: 'var(--shadow-lg)',
-                                                        border: '1px solid var(--border-subtle)',
-                                                    }}
-                                                >
-                                                    <button
-                                                        className="user-menu-item"
-                                                        style={{ width: '100%', textAlign: 'left', border: 'none', background: 'transparent' }}
-                                                        onClick={handleCopyLink}
-                                                    >
-                                                        {copyStatus === 'Copy Link' ? '🔗 ' + copyStatus : copyStatus}
-                                                    </button>
-                                                    <button
-                                                        className="user-menu-item"
-                                                        style={{ width: '100%', textAlign: 'left', border: 'none', background: 'transparent' }}
-                                                        onClick={handleShareTwitter}
-                                                    >
-                                                        🐦 Share on X / Twitter
-                                                    </button>
-                                                    <button
-                                                        className="user-menu-item"
-                                                        style={{ width: '100%', textAlign: 'left', border: 'none', background: 'transparent' }}
-                                                        onClick={handleShareLinkedIn}
-                                                    >
-                                                        💼 Share on LinkedIn
-                                                    </button>
-                                                    <button
-                                                        className="user-menu-item"
-                                                        style={{ width: '100%', textAlign: 'left', border: 'none', background: 'transparent' }}
-                                                        onClick={handleShareEmail}
-                                                    >
-                                                        ✉️ Share via Email
-                                                    </button>
-                                                </div>
-                                            )}
-                                        </div>
                                     </div>
 
                                     <a
@@ -536,59 +496,51 @@ export default function ResourceDetailPage() {
                                 </div>
                             </div>
 
-
-                            {/* Description */}
-                            <div style={{ marginBottom: 'var(--space-8)' }}>
-                                <h3 style={{
-                                    fontSize: 'var(--text-base)',
-                                    color: 'var(--text-secondary)',
-                                    marginBottom: 'var(--space-3)',
-                                }}>
-                                    Description
-                                </h3>
-                                <p style={{
-                                    color: 'var(--text-primary)',
-                                    lineHeight: 1.8,
-                                    whiteSpace: 'pre-wrap',
-                                }}>
+                            {/* Main Content Sections */}
+                            <div className="detail-section">
+                                <h3 className="detail-section-title">Description</h3>
+                                <p className="detail-description">
                                     {resource.description}
                                 </p>
                             </div>
 
-                            {/* Categories */}
-                            <div style={{ marginBottom: 'var(--space-6)' }}>
-                                <h3 style={{
-                                    fontSize: 'var(--text-base)',
-                                    color: 'var(--text-secondary)',
-                                    marginBottom: 'var(--space-3)',
-                                }}>
-                                    Categories
-                                </h3>
-                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-2)' }}>
-                                    {resource.categories?.map((cat) => (
-                                        <Link
-                                            key={cat}
-                                            href={`/resources?category=${encodeURIComponent(cat)}`}
-                                            className="badge badge-primary"
-                                            style={{ textDecoration: 'none', cursor: 'pointer' }}
-                                        >
-                                            {cat}
-                                        </Link>
-                                    ))}
+                            {/* Tags & Categories Grid */}
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 'var(--space-8)', marginBottom: 'var(--space-10)' }}>
+                                <div>
+                                    <h3 className="detail-section-title">Categories</h3>
+                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-2)' }}>
+                                        {resource.categories?.map((cat) => (
+                                            <Link
+                                                key={cat}
+                                                href={`/resources?category=${encodeURIComponent(cat)}`}
+                                                className="badge badge-primary"
+                                                style={{ textDecoration: 'none' }}
+                                            >
+                                                {cat}
+                                            </Link>
+                                        ))}
+                                    </div>
                                 </div>
+
+                                {resource.tags && resource.tags.length > 0 && (
+                                    <div>
+                                        <h3 className="detail-section-title">Tags</h3>
+                                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-2)' }}>
+                                            {resource.tags.map((tag) => (
+                                                <span key={tag} className="badge badge-secondary" style={{ opacity: 0.8 }}>
+                                                    #{tag}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
 
-                            {/* Credits */}
+                            {/* Credits Section */}
                             {resource.credits && resource.credits.length > 0 && (
-                                <div style={{ marginBottom: 'var(--space-6)' }}>
-                                    <h3 style={{
-                                        fontSize: 'var(--text-base)',
-                                        color: 'var(--text-secondary)',
-                                        marginBottom: 'var(--space-3)',
-                                    }}>
-                                        Credits & Attribution
-                                    </h3>
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+                                <div className="detail-section">
+                                    <h3 className="detail-section-title">Credits & Attribution</h3>
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 'var(--space-4)' }}>
                                         {deduplicateCredits(resource.credits || []).map((c) => {
                                             const isGeneric = isGenericYouTubeName(c.name) && resource.url && isYouTubeUrl(resource.url);
                                             const name = isGeneric ? 'YouTube' : c.name;
@@ -599,53 +551,19 @@ export default function ResourceDetailPage() {
                                                 href={credit.url}
                                                 target="_blank"
                                                 rel="noopener noreferrer"
-                                                className="card"
-                                                style={{
-                                                    display: 'flex',
-                                                    alignItems: 'center',
-                                                    gap: 'var(--space-3)',
-                                                    padding: 'var(--space-3) var(--space-4)',
-                                                    textDecoration: 'none',
-                                                }}
+                                                className="credit-card"
                                             >
-                                                <span style={{ fontSize: '1.2rem' }}>👤</span>
-                                                <div>
-                                                    <div style={{ fontWeight: 600, fontSize: 'var(--text-sm)' }}>
+                                                <div className="credit-avatar">👤</div>
+                                                <div style={{ overflow: 'hidden' }}>
+                                                    <div style={{ fontWeight: 700, fontSize: 'var(--text-sm)', color: 'var(--text-primary)', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
                                                         {credit.name}
                                                     </div>
-                                                    <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
+                                                    <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
                                                         {credit.url}
                                                     </div>
                                                 </div>
-                                                <span style={{
-                                                    marginLeft: 'auto',
-                                                    color: 'var(--text-muted)',
-                                                    fontSize: 'var(--text-sm)',
-                                                }}>
-                                                    ↗
-                                                </span>
+                                                <span style={{ marginLeft: 'auto', color: 'var(--text-muted)', fontSize: 'var(--text-sm)' }}>↗</span>
                                             </a>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Tags */}
-                            {resource.tags && resource.tags.length > 0 && (
-                                <div style={{ marginBottom: 'var(--space-6)' }}>
-                                    <h3 style={{
-                                        fontSize: 'var(--text-base)',
-                                        color: 'var(--text-secondary)',
-                                        marginBottom: 'var(--space-3)',
-                                    }}>
-                                        Tags
-                                    </h3>
-                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-2)' }}>
-                                        {resource.tags.map((tag) => (
-                                            <span key={tag} className="badge badge-primary"
-                                                style={{ background: 'var(--bg-card)', border: '1px solid var(--border-default)' }}>
-                                                #{tag}
-                                            </span>
                                         ))}
                                     </div>
                                 </div>
@@ -653,17 +571,11 @@ export default function ResourceDetailPage() {
 
                             {/* Pricing Details */}
                             {resource.pricingDetails && (
-                                <div style={{ marginBottom: 'var(--space-6)' }}>
-                                    <h3 style={{
-                                        fontSize: 'var(--text-base)',
-                                        color: 'var(--text-secondary)',
-                                        marginBottom: 'var(--space-3)',
-                                    }}>
-                                        Pricing Details
-                                    </h3>
-                                    <p style={{ color: 'var(--text-primary)', fontSize: 'var(--text-sm)' }}>
+                                <div className="detail-section">
+                                    <h3 className="detail-section-title">Pricing Details</h3>
+                                    <div className="glass-card" style={{ padding: 'var(--space-4)', fontSize: 'var(--text-sm)', borderStyle: 'dashed' }}>
                                         {resource.pricingDetails}
-                                    </p>
+                                    </div>
                                 </div>
                             )}
 
@@ -671,30 +583,24 @@ export default function ResourceDetailPage() {
                             {(isAdmin || (user && resource.addedBy === user.uid)) && (
                                 <div style={{
                                     borderTop: '1px solid var(--border-subtle)',
-                                    paddingTop: 'var(--space-6)',
+                                    paddingTop: 'var(--space-8)',
                                     display: 'flex',
+                                    justifyContent: 'flex-end',
                                     gap: 'var(--space-3)',
                                 }}>
-                                    <Link href={`/resources/${resource.id}/edit`} className="btn btn-secondary" id="edit-resource">
-                                        ✏️ Edit
-                                    </Link>
-                                    <button
-                                        className="btn btn-secondary"
-                                        onClick={() => router.push('/resources')}
-                                        id="cancel-admin-view"
-                                    >
-                                        ✕ Cancel
-                                    </button>
                                     <button
                                         className="btn btn-danger"
                                         onClick={handleDelete}
                                         disabled={deleting}
                                         id="delete-resource"
                                     >
-                                        {deleting ? 'Deleting...' : '🗑 Delete'}
+                                        {deleting ? 'Deleting...' : '🗑 Delete Resource'}
                                     </button>
                                 </div>
                             )}
+
+                            {/* Community Section */}
+                            <CommentSection resourceId={resourceId} />
                         </div>
                     </div>
                 </div>

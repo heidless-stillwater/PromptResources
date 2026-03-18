@@ -10,15 +10,11 @@ import { useAuth } from '@/contexts/AuthContext';
 import { db } from '@/lib/firebase';
 import { collection, getDocs, query, where, doc, getDoc } from 'firebase/firestore';
 import { Resource, UserResourceData } from '@/lib/types';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 export default function DashboardPage() {
     const { user, profile, loading: authLoading, activeRole } = useAuth();
     const router = useRouter();
-    const [savedResources, setSavedResources] = useState<Resource[]>([]);
-    const [userResData, setUserResData] = useState<UserResourceData | null>(null);
-    const [myAddedResources, setMyAddedResources] = useState<Resource[]>([]);
-    const [totalResources, setTotalResources] = useState(0);
-    const [loading, setLoading] = useState(true);
     const [savedExpanded, setSavedExpanded] = useState(false);
     const [contributionsExpanded, setContributionsExpanded] = useState(false);
 
@@ -28,60 +24,63 @@ export default function DashboardPage() {
         }
     }, [user, authLoading, router]);
 
-    useEffect(() => {
-        async function fetchDashboardData() {
-            if (!user) return;
-            try {
-                // Fetch user resource data via API
-                const userResResponse = await fetch(`/api/user-resources?uid=${user.uid}`);
-                const userResResult = await userResResponse.json();
+    // Fetch user progress and saved IDs
+    const { data: userResData, isLoading: userResLoading } = useQuery({
+        queryKey: ['user-resources', user?.uid],
+        queryFn: async () => {
+            const res = await fetch(`/api/user-resources?uid=${user?.uid}`);
+            const result = await res.json();
+            return result.success ? (result.data as UserResourceData) : null;
+        },
+        enabled: !!user,
+    });
 
-                let savedIds: string[] = [];
-                if (userResResult.success) {
-                    const data = userResResult.data as UserResourceData;
-                    setUserResData(data);
-                    savedIds = data.savedResources || [];
-                }
+    const savedIds = userResData?.savedResources || [];
 
-                // Fetch saved resources details via API
-                if (savedIds.length > 0) {
-                    const fetchedResources: Resource[] = [];
-                    // Sequential fetch to avoid parallel burst
-                    for (const id of [...savedIds].reverse().slice(0, 4)) {
-                        try {
-                            const res = await fetch(`/api/resources/${id}`);
-                            const result = await res.json();
-                            if (result.success) {
-                                fetchedResources.push(result.data);
-                            }
-                        } catch (err) {
-                            console.error(`Error fetching resource ${id}:`, err);
-                        }
-                    }
-                    setSavedResources(fetchedResources);
+    // Fetch details for first 4 saved resources
+    const { data: savedResources = [], isLoading: savedResLoading } = useQuery({
+        queryKey: ['saved-resources-details', savedIds.slice(0, 4)],
+        queryFn: async () => {
+            const fetched: Resource[] = [];
+            for (const id of [...savedIds].reverse().slice(0, 4)) {
+                try {
+                    const res = await fetch(`/api/resources/${id}`);
+                    const result = await res.json();
+                    if (result.success) fetched.push(result.data);
+                } catch (err) {
+                    console.error(`Error fetching resource ${id}:`, err);
                 }
-
-                // Get total resources count via API
-                const allResResponse = await fetch('/api/resources?pageSize=1');
-                const allResResult = await allResResponse.json();
-                if (allResResult.success) {
-                    setTotalResources(allResResult.total);
-                }
-
-                // Fetch resources added by user
-                const myResResponse = await fetch(`/api/resources?addedBy=${user.uid}`);
-                const myResResult = await myResResponse.json();
-                if (myResResult.success) {
-                    setMyAddedResources(myResResult.data || []);
-                }
-            } catch (error) {
-                console.error('Error fetching dashboard data:', error);
-            } finally {
-                setLoading(false);
             }
-        }
-        if (user) fetchDashboardData();
-    }, [user]);
+            return fetched;
+        },
+        enabled: savedIds.length > 0,
+    });
+
+    // Fetch total resources count
+    const { data: totalResources = 0 } = useQuery({
+        queryKey: ['total-resources-count'],
+        queryFn: async () => {
+            const res = await fetch('/api/resources?pageSize=1');
+            const result = await res.json();
+            return result.success ? result.total : 0;
+        },
+        enabled: !!user,
+    });
+
+    // Fetch user contributions
+    const { data: myAddedResources = [], isLoading: contributionsLoading } = useQuery({
+        queryKey: ['my-contributions', user?.uid],
+        queryFn: async () => {
+            const res = await fetch(`/api/resources?addedBy=${user?.uid}`);
+            const result = await res.json();
+            return result.success ? (result.data as Resource[]) : [];
+        },
+        enabled: !!user,
+    });
+
+    const loading = userResLoading || savedResLoading || contributionsLoading;
+
+    const queryClient = useQueryClient();
 
     const handleUnsave = async (e: React.MouseEvent, resourceId: string) => {
         e.preventDefault();
@@ -104,14 +103,9 @@ export default function DashboardPage() {
 
             const result = await response.json();
             if (result.success) {
-                // Remove from local state
-                setSavedResources(savedResources.filter(r => r.id !== resourceId));
-                if (userResData) {
-                    setUserResData({
-                        ...userResData,
-                        savedResources: userResData.savedResources.filter(id => id !== resourceId)
-                    });
-                }
+                // Invalidate relevant queries to refetch data
+                queryClient.invalidateQueries({ queryKey: ['user-resources', user.uid] });
+                queryClient.invalidateQueries({ queryKey: ['saved-resources-details'] });
             }
         } catch (error) {
             console.error('Error unsaving resource:', error);
@@ -158,6 +152,7 @@ export default function DashboardPage() {
                                             src={profile.photoURL}
                                             alt={profile.displayName || ''}
                                             fill
+                                            sizes="64px"
                                             style={{ objectFit: 'cover', borderRadius: '50%' }}
                                         />
                                     </div>
@@ -255,6 +250,22 @@ export default function DashboardPage() {
                             <div>
                                 <div style={{ fontWeight: 700, color: 'var(--text-primary)' }}>Upgrade Plan</div>
                                 <div style={{ fontSize: 'var(--text-sm)', color: 'var(--text-muted)' }}>Get more features</div>
+                            </div>
+                        </Link>
+
+                        <Link href="/resources/new" className="glass-card" style={{
+                            textDecoration: 'none',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 'var(--space-4)',
+                            padding: 'var(--space-5)',
+                            border: '1px solid var(--primary-500)',
+                            background: 'rgba(99, 102, 241, 0.05)',
+                        }}>
+                            <div style={{ fontSize: '2rem' }}>➕</div>
+                            <div>
+                                <div style={{ fontWeight: 700, color: 'var(--primary-400)' }}>Add New Resource</div>
+                                <div style={{ fontSize: 'var(--text-sm)', color: 'var(--text-muted)' }}>Contribute to the community</div>
                             </div>
                         </Link>
                     </div>
@@ -401,7 +412,7 @@ export default function DashboardPage() {
                                 {myAddedResources.length}
                             </span>
                         </div>
-                        <Link href="/resources/add" className="btn btn-primary btn-sm">
+                        <Link href="/resources/new" className="btn btn-primary btn-sm">
                             + Suggest New
                         </Link>
                     </div>
@@ -419,7 +430,7 @@ export default function DashboardPage() {
                                     <p style={{ color: 'var(--text-muted)', marginBottom: 'var(--space-4)' }}>
                                         You haven&apos;t suggested any resources yet. Contribute to the community!
                                     </p>
-                                    <Link href="/resources/add" className="btn btn-ghost">
+                                    <Link href="/resources/new" className="btn btn-ghost">
                                         Suggest a Resource
                                     </Link>
                                 </div>

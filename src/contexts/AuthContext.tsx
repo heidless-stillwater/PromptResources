@@ -61,19 +61,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         } else {
             // Create new user profile
             const isAdmin = firebaseUser.email === ADMIN_EMAIL;
-            const newProfile: Omit<UserProfile, 'createdAt' | 'updatedAt'> & { createdAt: ReturnType<typeof serverTimestamp>; updatedAt: ReturnType<typeof serverTimestamp> } = {
+            const newProfileData: any = {
                 uid: firebaseUser.uid,
                 email: firebaseUser.email || '',
                 displayName: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'User',
-                photoURL: firebaseUser.photoURL || undefined,
                 role: isAdmin ? 'admin' : 'member',
                 subscriptionType: 'free',
                 createdAt: serverTimestamp(),
                 updatedAt: serverTimestamp(),
             };
-            await setDoc(userRef, newProfile);
+            
+            if (firebaseUser.photoURL) {
+                newProfileData.photoURL = firebaseUser.photoURL;
+            }
+
+            await setDoc(userRef, newProfileData);
             const profile: UserProfile = {
-                ...newProfile,
+                ...newProfileData,
+                photoURL: firebaseUser.photoURL || undefined,
                 createdAt: new Date(),
                 updatedAt: new Date(),
             };

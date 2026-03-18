@@ -23,6 +23,7 @@ export default function EditResourcePage() {
     const [pricing, setPricing] = useState<ResourcePricing>('free');
     const [pricingDetails, setPricingDetails] = useState('');
     const [tags, setTags] = useState('');
+    const [prompts, setPrompts] = useState('');
     const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
     const [suggestedCategories, setSuggestedCategories] = useState<string[]>([]);
     const [credits, setCredits] = useState<Credit[]>([{ name: '', url: '' }]);
@@ -32,6 +33,7 @@ export default function EditResourcePage() {
     const [isFavorite, setIsFavorite] = useState(false);
     const [rank, setRank] = useState<number | ''>('');
     const [loading, setLoading] = useState(true);
+    const [thumbnailUrl, setThumbnailUrl] = useState('');
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState('');
     const [originalResource, setOriginalResource] = useState<Resource | null>(null);
@@ -68,9 +70,11 @@ export default function EditResourcePage() {
                     setTags(res.tags?.join(', ') || '');
                     setSelectedCategories(res.categories || []);
                     setCredits(res.credits && res.credits.length > 0 ? res.credits : [{ name: '', url: '' }]);
+                    setThumbnailUrl(res.thumbnailUrl || '');
                     setStatus(res.status || 'suggested');
                     setIsFavorite(res.isFavorite || false);
                     setRank(res.rank === null ? '' : res.rank);
+                    setPrompts(res.prompts?.join('\n') || '');
                 } else {
                     setError('Resource not found.');
                 }
@@ -126,7 +130,7 @@ export default function EditResourcePage() {
                     // Autofill Categories
                     setSelectedCategories(prev => {
                         if (prev.length === 0 && data.title) {
-                             const cats = suggestCategories(data.title, suggestDescription(data.title), url);
+                             const cats = suggestCategories(data.title, suggestDescription(data.title), url, { tags, type, mediaFormat, platform, pricing });
                              return Array.from(new Set([...prev, ...cats]));
                         }
                         return prev;
@@ -150,22 +154,28 @@ export default function EditResourcePage() {
                         }
                         return prev.map(c => isGenericYouTubeName(c.name) ? { ...c, name: channelName, url: data.author_url || url } : c);
                     });
+
+                    // Autofill Thumbnail
+                    if (data.thumbnail_url && !thumbnailUrl) {
+                        setThumbnailUrl(data.thumbnail_url);
+                    }
                 }
             };
             fetchYouTubeData();
         } else {
             setYtMetadata(null);
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [url, originalResource?.url]);
 
     useEffect(() => {
         if (title || url) {
-            const cats = suggestCategories(title, description, url);
+            const cats = suggestCategories(title, description, url, { tags, type, mediaFormat, platform, pricing });
             setSuggestedCategories(cats);
             const creds = suggestCredits(url, title, { authorName: ytMetadata?.author_name, authorUrl: ytMetadata?.author_url });
             setSuggestedCredits(creds);
         }
-    }, [title, description, url, ytMetadata]);
+    }, [title, description, url, ytMetadata, tags, type, mediaFormat, platform, pricing]);
 
     const addCategory = (cat: string) => {
         if (!selectedCategories.includes(cat)) {
@@ -239,10 +249,12 @@ export default function EditResourcePage() {
                     categories: selectedCategories,
                     credits: validCredits,
                     youtubeVideoId: youtubeVideoId || null,
+                    thumbnailUrl: thumbnailUrl.trim() || null,
                     tags: tags.split(',').map((t) => t.trim()).filter(Boolean),
                     status: isAdmin ? status : originalResource?.status || 'suggested',
                     isFavorite,
                     rank: rank === '' ? null : Number(rank),
+                    prompts: prompts.split('\n').map(p => p.trim()).filter(Boolean),
                 }),
             });
 
@@ -326,7 +338,7 @@ export default function EditResourcePage() {
                                     type="button"
                                     className="btn btn-secondary btn-sm"
                                     onClick={() => {
-                                        const cats = suggestCategories(title, description, url);
+                                        const cats = suggestCategories(title, description, url, { tags, type, mediaFormat, platform, pricing });
                                         setSelectedCategories(Array.from(new Set([...selectedCategories, ...cats])));
                                         const creds = suggestCredits(url, title, { authorName: ytMetadata?.author_name, authorUrl: ytMetadata?.author_url });
                                         if (creds.length > 0) setCredits(creds);
@@ -365,6 +377,37 @@ export default function EditResourcePage() {
                                     </div>
                                 )}
                             </div>
+
+                            {isAdmin && (
+                                <div className="form-group">
+                                    <label className="form-label" htmlFor="thumbnailUrl">Thumbnail URL (optional)</label>
+                                    <input
+                                        id="thumbnailUrl"
+                                        type="url"
+                                        className="form-input"
+                                        value={thumbnailUrl}
+                                        onChange={(e) => setThumbnailUrl(e.target.value)}
+                                        placeholder="https://... (image url)"
+                                    />
+                                    {thumbnailUrl && (
+                                        <div style={{ marginTop: 'var(--space-2)' }}>
+                                            <p className="form-helper">Preview:</p>
+                                            <img
+                                                src={thumbnailUrl}
+                                                alt="Thumbnail preview"
+                                                style={{
+                                                    maxWidth: '200px',
+                                                    borderRadius: 'var(--radius-sm)',
+                                                    border: '1px solid var(--border-subtle)'
+                                                }}
+                                                onError={(e) => {
+                                                    (e.target as HTMLImageElement).style.display = 'none';
+                                                }}
+                                            />
+                                        </div>
+                                    )}
+                                </div>
+                            )}
 
                             <div className="form-group">
                                 <label className="form-label" htmlFor="title">Title *</label>
@@ -499,6 +542,19 @@ export default function EditResourcePage() {
                                 />
                             </div>
 
+                            <div className="form-group col-span-2">
+                                <label className="form-label" htmlFor="prompts">Prompts (One per line)</label>
+                                <textarea
+                                    id="prompts"
+                                    className="form-textarea"
+                                    value={prompts}
+                                    onChange={(e) => setPrompts(e.target.value)}
+                                    placeholder="Paste prompts here, one per line..."
+                                    rows={5}
+                                />
+                                <p className="form-helper">Add specific prompts that this resource provides or teaches.</p>
+                            </div>
+
                             {isAdmin && (
                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-4)', marginTop: 'var(--space-4)' }}>
                                     <div className="form-group">
@@ -544,7 +600,7 @@ export default function EditResourcePage() {
                                     type="button"
                                     className="btn btn-secondary btn-sm"
                                     onClick={() => {
-                                        const cats = suggestCategories(title, description, url);
+                                        const cats = suggestCategories(title, description, url, { tags, type, mediaFormat, platform, pricing });
                                         setSelectedCategories(Array.from(new Set([...selectedCategories, ...cats])));
                                     }}
                                     id="ai-suggest-categories"

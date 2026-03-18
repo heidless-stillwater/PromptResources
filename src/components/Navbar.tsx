@@ -48,20 +48,7 @@ export default function Navbar() {
                 </ul>
 
                 <div className="navbar-actions">
-                    {canSwitchRoles && (
-                        <div className="role-switcher" id="role-switcher">
-                            {roles.map((role) => (
-                                <button
-                                    key={role}
-                                    className={`role-switcher-btn ${activeRole === role ? 'active' : ''}`}
-                                    onClick={() => switchRole(role)}
-                                    id={`role-switch-${role}`}
-                                >
-                                    {role.toUpperCase()}
-                                </button>
-                            ))}
-                        </div>
-                    )}
+
 
                     {user ? (
                         <div className="user-menu" ref={menuRef}>
@@ -108,6 +95,29 @@ export default function Navbar() {
                                     <Link href="/dashboard/settings" className="user-menu-item" onClick={() => setMenuOpen(false)} id="menu-settings">
                                         ⚙️ Settings
                                     </Link>
+                                    <div className="user-menu-divider" />
+                                    
+                                    {canSwitchRoles && (
+                                        <div className="menu-role-section">
+                                            <div className="menu-section-title">👤 Change Role View</div>
+                                            <div className="role-options">
+                                                {roles.map((role) => (
+                                                    <button
+                                                        key={role}
+                                                        className={`role-option-btn ${activeRole === role ? 'active' : ''}`}
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            switchRole(role);
+                                                        }}
+                                                        id={`role-switch-${role}`}
+                                                    >
+                                                        {role === 'su' ? '⭐ SU' : role === 'admin' ? '🛡️ Admin' : '👤 User'}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
                                     <div className="user-menu-divider" />
                                     <button
                                         className="user-menu-item"

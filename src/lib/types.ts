@@ -32,6 +32,7 @@ export interface Resource {
     type: ResourceType;
     mediaFormat: MediaFormat;
     url: string;
+    thumbnailUrl?: string;
     youtubeVideoId?: string;
     pricing: ResourcePricing;
     pricingDetails?: string;
@@ -49,8 +50,25 @@ export interface Resource {
     status: ResourceStatus;
     isFavorite?: boolean;
     rank?: number;
+    prompts?: string[];
+    averageRating?: number;
+    reviewCount?: number;
 }
 
+export interface Comment {
+    id: string;
+    resourceId: string;
+    userId: string;
+    userName: string;
+    userPhoto?: string;
+    content: string;
+    createdAt: Date;
+    updatedAt: Date;
+}
+
+export interface Review extends Comment {
+    rating: number; // 1-5
+}
 
 export interface Category {
     id: string;

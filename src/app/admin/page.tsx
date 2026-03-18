@@ -9,6 +9,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { db } from '@/lib/firebase';
 import { collection, getDocs, doc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { UserProfile, Resource } from '@/lib/types';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 export default function AdminPage() {
     return (
@@ -26,14 +27,12 @@ export default function AdminPage() {
 }
 
 function AdminContent() {
-    const { user, isAdmin, loading: authLoading } = useAuth();
+    const { user, isAdmin, activeRole, loading: authLoading } = useAuth();
     const router = useRouter();
+    const queryClient = useQueryClient();
     const searchParams = useSearchParams();
     const defaultTab = (searchParams.get('tab') as any) || 'overview';
     const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'resources' | 'suggestions' | 'categories'>(defaultTab);
-    const [users, setUsers] = useState<UserProfile[]>([]);
-    const [resources, setResources] = useState<Resource[]>([]);
-    const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         if (!authLoading && (!user || !isAdmin)) {
@@ -41,70 +40,88 @@ function AdminContent() {
         }
     }, [user, isAdmin, authLoading, router]);
 
-    useEffect(() => {
-        async function fetchAdminData() {
-            try {
-                const usersSnap = await getDocs(collection(db, 'users'));
-                const usersData = usersSnap.docs.map((d) => ({
-                    ...d.data(),
-                    uid: d.id,
-                    createdAt: d.data().createdAt?.toDate() || new Date(),
-                    updatedAt: d.data().updatedAt?.toDate() || new Date(),
-                })) as UserProfile[];
-                setUsers(usersData);
+    // Fetch users
+    const { data: users = [], isLoading: usersLoading } = useQuery({
+        queryKey: ['admin', 'users'],
+        queryFn: async () => {
+            const usersSnap = await getDocs(collection(db, 'users'));
+            return usersSnap.docs.map((d) => ({
+                ...d.data(),
+                uid: d.id,
+                createdAt: d.data().createdAt?.toDate() || new Date(),
+                updatedAt: d.data().updatedAt?.toDate() || new Date(),
+            })) as UserProfile[];
+        },
+        enabled: !!user && isAdmin,
+    });
 
-                const resSnap = await getDocs(collection(db, 'resources'));
-                const resData = resSnap.docs.map((d) => ({
-                    id: d.id,
-                    ...d.data(),
-                    createdAt: d.data().createdAt?.toDate() || new Date(),
-                    updatedAt: d.data().updatedAt?.toDate() || new Date(),
-                })) as Resource[];
-                setResources(resData);
-            } catch (error) {
-                console.error('Error fetching admin data:', error);
-            } finally {
-                setLoading(false);
-            }
+    // Fetch resources
+    const { data: resources = [], isLoading: resourcesLoading } = useQuery({
+        queryKey: ['admin', 'resources'],
+        queryFn: async () => {
+            const resSnap = await getDocs(collection(db, 'resources'));
+            return resSnap.docs.map((d) => ({
+                id: d.id,
+                ...d.data(),
+                createdAt: d.data().createdAt?.toDate() || new Date(),
+                updatedAt: d.data().updatedAt?.toDate() || new Date(),
+            })) as Resource[];
+        },
+        enabled: !!user && isAdmin,
+    });
+
+    // Mutations
+    const deleteResourceMutation = useMutation({
+        mutationFn: async (id: string) => {
+            await deleteDoc(doc(db, 'resources', id));
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['admin', 'resources'] });
         }
-        if (user && isAdmin) fetchAdminData();
-    }, [user, isAdmin]);
+    });
+
+    const approveResourceMutation = useMutation({
+        mutationFn: async (id: string) => {
+            await updateDoc(doc(db, 'resources', id), { status: 'published', updatedAt: new Date() });
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['admin', 'resources'] });
+        }
+    });
+
+    const updateRoleMutation = useMutation({
+        mutationFn: async ({ uid, role }: { uid: string, role: string }) => {
+            await updateDoc(doc(db, 'users', uid), { role });
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
+        }
+    });
+
+    const updateSubMutation = useMutation({
+        mutationFn: async ({ uid, subscriptionType }: { uid: string, subscriptionType: string }) => {
+            await updateDoc(doc(db, 'users', uid), { subscriptionType });
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
+        }
+    });
 
     const handleDeleteResource = async (id: string) => {
         if (!confirm('Delete this resource?')) return;
-        try {
-            await deleteDoc(doc(db, 'resources', id));
-            setResources(resources.filter((r) => r.id !== id));
-        } catch (error) {
-            console.error('Error deleting resource:', error);
-        }
+        deleteResourceMutation.mutate(id);
     };
 
     const handleApproveResource = async (id: string) => {
-        try {
-            await updateDoc(doc(db, 'resources', id), { status: 'published', updatedAt: new Date() });
-            setResources(resources.map((r) => r.id === id ? { ...r, status: 'published' } : r));
-        } catch (error) {
-            console.error('Error approving resource:', error);
-        }
+        approveResourceMutation.mutate(id);
     };
 
     const handleRoleChange = async (uid: string, newRole: string) => {
-        try {
-            await updateDoc(doc(db, 'users', uid), { role: newRole });
-            setUsers(users.map((u) => u.uid === uid ? { ...u, role: newRole as UserProfile['role'] } : u));
-        } catch (error) {
-            console.error('Error updating role:', error);
-        }
+        updateRoleMutation.mutate({ uid, role: newRole });
     };
 
     const handleSubChange = async (uid: string, newSub: string) => {
-        try {
-            await updateDoc(doc(db, 'users', uid), { subscriptionType: newSub });
-            setUsers(users.map((u) => u.uid === uid ? { ...u, subscriptionType: newSub as UserProfile['subscriptionType'] } : u));
-        } catch (error) {
-            console.error('Error updating subscription:', error);
-        }
+        updateSubMutation.mutate({ uid, subscriptionType: newSub });
     };
 
     useEffect(() => {
@@ -114,7 +131,7 @@ function AdminContent() {
         }
     }, [searchParams]);
 
-    if (authLoading || !isAdmin) {
+    if (authLoading || usersLoading || resourcesLoading || !isAdmin) {
         return (
             <div className="page-wrapper">
                 <Navbar />
@@ -139,7 +156,10 @@ function AdminContent() {
             <Navbar />
             <div className="main-content">
                 <div className="container">
-                    <h1 style={{ marginBottom: 'var(--space-6)' }}>⚙️ Admin Panel</h1>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-8)' }}>
+                        <h1>⚙️ Admin Panel</h1>
+                        <div className="badge badge-secondary">Logged in as {activeRole?.toUpperCase()}</div>
+                    </div>
 
                     {/* Tabs */}
                     <div className="tabs">
@@ -158,21 +178,7 @@ function AdminContent() {
                                 {tab === 'categories' && '🏷️ '}
                                 {tab.charAt(0).toUpperCase() + tab.slice(1)}
                                 {tab === 'suggestions' && reviewCount > 0 && (
-                                    <span style={{
-                                        position: 'absolute',
-                                        top: '-5px',
-                                        right: '-5px',
-                                        background: 'var(--danger-500)',
-                                        color: 'white',
-                                        borderRadius: '50%',
-                                        width: '18px',
-                                        height: '18px',
-                                        fontSize: '10px',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        fontWeight: 'bold',
-                                    }}>
+                                    <span className="tab-notification">
                                         {reviewCount}
                                     </span>
                                 )}
@@ -190,61 +196,67 @@ function AdminContent() {
                                 </div>
                                 <div className="glass-card stat-card">
                                     <div className="stat-value">{resources.length}</div>
-                                    <div className="stat-label">Total Resources</div>
+                                    <div className="stat-label">Resources</div>
                                 </div>
                                 <div className="glass-card stat-card">
                                     <div className="stat-value">{freeCount}</div>
-                                    <div className="stat-label">Free Resources</div>
+                                    <div className="stat-label">Free Items</div>
                                 </div>
                                 <div className="glass-card stat-card">
-                                    <div className="stat-value">{paidCount}</div>
-                                    <div className="stat-label">Paid Resources</div>
+                                    <div className="stat-value">{reviewCount}</div>
+                                    <div className="stat-label">Pending Review</div>
                                 </div>
                             </div>
 
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-6)' }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: 'var(--space-8)' }}>
                                 <div className="glass-card">
-                                    <h3 style={{ marginBottom: 'var(--space-4)' }}>Recent Users</h3>
-                                    {users.slice(0, 5).map((u) => (
-                                        <div key={u.uid} style={{
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            gap: 'var(--space-3)',
-                                            padding: 'var(--space-2) 0',
-                                            borderBottom: '1px solid var(--border-subtle)',
-                                        }}>
-                                            <div className="avatar">
-                                                {(u.displayName?.[0] || u.email?.[0] || 'U').toUpperCase()}
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-6)' }}>
+                                        <h3 style={{ margin: 0 }}>Recent Users</h3>
+                                        <button className="btn btn-ghost btn-sm" onClick={() => setActiveTab('users')}>View All</button>
+                                    </div>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
+                                        {users.slice(0, 5).map((u) => (
+                                            <div key={u.uid} style={{
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: 'var(--space-4)',
+                                                paddingBottom: 'var(--space-4)',
+                                                borderBottom: '1px solid rgba(255,255,255,0.05)',
+                                            }}>
+                                                <div className="avatar" style={{ border: '2px solid rgba(255,255,255,0.1)' }}>
+                                                    {(u.displayName?.[0] || u.email?.[0] || 'U').toUpperCase()}
+                                                </div>
+                                                <div style={{ flex: 1 }}>
+                                                    <div style={{ fontSize: 'var(--text-sm)', fontWeight: 600 }}>{u.displayName}</div>
+                                                    <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>{u.email}</div>
+                                                </div>
+                                                <span className={`badge ${u.role === 'su' ? 'badge-primary' : 'badge-secondary'}`}>{u.role}</span>
                                             </div>
-                                            <div style={{ flex: 1 }}>
-                                                <div style={{ fontSize: 'var(--text-sm)', fontWeight: 600 }}>{u.displayName}</div>
-                                                <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>{u.email}</div>
-                                            </div>
-                                            <span className="badge badge-primary">{u.role}</span>
-                                        </div>
-                                    ))}
+                                        ))}
+                                    </div>
                                 </div>
 
                                 <div className="glass-card">
-                                    <h3 style={{ marginBottom: 'var(--space-4)' }}>Quick Actions</h3>
+                                    <h3 style={{ marginBottom: 'var(--space-6)' }}>Quick Actions</h3>
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-                                        <Link href="/resources/new" className="btn btn-primary" style={{ justifyContent: 'flex-start' }}>
+                                        <Link href="/resources/new" className="btn btn-primary" style={{ width: '100%' }}>
                                             ➕ Add Resource
                                         </Link>
-                                        <Link href="/admin" className="btn btn-secondary" style={{ justifyContent: 'flex-start' }}
+                                        <div style={{ height: '1px', background: 'rgba(255,255,255,0.05)', margin: 'var(--space-1) 0' }} />
+                                        <button className="btn btn-secondary" style={{ width: '100%', justifyContent: 'flex-start' }}
                                             onClick={() => setActiveTab('users')}>
                                             👥 Manage Users
-                                        </Link>
-                                        <Link href="/admin" className="btn btn-secondary" style={{ justifyContent: 'flex-start' }}
+                                        </button>
+                                        <button className="btn btn-secondary" style={{ width: '100%', justifyContent: 'flex-start' }}
                                             onClick={() => setActiveTab('resources')}>
                                             📚 Manage Resources
-                                        </Link>
-                                        <Link href="/admin/audit/youtube" className="btn btn-secondary" style={{ justifyContent: 'flex-start' }}>
+                                        </button>
+                                        <Link href="/admin/audit/youtube" className="btn btn-secondary" style={{ width: '100%', justifyContent: 'flex-start' }}>
                                             📺 YouTube Audit Tool
                                         </Link>
                                         <button 
                                             className="btn btn-secondary" 
-                                            style={{ justifyContent: 'flex-start', width: '100%', textAlign: 'left' }}
+                                            style={{ width: '100%', justifyContent: 'flex-start' }}
                                             onClick={() => handleTabChange('suggestions')}>
                                             💡 Review Suggestions ({reviewCount})
                                         </button>

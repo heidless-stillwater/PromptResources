@@ -1,6 +1,21 @@
 import type { Metadata } from 'next';
 import './globals.css';
+import { Inter, Outfit } from 'next/font/google';
+
+const inter = Inter({
+  subsets: ['latin'],
+  display: 'swap',
+  variable: '--font-inter',
+});
+
+const outfit = Outfit({
+  subsets: ['latin'],
+  display: 'swap',
+  variable: '--font-outfit',
+});
 import { AuthProvider } from '@/contexts/AuthContext';
+import ReactQueryProvider from '@/components/providers/ReactQueryProvider';
+import CommandPalette from '@/components/CommandPalette';
 
 export const metadata: Metadata = {
     title: 'PromptResources - AI Prompt Education & Reference Hub',
@@ -17,9 +32,12 @@ export default function RootLayout({
 }) {
     return (
         <html lang="en">
-            <body>
+            <body className={`${inter.variable} ${outfit.variable}`}>
                 <AuthProvider>
-                    {children}
+                    <ReactQueryProvider>
+                        <CommandPalette />
+                        {children}
+                    </ReactQueryProvider>
                 </AuthProvider>
                 {process.env.NODE_ENV === 'development' && <Agentation />}
             </body>

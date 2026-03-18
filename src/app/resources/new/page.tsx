@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import Navbar from '@/components/Navbar';
 import { db } from '@/lib/firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
@@ -23,6 +24,7 @@ export default function NewResourcePage() {
     const [pricing, setPricing] = useState<ResourcePricing>('free');
     const [pricingDetails, setPricingDetails] = useState('');
     const [tags, setTags] = useState('');
+    const [prompts, setPrompts] = useState('');
     const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
     const [suggestedCategories, setSuggestedCategories] = useState<string[]>([]);
     const [credits, setCredits] = useState<Credit[]>([{ name: '', url: '' }]);
@@ -32,91 +34,104 @@ export default function NewResourcePage() {
     const [isFavorite, setIsFavorite] = useState(false);
     const [rank, setRank] = useState<number | ''>('');
     const [loading, setLoading] = useState(false);
+    const [thumbnailUrl, setThumbnailUrl] = useState('');
     const [error, setError] = useState('');
 
     const allCategories = getDefaultCategories();
+    const [isSyncing, setIsSyncing] = useState(false);
+    const [syncError, setSyncError] = useState<string | null>(null);
+
+    const syncYouTubeData = async (targetUrl: string) => {
+        if (!targetUrl || !isYouTubeUrl(targetUrl)) return;
+        
+        setIsSyncing(true);
+        setSyncError(null);
+        
+        try {
+            const data = await fetchYouTubeMetadata(targetUrl);
+            if (data && data.author_name) {
+                const channelName = data.author_name;
+                
+                // Set suggested values
+                setCredits(prev => {
+                    // If credits list contains generic placeholder or is empty, update/add
+                    if (prev.length === 0 || (prev.length === 1 && !prev[0].name && !prev[0].url)) {
+                        return [{ name: channelName, url: data.author_url || targetUrl }];
+                    }
+                    
+                    const hasGeneric = prev.some(c => isGenericYouTubeName(c.name));
+                    if (hasGeneric) {
+                        return prev.map(c => isGenericYouTubeName(c.name) ? { ...c, name: channelName, url: data.author_url || targetUrl } : c);
+                    }
+                    
+                    // If channel name is not already in credits, add it
+                    if (!prev.some(c => c.name === channelName)) {
+                        return [...prev, { name: channelName, url: data.author_url || targetUrl }];
+                    }
+                    
+                    return prev;
+                });
+                
+                if (!title && data.title) setTitle(data.title);
+                if (!thumbnailUrl && data.thumbnail_url) setThumbnailUrl(data.thumbnail_url);
+                
+                // Also trigger logic-based suggestions
+                const currentTitle = title || data.title || '';
+                if (currentTitle) {
+                    const cats = suggestCategories(currentTitle, description, targetUrl, { tags, type, mediaFormat, platform, pricing });
+                    if (selectedCategories.length === 0) {
+                        setSelectedCategories(cats);
+                    }
+                    
+                    const suggestedTags = suggestTags(currentTitle, description, targetUrl);
+                    if (!tags && suggestedTags.length > 0) {
+                        setTags(suggestedTags.join(', '));
+                    }
+                    
+                    if (!description) {
+                        const desc = suggestDescription(currentTitle);
+                        if (desc) setDescription(desc);
+                    }
+                }
+                
+                setYtMetadata(data); // This will update Suggested Pills via useEffect
+            } else {
+                setSyncError("Could not fetch metadata. Make sure it's a public YouTube URL.");
+            }
+        } catch (err) {
+            setSyncError("YouTube sync failed. Please try again.");
+        } finally {
+            setIsSyncing(false);
+        }
+    };
 
     // Auto-detect YouTube and suggest categories/credits
     useEffect(() => {
         if (url && isYouTubeUrl(url)) {
             setMediaFormat('youtube');
             setType('video');
-
-            // Fetch channel name via oEmbed
-            const fetchYouTubeData = async () => {
-                const data = await fetchYouTubeMetadata(url);
-                if (data && data.author_name) {
-                    const channelName = data.author_name;
-                    setYtMetadata(data);
-
-                    setSuggestedCredits(prev => {
-                        const newCreds = isYouTubeUrl(url) ?
-                            prev.map(c => c.name === 'Youtube' ? { ...c, name: channelName, url: data.author_url || url } : c) :
-                            [...prev];
-
-                        if (!newCreds.some(c => c.name === channelName)) {
-                            newCreds.push({ name: channelName, url: data.author_url || url });
-                        }
-                        return deduplicateCredits(newCreds);
-                    });
-
-                    // Autofill Title
-                    setTitle(prev => {
-                        if (!prev && data.title) return data.title;
-                        return prev;
-                    });
-
-                    // Autofill description
-                    setDescription(prev => {
-                        if (!prev && data.title) {
-                            return suggestDescription(data.title);
-                        }
-                        return prev;
-                    });
-
-                    // Autofill Categories
-                    setSelectedCategories(prev => {
-                        if (prev.length === 0 && data.title) {
-                             const cats = suggestCategories(data.title, suggestDescription(data.title), url);
-                             return Array.from(new Set([...prev, ...cats]));
-                        }
-                        return prev;
-                    });
-
-                    // Autofill Tags
-                    setTags(prev => {
-                        if (!prev && data.title) {
-                            const suggestedTags = suggestTags(data.title, suggestDescription(data.title), url);
-                            if (suggestedTags.length > 0) {
-                                return suggestedTags.join(', ');
-                            }
-                        }
-                        return prev;
-                    });
-
-                    setCredits(prev => {
-                        if (prev.length === 0 || (prev.length === 1 && !prev[0].name && !prev[0].url)) {
-                            return [{ name: channelName, url: data.author_url || url }];
-                        }
-                        const updated = prev.map(c => isGenericYouTubeName(c.name) ? { ...c, name: channelName, url: data.author_url || url } : c);
-                        return deduplicateCredits(updated);
-                    });
-                }
-            };
-            fetchYouTubeData();
+            
+            // Only auto-sync if url looks like a video ID
+            if (url.includes('watch?v=') || url.includes('youtu.be/')) {
+                syncYouTubeData(url);
+            }
+        } else if (url && (url.endsWith('.pdf') || url.includes('/pdf/'))) {
+            setMediaFormat('pdf');
+            setType('article'); // Assuming PDF is usually an article/document
         } else {
             setYtMetadata(null);
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [url]);
 
     useEffect(() => {
         if (title || url) {
-            const cats = suggestCategories(title, description, url);
+            const cats = suggestCategories(title, description, url, { tags, type, mediaFormat, platform, pricing });
             setSuggestedCategories(cats);
             const creds = suggestCredits(url, title, { authorName: ytMetadata?.author_name, authorUrl: ytMetadata?.author_url });
             setSuggestedCredits(creds);
         }
-    }, [title, description, url, ytMetadata]);
+    }, [title, description, url, ytMetadata, tags, type, mediaFormat, platform, pricing]);
 
     const addCategory = (cat: string) => {
         if (!selectedCategories.includes(cat)) {
@@ -190,11 +205,13 @@ export default function NewResourcePage() {
                     categories: selectedCategories,
                     credits: validCredits,
                     youtubeVideoId: youtubeVideoId || null,
+                    thumbnailUrl: thumbnailUrl.trim() || null,
                     tags: tags.split(',').map((t) => t.trim()).filter(Boolean),
                     addedBy: user?.uid,
                     status: isAdmin ? status : 'suggested',
                     isFavorite,
                     rank: rank === '' ? null : Number(rank),
+                    prompts: prompts.split('\n').map(p => p.trim()).filter(Boolean),
                 }),
             });
 
@@ -241,15 +258,30 @@ export default function NewResourcePage() {
     }
 
     return (
-        <div className="page-wrapper">
+        <div className="page-wrapper dashboard-theme">
             <Navbar />
             <div className="main-content">
-                <div className="container" style={{ maxWidth: '800px' }}>
-                    <h1 style={{ marginBottom: 'var(--space-6)' }}>
-                        {isAdmin ? '➕ Add New Resource' : '💡 Suggest a Resource'}
-                    </h1>
+                <div className="container" style={{ maxWidth: '900px' }}>
+                    <div className="admin-header" style={{ marginBottom: 'var(--space-8)' }}>
+                        <div className="admin-title-group">
+                            <h1 className="admin-title">
+                                {isAdmin ? '➕ Add New Resource' : '💡 Suggest a Resource'}
+                            </h1>
+                            <p className="admin-subtitle">
+                                {isAdmin 
+                                    ? 'Fill in the details below to add a new resource to the collection.' 
+                                    : 'Share a valuable tool, article, or video with the community.'
+                                }
+                            </p>
+                        </div>
+                        {isAdmin && (
+                            <Link href="/admin" className="btn btn-secondary btn-sm" id="back-to-admin">
+                                Back to Admin
+                            </Link>
+                        )}
+                    </div>
 
-                    <form onSubmit={handleSubmit}>
+                    <form onSubmit={handleSubmit} className="admin-form">
                         {error && (
                             <div style={{
                                 padding: 'var(--space-3) var(--space-4)',
@@ -264,16 +296,16 @@ export default function NewResourcePage() {
                             </div>
                         )}
 
-                        <div className="glass-card" style={{ marginBottom: 'var(--space-6)' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-5)', paddingBottom: 'var(--space-3)', borderBottom: '1px solid var(--border-subtle)' }}>
-                                <h3 style={{ fontSize: 'var(--text-lg)', marginBottom: 0 }}>
+                        <div className="admin-section">
+                            <div className="admin-section-header">
+                                <h3 className="admin-section-title">
                                     📝 Basic Information
                                 </h3>
                                 <button
                                     type="button"
-                                    className="btn btn-secondary btn-sm"
+                                    className="btn btn-primary btn-sm btn-glow"
                                     onClick={() => {
-                                        const cats = suggestCategories(title, description, url);
+                                        const cats = suggestCategories(title, description, url, { tags, type, mediaFormat, platform, pricing });
                                         setSelectedCategories(Array.from(new Set([...selectedCategories, ...cats])));
                                         const creds = suggestCredits(url, title, { authorName: ytMetadata?.author_name, authorUrl: ytMetadata?.author_url });
                                         if (creds.length > 0) setCredits(creds);
@@ -295,65 +327,115 @@ export default function NewResourcePage() {
                                 </button>
                             </div>
 
-                            <div className="form-group">
+                            <div className="admin-form-grid">
+                            <div className="form-group col-span-2">
                                 <label className="form-label" htmlFor="url">URL *</label>
-                                <input
-                                    id="url"
-                                    type="url"
-                                    className="form-input"
-                                    value={url}
-                                    onChange={(e) => setUrl(e.target.value)}
-                                    placeholder="https://..."
-                                    required
-                                />
-                                {url && isYouTubeUrl(url) && (
-                                    <div className="form-helper" style={{ color: 'var(--success-400)' }}>
-                                        ✓ YouTube video detected - will auto-embed
+                                <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
+                                    <input
+                                        id="url"
+                                        type="url"
+                                        className="form-input"
+                                        value={url}
+                                        onChange={(e) => setUrl(e.target.value)}
+                                        placeholder="https://..."
+                                        style={{ flex: 1 }}
+                                        required
+                                    />
+                                    {isYouTubeUrl(url) && (
+                                        <button 
+                                            type="button" 
+                                            className="btn btn-secondary btn-sm"
+                                            onClick={() => syncYouTubeData(url)}
+                                            disabled={isSyncing}
+                                            style={{ whiteSpace: 'nowrap' }}
+                                        >
+                                            {isSyncing ? <div className="spinner-inline" /> : 'Sync Channel'}
+                                        </button>
+                                    )}
+                                </div>
+                                {syncError && <div style={{ fontSize: 'var(--text-xs)', color: 'var(--danger-400)', marginTop: 'var(--space-1)' }}>{syncError}</div>}
+                                <p className="form-helper">The link to the resource (website, video, document, etc.)</p>
+                            </div>
+
+                                {isAdmin && (
+                                    <div className="form-group col-span-2">
+                                        <label className="form-label" htmlFor="thumbnailUrl">Thumbnail URL (optional)</label>
+                                        <div style={{ display: 'flex', gap: 'var(--space-4)', alignItems: 'flex-start' }}>
+                                            <div style={{ flex: 1 }}>
+                                                <input
+                                                    id="thumbnailUrl"
+                                                    type="url"
+                                                    className="form-input"
+                                                    value={thumbnailUrl}
+                                                    onChange={(e) => setThumbnailUrl(e.target.value)}
+                                                    placeholder="https://... (image url)"
+                                                />
+                                            </div>
+                                            {thumbnailUrl && (
+                                                <div style={{ width: '120px', flexShrink: 0 }}>
+                                                    <img
+                                                        src={thumbnailUrl}
+                                                        alt="Thumbnail preview"
+                                                        style={{
+                                                            width: '100%',
+                                                            aspectRatio: '16/9',
+                                                            objectFit: 'cover',
+                                                            borderRadius: 'var(--radius-sm)',
+                                                            border: '1px solid var(--border-subtle)',
+                                                            background: 'var(--bg-card)'
+                                                        }}
+                                                        onError={(e) => {
+                                                            (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden');
+                                                            (e.target as HTMLImageElement).style.display = 'none';
+                                                        }}
+                                                    />
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
                                 )}
-                            </div>
 
-                            <div className="form-group">
-                                <label className="form-label" htmlFor="title">Title *</label>
-                                <input
-                                    id="title"
-                                    type="text"
-                                    className="form-input"
-                                    value={title}
-                                    onChange={(e) => setTitle(e.target.value)}
-                                    placeholder="e.g. Ultimate Guide to Gemini Prompt Engineering"
-                                    required
-                                />
-                            </div>
-
-                            <div className="form-group">
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-2)' }}>
-                                    <label className="form-label" htmlFor="description" style={{ marginBottom: 0 }}>Description *</label>
-                                    <button
-                                        type="button"
-                                        className="btn btn-secondary btn-sm"
-                                        onClick={() => {
-                                            const desc = suggestDescription(title);
-                                            if (desc) setDescription(desc);
-                                        }}
-                                        id="ai-suggest-description"
-                                        disabled={!title}
-                                    >
-                                        ✨ AI Suggest
-                                    </button>
+                                <div className="form-group col-span-2">
+                                    <label className="form-label" htmlFor="title">Title *</label>
+                                    <input
+                                        id="title"
+                                        type="text"
+                                        className="form-input"
+                                        value={title}
+                                        onChange={(e) => setTitle(e.target.value)}
+                                        placeholder="e.g. Ultimate Guide to Gemini Prompt Engineering"
+                                        required
+                                    />
                                 </div>
-                                <textarea
-                                    id="description"
-                                    className="form-textarea"
-                                    value={description}
-                                    onChange={(e) => setDescription(e.target.value)}
-                                    placeholder="Describe what this resource covers..."
-                                    required
-                                />
-                            </div>
+
+                                <div className="form-group col-span-2">
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-2)' }}>
+                                        <label className="form-label" htmlFor="description" style={{ marginBottom: 0 }}>Description *</label>
+                                        <button
+                                            type="button"
+                                            className="btn btn-secondary btn-sm"
+                                            onClick={() => {
+                                                const desc = suggestDescription(title);
+                                                if (desc) setDescription(desc);
+                                            }}
+                                            id="ai-suggest-description"
+                                            disabled={!title}
+                                        >
+                                            ✨ AI Suggest
+                                        </button>
+                                    </div>
+                                    <textarea
+                                        id="description"
+                                        className="form-textarea"
+                                        value={description}
+                                        onChange={(e) => setDescription(e.target.value)}
+                                        placeholder="Describe what this resource covers..."
+                                        required
+                                        rows={4}
+                                    />
+                                </div>
 
 
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-4)' }}>
                                 <div className="form-group">
                                     <label className="form-label" htmlFor="type">Resource Type *</label>
                                     <select id="type" className="form-select" value={type} onChange={(e) => setType(e.target.value as ResourceType)}>
@@ -378,9 +460,7 @@ export default function NewResourcePage() {
                                         <option value="other">Other</option>
                                     </select>
                                 </div>
-                            </div>
 
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-4)' }}>
                                 <div className="form-group">
                                     <label className="form-label" htmlFor="platform">Platform *</label>
                                     <select id="platform" className="form-select" value={platform} onChange={(e) => setPlatform(e.target.value as Platform)}>
@@ -402,86 +482,101 @@ export default function NewResourcePage() {
                                         <option value="freemium">Freemium</option>
                                     </select>
                                 </div>
-                            </div>
 
-                            {pricing !== 'free' && (
-                                <div className="form-group">
-                                    <label className="form-label" htmlFor="pricingDetails">Pricing Details</label>
+                                {pricing !== 'free' && (
+                                    <div className="form-group col-span-2">
+                                        <label className="form-label" htmlFor="pricingDetails">Pricing Details</label>
+                                        <input
+                                            id="pricingDetails"
+                                            type="text"
+                                            className="form-input"
+                                            value={pricingDetails}
+                                            onChange={(e) => setPricingDetails(e.target.value)}
+                                            placeholder="e.g. $29/month, $99 one-time"
+                                        />
+                                    </div>
+                                )}
+
+                                <div className="form-group col-span-2">
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-2)' }}>
+                                        <label className="form-label" htmlFor="tags" style={{ marginBottom: 0 }}>Tags (comma separated)</label>
+                                        <button
+                                            type="button"
+                                            className="btn btn-secondary btn-sm"
+                                            onClick={() => {
+                                                const suggestedTags = suggestTags(title, description, url);
+                                                const currentTags = tags.split(',').map(t => t.trim()).filter(Boolean);
+                                                const newTags = Array.from(new Set([...currentTags, ...suggestedTags]));
+                                                setTags(newTags.join(', '));
+                                            }}
+                                            id="ai-suggest-tags"
+                                            disabled={!title}
+                                        >
+                                            ✨ AI Suggest
+                                        </button>
+                                    </div>
                                     <input
-                                        id="pricingDetails"
+                                        id="tags"
                                         type="text"
                                         className="form-input"
-                                        value={pricingDetails}
-                                        onChange={(e) => setPricingDetails(e.target.value)}
-                                        placeholder="e.g. $29/month, $99 one-time"
+                                        value={tags}
+                                        onChange={(e) => setTags(e.target.value)}
+                                        placeholder="prompt, AI, tutorial, beginner"
                                     />
                                 </div>
-                            )}
 
-                            <div className="form-group">
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-2)' }}>
-                                    <label className="form-label" htmlFor="tags" style={{ marginBottom: 0 }}>Tags (comma separated)</label>
-                                    <button
-                                        type="button"
-                                        className="btn btn-secondary btn-sm"
-                                        onClick={() => {
-                                            const suggestedTags = suggestTags(title, description, url);
-                                            const currentTags = tags.split(',').map(t => t.trim()).filter(Boolean);
-                                            const newTags = Array.from(new Set([...currentTags, ...suggestedTags]));
-                                            setTags(newTags.join(', '));
-                                        }}
-                                        id="ai-suggest-tags"
-                                        disabled={!title}
-                                    >
-                                        ✨ AI Suggest
-                                    </button>
+                                <div className="form-group col-span-2">
+                                    <label className="form-label" htmlFor="prompts">Prompts (One per line)</label>
+                                    <textarea
+                                        id="prompts"
+                                        className="form-textarea"
+                                        value={prompts}
+                                        onChange={(e) => setPrompts(e.target.value)}
+                                        placeholder="Paste prompts here, one per line..."
+                                        rows={5}
+                                    />
+                                    <p className="form-helper">Add specific prompts that this resource provides or teaches.</p>
                                 </div>
-                                <input
-                                    id="tags"
-                                    type="text"
-                                    className="form-input"
-                                    value={tags}
-                                    onChange={(e) => setTags(e.target.value)}
-                                    placeholder="prompt, AI, tutorial, beginner"
-                                />
-                            </div>
 
-                                        {isAdmin && (
-                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-4)', marginTop: 'var(--space-4)' }}>
-                                                <div className="form-group" style={{ marginBottom: 0 }}>
-                                                    <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', cursor: 'pointer' }}>
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={isFavorite}
-                                                            onChange={(e) => setIsFavorite(e.target.checked)}
-                                                            style={{ width: '18px', height: '18px' }}
-                                                        />
-                                                        ⭐ Favorite / Featured
-                                                    </label>
-                                                </div>
-                                                <div className="form-group" style={{ marginBottom: 0 }}>
-                                                    <label className="form-label">Rank (Priority)</label>
-                                                    <input
-                                                        type="number"
-                                                        className="form-input"
-                                                        value={rank}
-                                                        onChange={(e) => setRank(e.target.value === '' ? '' : Number(e.target.value))}
-                                                        placeholder="e.g. 1 (Top priority)"
-                                                    />
-                                                </div>
-                                            </div>
-                                        )}
+                                {isAdmin && (
+                                    <>
+                                        <div className="form-group">
+                                            <label className="form-label">Rank (Priority)</label>
+                                            <input
+                                                type="number"
+                                                className="form-input"
+                                                value={rank}
+                                                onChange={(e) => setRank(e.target.value === '' ? '' : Number(e.target.value))}
+                                                placeholder="e.g. 1 (Top priority)"
+                                            />
+                                        </div>
+                                        <div className="form-group" style={{ display: 'flex', alignItems: 'flex-end', paddingBottom: 'var(--space-2)' }}>
+                                            <label className="checkbox-label" style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', cursor: 'pointer', userSelect: 'none' }}>
+                                                <input
+                                                    type="checkbox"
+                                                    checked={isFavorite}
+                                                    onChange={(e) => setIsFavorite(e.target.checked)}
+                                                    className="admin-checkbox"
+                                                />
+                                                <span className="checkbox-text" style={{ fontSize: 'var(--text-sm)', fontWeight: 600 }}>
+                                                    ⭐ Mark as Favorite / Featured
+                                                </span>
+                                            </label>
+                                        </div>
+                                    </>
+                                )}
+                            </div>
                         </div>
 
                         {/* Categories */}
-                        <div className="glass-card" style={{ marginBottom: 'var(--space-6)' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-4)' }}>
-                                <h3 style={{ fontSize: 'var(--text-lg)', marginBottom: 0 }}>🏷️ Categories <span style={{ color: 'var(--danger-400)', fontSize: 'var(--text-sm)' }}>* (min 1)</span></h3>
+                        <div className="admin-section">
+                            <div className="admin-section-header">
+                                <h3 className="admin-section-title">🏷️ Categories <span style={{ color: 'var(--danger-400)', fontSize: 'var(--text-xs)', marginLeft: 'var(--space-2)', fontWeight: 400 }}>* (Pick at least one)</span></h3>
                                 <button
                                     type="button"
                                     className="btn btn-secondary btn-sm"
                                     onClick={() => {
-                                        const cats = suggestCategories(title, description, url);
+                                        const cats = suggestCategories(title, description, url, { tags, type, mediaFormat, platform, pricing });
                                         setSelectedCategories(Array.from(new Set([...selectedCategories, ...cats])));
                                     }}
                                     id="ai-suggest-categories"
@@ -490,50 +585,61 @@ export default function NewResourcePage() {
                                 </button>
                             </div>
 
-                            {/* Selected */}
-                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-2)', marginBottom: 'var(--space-4)' }}>
-                                {selectedCategories.map((cat) => (
-                                    <span
-                                        key={cat}
-                                        className="badge badge-primary"
-                                        style={{ cursor: 'pointer', padding: 'var(--space-2) var(--space-3)' }}
-                                        onClick={() => removeCategory(cat)}
-                                    >
-                                        {cat} ✕
-                                    </span>
-                                ))}
-                                {selectedCategories.length === 0 && (
-                                    <span style={{ fontSize: 'var(--text-sm)', color: 'var(--text-muted)' }}>
-                                        No categories selected
-                                    </span>
-                                )}
-                            </div>
-
-                            {/* AI Suggestions */}
-                            {suggestedCategories.length > 0 && (
-                                <div style={{ marginBottom: 'var(--space-4)' }}>
-                                    <div style={{
-                                        fontSize: 'var(--text-xs)',
-                                        color: 'var(--accent-400)',
-                                        fontWeight: 600,
-                                        marginBottom: 'var(--space-2)',
-                                        textTransform: 'uppercase',
-                                    }}>
-                                        🤖 AI Suggested
+                            <div className="admin-categories-selection">
+                                {/* Selected */}
+                                <div className="selected-categories-list">
+                                    <div className="selection-label">Selected:</div>
+                                    <div className="chips-container">
+                                        {selectedCategories.map((cat) => (
+                                            <span
+                                                key={cat}
+                                                className="chip chip-primary clickable"
+                                                onClick={() => removeCategory(cat)}
+                                            >
+                                                {cat} <span className="chip-close">✕</span>
+                                            </span>
+                                        ))}
+                                        {selectedCategories.length === 0 && (
+                                            <span className="selection-placeholder">No categories selected - please pick at least one.</span>
+                                        )}
                                     </div>
-                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-2)' }}>
-                                        {suggestedCategories
+                                </div>
+
+                                <div className="admin-divider" />
+
+                                {/* AI Suggestions */}
+                                {suggestedCategories.length > 0 && suggestedCategories.some(c => !selectedCategories.includes(c)) && (
+                                    <div className="suggested-categories">
+                                        <div className="selection-label ai-label">🤖 AI Suggested:</div>
+                                        <div className="chips-container">
+                                            {suggestedCategories
+                                                .filter((c) => !selectedCategories.includes(c))
+                                                .map((cat) => (
+                                                    <button
+                                                        key={cat}
+                                                        type="button"
+                                                        className="chip chip-accent clickable"
+                                                        onClick={() => addCategory(cat)}
+                                                    >
+                                                        + {cat}
+                                                    </button>
+                                                ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* All Categories */}
+                                <div className="all-categories">
+                                    <div className="selection-label">Available:</div>
+                                    <div className="chips-container">
+                                        {allCategories
                                             .filter((c) => !selectedCategories.includes(c))
                                             .map((cat) => (
                                                 <button
                                                     key={cat}
                                                     type="button"
-                                                    className="badge badge-accent"
-                                                    style={{
-                                                        cursor: 'pointer',
-                                                        padding: 'var(--space-2) var(--space-3)',
-                                                        background: 'rgba(249, 115, 22, 0.1)',
-                                                    }}
+                                                    className="chip clickable"
+                                                    style={{ background: 'rgba(255,255,255,0.05)' }}
                                                     onClick={() => addCategory(cat)}
                                                 >
                                                     + {cat}
@@ -541,45 +647,13 @@ export default function NewResourcePage() {
                                             ))}
                                     </div>
                                 </div>
-                            )}
-
-                            {/* All Categories */}
-                            <div>
-                                <div style={{
-                                    fontSize: 'var(--text-xs)',
-                                    color: 'var(--text-muted)',
-                                    fontWeight: 600,
-                                    marginBottom: 'var(--space-2)',
-                                    textTransform: 'uppercase',
-                                }}>
-                                    All Categories
-                                </div>
-                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-2)' }}>
-                                    {allCategories
-                                        .filter((c) => !selectedCategories.includes(c))
-                                        .map((cat) => (
-                                            <button
-                                                key={cat}
-                                                type="button"
-                                                className="badge badge-primary"
-                                                style={{
-                                                    cursor: 'pointer',
-                                                    padding: 'var(--space-1) var(--space-3)',
-                                                    opacity: 0.6,
-                                                }}
-                                                onClick={() => addCategory(cat)}
-                                            >
-                                                + {cat}
-                                            </button>
-                                        ))}
-                                </div>
                             </div>
                         </div>
 
                         {/* Credits */}
-                        <div className="glass-card" style={{ marginBottom: 'var(--space-6)' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-4)' }}>
-                                <h3 style={{ fontSize: 'var(--text-lg)', marginBottom: 0 }}>👤 Credits & Attribution</h3>
+                        <div className="admin-section">
+                            <div className="admin-section-header">
+                                <h3 className="admin-section-title">👤 Credits & Attribution</h3>
                                 <button
                                     type="button"
                                     className="btn btn-secondary btn-sm"
@@ -593,91 +667,91 @@ export default function NewResourcePage() {
                                 </button>
                             </div>
 
-                            {/* AI Suggested Credits */}
-                            {suggestedCredits.length > 0 && (
-                                <div style={{ marginBottom: 'var(--space-4)' }}>
-                                    <div style={{
-                                        fontSize: 'var(--text-xs)',
-                                        color: 'var(--accent-400)',
-                                        fontWeight: 600,
-                                        marginBottom: 'var(--space-2)',
-                                        textTransform: 'uppercase',
-                                    }}>
-                                        🤖 AI Suggested Credits
+                            <div className="admin-credits-section">
+                                {/* AI Suggested Credits */}
+                                {suggestedCredits.length > 0 && (
+                                    <div className="suggested-credits-pill-group">
+                                        <div className="selection-label ai-label">🤖 AI Suggested:</div>
+                                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-2)' }}>
+                                            {suggestedCredits.map((credit, idx) => (
+                                                <button
+                                                    key={idx}
+                                                    type="button"
+                                                    className="btn btn-xs btn-secondary"
+                                                    style={{ borderRadius: '20px' }}
+                                                    onClick={() => applySuggestedCredit(credit)}
+                                                >
+                                                    + {credit.name}
+                                                </button>
+                                            ))}
+                                        </div>
                                     </div>
-                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-2)' }}>
-                                        {suggestedCredits.map((credit, idx) => (
-                                            <button
-                                                key={idx}
-                                                type="button"
-                                                className="btn btn-sm btn-secondary"
-                                                onClick={() => applySuggestedCredit(credit)}
-                                            >
-                                                + {credit.name}
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
+                                )}
 
-                            {credits.map((credit, idx) => (
-                                <div key={idx} style={{
-                                    display: 'grid',
-                                    gridTemplateColumns: '1fr 1fr auto',
-                                    gap: 'var(--space-3)',
-                                    marginBottom: 'var(--space-3)',
-                                    alignItems: 'end',
-                                }}>
-                                    <div className="form-group" style={{ marginBottom: 0 }}>
-                                        <label className="form-label">Provider Name</label>
-                                        <input
-                                            type="text"
-                                            className="form-input"
-                                            value={credit.name}
-                                            onChange={(e) => updateCredit(idx, 'name', e.target.value)}
-                                            placeholder="Creator/Provider name"
-                                        />
-                                    </div>
-                                    <div className="form-group" style={{ marginBottom: 0 }}>
-                                        <label className="form-label">Provider URL</label>
-                                        <input
-                                            type="url"
-                                            className="form-input"
-                                            value={credit.url}
-                                            onChange={(e) => updateCredit(idx, 'url', e.target.value)}
-                                            placeholder="https://..."
-                                        />
-                                    </div>
-                                    {credits.length > 1 && (
-                                        <button
-                                            type="button"
-                                            className="btn btn-ghost btn-sm"
-                                            onClick={() => removeCredit(idx)}
-                                            style={{ color: 'var(--danger-400)' }}
-                                        >
-                                            ✕
-                                        </button>
-                                    )}
+                                <div className="credits-list">
+                                    {credits.map((credit, idx) => (
+                                        <div key={idx} className="credit-row">
+                                            <div className="form-group">
+                                                <label className="form-label">Name</label>
+                                                <input
+                                                    type="text"
+                                                    className="form-input"
+                                                    value={credit.name}
+                                                    onChange={(e) => updateCredit(idx, 'name', e.target.value)}
+                                                    placeholder="Creator/Provider name"
+                                                />
+                                            </div>
+                                            <div className="form-group">
+                                                <label className="form-label">URL</label>
+                                                <input
+                                                    type="url"
+                                                    className="form-input"
+                                                    value={credit.url}
+                                                    onChange={(e) => updateCredit(idx, 'url', e.target.value)}
+                                                    placeholder="https://..."
+                                                />
+                                            </div>
+                                            <div className="credit-actions">
+                                                {credits.length > 1 && (
+                                                    <button
+                                                        type="button"
+                                                        className="btn-icon btn-danger"
+                                                        onClick={() => removeCredit(idx)}
+                                                        title="Remove Credit"
+                                                    >
+                                                        ✕
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </div>
+                                    ))}
                                 </div>
-                            ))}
 
-                            <button type="button" className="btn btn-ghost btn-sm" onClick={addCredit}>
-                                + Add Another Credit
-                            </button>
+                                <button type="button" className="btn btn-secondary btn-sm" onClick={addCredit} style={{ marginTop: 'var(--space-2)' }}>
+                                    + Add Another Attribution
+                                </button>
+                            </div>
                         </div>
 
                         {/* Submit */}
-                        <div style={{ display: 'flex', gap: 'var(--space-3)', justifyContent: 'flex-end' }}>
+                        <div className="admin-form-actions">
                             <button type="button" className="btn btn-secondary" onClick={() => router.back()}>
                                 Cancel
                             </button>
                             <button
                                 type="submit"
-                                className="btn btn-primary btn-lg"
+                                className="btn btn-primary btn-lg btn-glow"
                                 disabled={loading}
                                 id="submit-resource"
                             >
-                                {loading ? (isAdmin ? 'Adding...' : 'Submitting Suggested Resource...') : (isAdmin ? '✅ Add Resource' : '🚀 Submit for Review')}
+                                {loading ? (
+                                    <>
+                                        <div className="spinner-inline" />
+                                        {isAdmin ? 'Adding...' : 'Submitting...'}
+                                    </>
+                                ) : (
+                                    isAdmin ? '✅ Add Resource' : '🚀 Submit for Review'
+                                )}
                             </button>
                         </div>
                     </form>

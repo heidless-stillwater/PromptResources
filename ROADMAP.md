@@ -11,3 +11,8 @@
 - [x] Deploy to live (https://promptresources-v0.web.app)
 - [ ] Enhance Search indexing
 - [ ] Implement user voting on resources
+
+---
+
+### Strategic Direction
+Detailed architectural and business priorities can be found in [docs/STRATEGY_PLAN.md](file:///home/heidless/projects/heidless-ai/antigravity/live/PromptResources/docs/STRATEGY_PLAN.md).

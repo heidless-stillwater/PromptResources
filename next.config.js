@@ -7,6 +7,10 @@ module.exports = {
             },
             {
                 protocol: 'https',
+                hostname: '**.ytimg.com',
+            },
+            {
+                protocol: 'https',
                 hostname: 'img.youtube.com',
             },
             {
@@ -15,4 +19,5 @@ module.exports = {
             },
         ],
     },
+    transpilePackages: ['@tanstack/react-query'],
 };

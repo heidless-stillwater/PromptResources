@@ -105,6 +105,7 @@ export default function SavedResourcesPage() {
                                                         src={`https://img.youtube.com/vi/${resource.youtubeVideoId}/mqdefault.jpg`}
                                                         alt={resource.title || 'Video thumbnail'}
                                                         fill
+                                                        sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
                                                         style={{ objectFit: 'cover' }}
                                                     />
                                                 </div>

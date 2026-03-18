@@ -9,13 +9,13 @@ import { db } from '@/lib/firebase';
 import { doc, updateDoc } from 'firebase/firestore';
 import { storage } from '@/lib/firebase';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 
 export default function SettingsPage() {
     const { user, profile, loading: authLoading } = useAuth();
+    const queryClient = useQueryClient();
     const [displayName, setDisplayName] = useState(profile?.displayName || '');
     const [photoURL, setPhotoURL] = useState(profile?.photoURL || '');
-    const [uploading, setUploading] = useState(false);
-    const [saving, setSaving] = useState(false);
     const [message, setMessage] = useState({ type: '', text: '' });
     const [imgError, setImgError] = useState(false);
 
@@ -27,6 +27,43 @@ export default function SettingsPage() {
             setImgError(false);
         }
     }, [profile]);
+
+    const updateProfileMutation = useMutation({
+        mutationFn: async (data: { displayName: string, photoURL: string }) => {
+            if (!user) throw new Error('Not authenticated');
+            const userRef = doc(db, 'users', user.uid);
+            await updateDoc(userRef, {
+                ...data,
+                updatedAt: new Date(),
+            });
+        },
+        onSuccess: () => {
+            setMessage({ type: 'success', text: 'Profile updated successfully!' });
+            queryClient.invalidateQueries({ queryKey: ['profile', user?.uid] });
+        },
+        onError: (error) => {
+            console.error('Error updating profile:', error);
+            setMessage({ type: 'error', text: 'Failed to update profile.' });
+        }
+    });
+
+    const uploadMutation = useMutation({
+        mutationFn: async (file: File) => {
+            if (!user) throw new Error('Not authenticated');
+            const storageRef = ref(storage, `avatars/${user.uid}/${Date.now()}_${file.name}`);
+            const snapshot = await uploadBytes(storageRef, file);
+            return await getDownloadURL(snapshot.ref);
+        },
+        onSuccess: (downloadURL) => {
+            setPhotoURL(downloadURL);
+            setImgError(false);
+            setMessage({ type: 'success', text: 'Image uploaded! Remember to save changes.' });
+        },
+        onError: (error) => {
+            console.error('Error uploading file:', error);
+            setMessage({ type: 'error', text: 'Failed to upload image.' });
+        }
+    });
 
     if (authLoading || !user) {
         return (
@@ -41,23 +78,8 @@ export default function SettingsPage() {
 
     const handleUpdateProfile = async (e: React.FormEvent) => {
         e.preventDefault();
-        setSaving(true);
         setMessage({ type: '', text: '' });
-
-        try {
-            const userRef = doc(db, 'users', user.uid);
-            await updateDoc(userRef, {
-                displayName,
-                photoURL,
-                updatedAt: new Date(),
-            });
-            setMessage({ type: 'success', text: 'Profile updated successfully!' });
-        } catch (error) {
-            console.error('Error updating profile:', error);
-            setMessage({ type: 'error', text: 'Failed to update profile.' });
-        } finally {
-            setSaving(false);
-        }
+        updateProfileMutation.mutate({ displayName, photoURL });
     };
 
     const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -75,24 +97,12 @@ export default function SettingsPage() {
             return;
         }
 
-        setUploading(true);
         setMessage({ type: '', text: '' });
-
-        try {
-            const storageRef = ref(storage, `avatars/${user.uid}/${Date.now()}_${file.name}`);
-            const snapshot = await uploadBytes(storageRef, file);
-            const downloadURL = await getDownloadURL(snapshot.ref);
-
-            setPhotoURL(downloadURL);
-            setImgError(false);
-            setMessage({ type: 'success', text: 'Image uploaded! Remember to save changes.' });
-        } catch (error) {
-            console.error('Error uploading file:', error);
-            setMessage({ type: 'error', text: 'Failed to upload image.' });
-        } finally {
-            setUploading(false);
-        }
+        uploadMutation.mutate(file);
     };
+
+    const saving = updateProfileMutation.isPending;
+    const uploading = uploadMutation.isPending;
 
     return (
         <div className="page-wrapper">
@@ -168,6 +178,7 @@ export default function SettingsPage() {
                                                     src={photoURL}
                                                     alt="Avatar Preview"
                                                     fill
+                                                    sizes="64px"
                                                     style={{ objectFit: 'cover', borderRadius: '50%' }}
                                                     onError={() => setImgError(true)}
                                                 />

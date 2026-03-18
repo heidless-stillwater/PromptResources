@@ -62,13 +62,28 @@ export async function getYouTubeMetadataServer(url: string) {
             },
         });
 
-        if (!response.ok) return null;
-        const data = await response.json();
+        let data = null;
+
+        if (response.ok) {
+            data = await response.json();
+        } else {
+            const noembedUrl = `https://noembed.com/embed?url=${encodeURIComponent(url)}`;
+            const noembedResponse = await fetch(noembedUrl);
+            if (noembedResponse.ok) {
+                const noembedData = await noembedResponse.json();
+                if (!noembedData.error) {
+                    data = noembedData;
+                }
+            }
+        }
+
+        if (!data) return null;
+
         return {
-            title: data.title,
-            author_name: data.author_name,
-            author_url: data.author_url,
-            thumbnail_url: data.thumbnail_url
+            title: data.title || '',
+            author_name: data.author_name || '',
+            author_url: data.author_url || '',
+            thumbnail_url: data.thumbnail_url || ''
         };
     } catch (err) {
         console.error('Error in getYouTubeMetadataServer:', err);
@@ -83,16 +98,13 @@ export async function fetchYouTubeMetadata(url: string) {
     if (!isYouTubeUrl(url)) return null;
 
     try {
-        const urlObj = new URL(url);
-        if (urlObj.pathname === '/' || urlObj.pathname === '') return null;
-
         const response = await fetch(`/api/youtube/metadata?url=${encodeURIComponent(url)}`);
         if (!response.ok) return null;
 
         const result = await response.json();
         return result.success ? result.data : null;
-    } catch (err) {
-        console.error('Error fetching YouTube metadata:', err);
+    } catch (error) {
+        console.error('Error fetching YouTube metadata:', error);
         return null;
     }
 }

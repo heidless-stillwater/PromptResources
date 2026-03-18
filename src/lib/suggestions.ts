@@ -49,11 +49,20 @@ const KNOWN_PROVIDERS: Record<string, { name: string; url: string }> = {
     'prompthero.com': { name: 'PromptHero', url: 'https://prompthero.com' },
 };
 
+interface SuggestionContext {
+    tags?: string;
+    type?: string;
+    mediaFormat?: string;
+    platform?: string;
+    pricing?: string;
+}
+
 /**
  * Suggest categories based on title, description, and URL
  */
-export function suggestCategories(title: string, description: string = '', url: string = ''): string[] {
-    const text = `${title} ${description} ${url}`.toLowerCase();
+export function suggestCategories(title: string, description: string = '', url: string = '', context?: SuggestionContext): string[] {
+    const extra = context ? Object.values(context).filter(Boolean).join(' ') : '';
+    const text = `${title} ${description} ${url} ${extra}`.toLowerCase();
     const suggestions: { category: string; score: number }[] = [];
 
     for (const [category, keywords] of Object.entries(CATEGORY_KEYWORDS)) {
