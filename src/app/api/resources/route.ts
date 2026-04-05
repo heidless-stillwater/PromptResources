@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { adminDb } from '@/lib/firebase-admin';
 import { getAuthUser, isAdmin } from '@/lib/auth-server';
 import { getResourcesAction } from '@/lib/resources-server';
+import { revalidatePath } from 'next/cache';
 
 export async function GET(request: NextRequest) {
     try {
@@ -92,6 +93,10 @@ export async function POST(request: NextRequest) {
         };
 
         const docRef = await adminDb.collection('resources').add(docData);
+        
+        // Revalidate listing pages to show new prompt immediately
+        revalidatePath('/resources');
+        revalidatePath('/');
 
         return NextResponse.json({
             success: true,

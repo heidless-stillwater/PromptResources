@@ -1,0 +1,9 @@
+# Example for App 2
+$oldPath = "\\wsl.localhost\U-AntiGravity-0\home\heidless\projects\heidless-ai\antigravity\live\PromptResources"
+
+$newPath = "\\wsl.localhost\u-antigravity-1\home\heidless\projects\PromptResources"
+
+cp "$oldPath\.env.local" "$newPath\.env.local"
+cp "$oldPath\service-account.json" "$newPath\service-account.json"
+
+

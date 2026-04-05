@@ -9,9 +9,10 @@ interface ModalProps {
     children: React.ReactNode;
     footer?: React.ReactNode;
     maxWidth?: string;
+    className?: string;
 }
 
-export default function Modal({ isOpen, onClose, title, children, footer, maxWidth }: ModalProps) {
+export default function Modal({ isOpen, onClose, title, children, footer, maxWidth, className }: ModalProps) {
     const modalRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
@@ -39,11 +40,22 @@ export default function Modal({ isOpen, onClose, title, children, footer, maxWid
     if (!isOpen) return null;
 
     return (
-        <div className="modal-backdrop" onClick={handleBackdropClick} style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', zIndex: 1000 }}>
+        <div className="modal-backdrop" onClick={handleBackdropClick} style={{ 
+            position: 'fixed', 
+            top: 0, 
+            left: 0, 
+            width: '100%', 
+            height: '100%', 
+            zIndex: 1000,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 'var(--space-4)'
+        }}>
             <div
                 ref={modalRef}
-                className="modal animate-slide-up"
-                style={{ maxWidth: maxWidth || '640px' }}
+                className={`modal ${className || ''}`}
+                style={{ maxWidth: maxWidth || '640px', width: '100%' }}
             >
                 <div className="modal-header">
                     <h2 className="modal-title">{title}</h2>

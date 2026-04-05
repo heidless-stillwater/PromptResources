@@ -68,6 +68,7 @@ export async function GET(
 }
 
 import { getAuthUser, isAdmin } from '@/lib/auth-server';
+import { revalidatePath } from 'next/cache';
 
 export async function PATCH(
     request: NextRequest,
@@ -116,6 +117,11 @@ export async function PATCH(
         delete updateData.createdAt;
 
         await docRef.update(updateData);
+
+        // Revalidate the paths immediately
+        revalidatePath('/resources');
+        revalidatePath(`/resources/${params.id}`);
+        revalidatePath('/'); // Homepage might show this resource too
 
         return NextResponse.json({
             success: true,
@@ -170,6 +176,10 @@ export async function DELETE(
         }
 
         await docRef.delete();
+
+        // Revalidate listing page
+        revalidatePath('/resources');
+        revalidatePath('/');
 
         return NextResponse.json({
             success: true,

@@ -10,6 +10,7 @@ import { doc, getDoc, deleteDoc, updateDoc, arrayUnion, arrayRemove } from 'fire
 import { Resource } from '@/lib/types';
 import { useAuth } from '@/contexts/AuthContext';
 import { getYouTubeEmbedUrl, extractYouTubeId, isYouTubeUrl, isGenericYouTubeName, deduplicateCredits } from '@/lib/youtube';
+import { getDefaultCategories } from '@/lib/suggestions';
 import Modal from '@/components/Modal';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -34,6 +35,24 @@ export default function ResourceDetailPage() {
     const [isSavingNote, setIsSavingNote] = useState(false);
     const [noteMessage, setNoteMessage] = useState({ type: '', text: '' });
     const noteTextareaRef = useRef<HTMLTextAreaElement>(null);
+
+    // Confirmation Modal State
+    const [confirmModal, setConfirmModal] = useState<{
+        isOpen: boolean;
+        title: string;
+        message: string;
+        onConfirm: () => void;
+        confirmText: string;
+        isDanger?: boolean;
+    }>({
+        isOpen: false,
+        title: '',
+        message: '',
+        onConfirm: () => {},
+        confirmText: 'Confirm'
+    });
+
+    const closeConfirmModal = () => setConfirmModal(prev => ({ ...prev, isOpen: false }));
 
     // Link Extraction State
     const [isLinkSelectionOpen, setIsLinkSelectionOpen] = useState(false);
@@ -189,6 +208,145 @@ export default function ResourceDetailPage() {
         const url = encodeURIComponent(window.location.href);
         window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${url}`, '_blank');
         setShareOpen(false);
+    };
+
+    const [isTagInputOpen, setIsTagInputOpen] = useState(false);
+    const [newTag, setNewTag] = useState('');
+    const [isCategoryInputOpen, setIsCategoryInputOpen] = useState(false);
+    const allCategories = getDefaultCategories();
+
+    const handleRemoveTag = async (tagToRemove: string) => {
+        if (!isAdmin && resource?.addedBy !== user?.uid) return;
+        if (!resource) return;
+
+        setConfirmModal({
+            isOpen: true,
+            title: 'Remove Tag',
+            message: `Are you sure you want to remove the tag "#${tagToRemove}"?`,
+            confirmText: 'Remove',
+            isDanger: true,
+            onConfirm: async () => {
+                const updatedTags = resource.tags?.filter(t => t !== tagToRemove) || [];
+                try {
+                    const token = await user?.getIdToken();
+                    const response = await fetch(`/api/resources/${resourceId}`, {
+                        method: 'PATCH',
+                        headers: { 
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${token}`
+                        },
+                        body: JSON.stringify({ tags: updatedTags }),
+                    });
+                    const result = await response.json();
+                    if (result.success) {
+                        queryClient.invalidateQueries({ queryKey: ['resource', resourceId] });
+                    }
+                } catch (error) {
+                    console.error('Error removing tag:', error);
+                } finally {
+                    closeConfirmModal();
+                }
+            }
+        });
+    };
+
+    const handleAddTag = async () => {
+        if (!newTag.trim() || !resource) return;
+        if (!isAdmin && resource?.addedBy !== user?.uid) return;
+
+        const currentTags = resource.tags || [];
+        if (currentTags.includes(newTag.trim())) {
+            setIsTagInputOpen(false);
+            setNewTag('');
+            return;
+        }
+
+        const updatedTags = [...currentTags, newTag.trim()];
+        try {
+            const token = await user?.getIdToken();
+            const response = await fetch(`/api/resources/${resourceId}`, {
+                method: 'PATCH',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ tags: updatedTags }),
+            });
+            const result = await response.json();
+            if (result.success) {
+                queryClient.invalidateQueries({ queryKey: ['resource', resourceId] });
+                setIsTagInputOpen(false);
+                setNewTag('');
+            }
+        } catch (error) {
+            console.error('Error adding tag:', error);
+        }
+    };
+
+    const handleRemoveCategory = async (catToRemove: string) => {
+        if (!isAdmin && resource?.addedBy !== user?.uid) return;
+        if (!resource) return;
+
+        setConfirmModal({
+            isOpen: true,
+            title: 'Remove Category',
+            message: `Are you sure you want to remove the category "${catToRemove}"?`,
+            confirmText: 'Remove',
+            isDanger: true,
+            onConfirm: async () => {
+                const updatedCats = resource.categories?.filter(c => c !== catToRemove) || [];
+                try {
+                    const token = await user?.getIdToken();
+                    const response = await fetch(`/api/resources/${resourceId}`, {
+                        method: 'PATCH',
+                        headers: { 
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${token}`
+                        },
+                        body: JSON.stringify({ categories: updatedCats }),
+                    });
+                    const result = await response.json();
+                    if (result.success) {
+                        queryClient.invalidateQueries({ queryKey: ['resource', resourceId] });
+                    }
+                } catch (error) {
+                    console.error('Error removing category:', error);
+                } finally {
+                    closeConfirmModal();
+                }
+            }
+        });
+    };
+
+    const handleAddCategory = async (cat: string) => {
+        if (!cat || !resource) return;
+        if (!isAdmin && resource?.addedBy !== user?.uid) return;
+
+        const currentCats = resource.categories || [];
+        if (currentCats.includes(cat)) {
+            setIsCategoryInputOpen(false);
+            return;
+        }
+
+        const updatedCats = [...currentCats, cat];
+        try {
+            const token = await user?.getIdToken();
+            const response = await fetch(`/api/resources/${resourceId}`, {
+                method: 'PATCH',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ categories: updatedCats }),
+            });
+            const result = await response.json();
+            if (result.success) {
+                queryClient.invalidateQueries({ queryKey: ['resource', resourceId] });
+                setIsCategoryInputOpen(false);
+            }
+        } catch (error) {
+            console.error('Error adding category:', error);
+        }
     };
 
     const handleShareEmail = () => {
@@ -395,51 +553,56 @@ export default function ResourceDetailPage() {
                         </button>
                     </div>
 
-                    <div className="detail-card animate-slide-up">
-                        {/* Video / Media section */}
-                        {ytId ? (
-                            <div className="detail-media-container">
-                                <div className="youtube-embed">
-                                    <iframe
-                                        src={getYouTubeEmbedUrl(ytId)}
-                                        title={resource.title}
-                                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                                        allowFullScreen
-                                    />
-                                </div>
+                    <div className="detail-layout animate-slide-up">
+                        <div className="detail-main-column">
+                            {/* Media Section */}
+                            <div className="detail-media-container" style={{ display: 'block', background: 'transparent', border: 'none', boxShadow: 'none' }}>
+                                {ytId ? (
+                                    <div className="video-theater-mode animate-in fade-in zoom-in duration-500">
+                                        <div className="youtube-embed shadow-2xl">
+                                            <iframe
+                                                src={getYouTubeEmbedUrl(ytId)}
+                                                title={resource.title}
+                                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                                allowFullScreen
+                                            />
+                                        </div>
+                                        <div className="video-actions-overlay">
+                                            <a 
+                                                href={resource.url} 
+                                                target="_blank" 
+                                                rel="noopener noreferrer"
+                                                className="btn btn-secondary btn-sm"
+                                                style={{ fontSize: '10px', background: 'rgba(255,255,255,0.05)' }}
+                                            >
+                                                📺 Watch on YouTube
+                                            </a>
+                                        </div>
+                                    </div>
+                                ) : resource.thumbnailUrl && (
+                                    <div className="detail-media-container">
+                                        <img 
+                                            src={resource.thumbnailUrl} 
+                                            alt={resource.title}
+                                            className="detail-media"
+                                        />
+                                    </div>
+                                )}
                             </div>
-                        ) : resource.thumbnailUrl && (
-                            <div className="detail-media-container">
-                                <img 
-                                    src={resource.thumbnailUrl} 
-                                    alt={resource.title}
-                                    className="detail-media"
-                                />
-                            </div>
-                        )}
 
-                        <div className="detail-content">
-                            {/* Title & Actions Section */}
                             <div className="detail-title-section">
-                                <div style={{ flex: 1 }}>
-                                    <h1 className="detail-title">
-                                        {resource.isFavorite && <span title="Featured Resource">⭐ </span>}
-                                        {resource.title}
-                                        {resource.rank && (
-                                            <span className="detail-rank">
-                                                Rank #{resource.rank}
-                                            </span>
-                                        )}
-                                    </h1>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-4)', margin: 'var(--space-2) 0 var(--space-4)' }}>
-                                        <Rating value={resource.averageRating || 0} count={resource.reviewCount || 0} />
-                                    </div>
-                                    <div className="detail-meta-pills">
-                                        <span className={`badge badge-${resource.pricing}`}>{resource.pricing}</span>
-                                        <span className="badge badge-accent">{resource.platform}</span>
-                                        <span className="badge badge-primary">{resource.type}</span>
-                                        <span className="badge badge-secondary">{resource.mediaFormat}</span>
-                                    </div>
+                                <h1 className="detail-title">
+                                    {resource.isFavorite && <span title="Featured Resource">⭐ </span>}
+                                    {resource.title}
+                                    {resource.rank && (
+                                        <span className="detail-rank">
+                                            Rank #{resource.rank}
+                                        </span>
+                                    )}
+                                </h1>
+                                
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-4)' }}>
+                                    <Rating value={resource.averageRating || 0} count={resource.reviewCount || 0} />
                                 </div>
 
                                 <div className="detail-actions">
@@ -483,110 +646,35 @@ export default function ResourceDetailPage() {
                                             </div>
                                         )}
                                     </div>
-
-                                    <a
-                                        href={resource.url}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="btn btn-primary"
-                                        id="open-resource"
-                                    >
-                                        🌐 Open Resource
-                                    </a>
                                 </div>
                             </div>
 
-                            {/* Main Content Sections */}
                             <div className="detail-section">
-                                <h3 className="detail-section-title">Description</h3>
-                                <p className="detail-description">
+                                <h3 className="detail-section-title">Technical Description</h3>
+                                <div className="detail-description">
                                     {resource.description}
-                                </p>
+                                </div>
                             </div>
 
-                            {/* Tags & Categories Grid */}
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 'var(--space-8)', marginBottom: 'var(--space-10)' }}>
-                                <div>
-                                    <h3 className="detail-section-title">Categories</h3>
-                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-2)' }}>
-                                        {resource.categories?.map((cat) => (
-                                            <Link
-                                                key={cat}
-                                                href={`/resources?category=${encodeURIComponent(cat)}`}
-                                                className="badge badge-primary"
-                                                style={{ textDecoration: 'none' }}
-                                            >
-                                                {cat}
-                                            </Link>
-                                        ))}
-                                    </div>
-                                </div>
-
-                                {resource.tags && resource.tags.length > 0 && (
-                                    <div>
-                                        <h3 className="detail-section-title">Tags</h3>
-                                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-2)' }}>
-                                            {resource.tags.map((tag) => (
-                                                <span key={tag} className="badge badge-secondary" style={{ opacity: 0.8 }}>
-                                                    #{tag}
-                                                </span>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-
-                            {/* Credits Section */}
-                            {resource.credits && resource.credits.length > 0 && (
-                                <div className="detail-section">
-                                    <h3 className="detail-section-title">Credits & Attribution</h3>
-                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 'var(--space-4)' }}>
-                                        {deduplicateCredits(resource.credits || []).map((c) => {
-                                            const isGeneric = isGenericYouTubeName(c.name) && resource.url && isYouTubeUrl(resource.url);
-                                            const name = isGeneric ? 'YouTube' : c.name;
-                                            return { ...c, name };
-                                        }).map((credit, idx) => (
-                                            <a
-                                                key={idx}
-                                                href={credit.url}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                className="credit-card"
-                                            >
-                                                <div className="credit-avatar">👤</div>
-                                                <div style={{ overflow: 'hidden' }}>
-                                                    <div style={{ fontWeight: 700, fontSize: 'var(--text-sm)', color: 'var(--text-primary)', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
-                                                        {credit.name}
-                                                    </div>
-                                                    <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
-                                                        {credit.url}
-                                                    </div>
-                                                </div>
-                                                <span style={{ marginLeft: 'auto', color: 'var(--text-muted)', fontSize: 'var(--text-sm)' }}>↗</span>
-                                            </a>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Pricing Details */}
                             {resource.pricingDetails && (
                                 <div className="detail-section">
-                                    <h3 className="detail-section-title">Pricing Details</h3>
+                                    <h3 className="detail-section-title">Licensing & Cost</h3>
                                     <div className="glass-card" style={{ padding: 'var(--space-4)', fontSize: 'var(--text-sm)', borderStyle: 'dashed' }}>
                                         {resource.pricingDetails}
                                     </div>
                                 </div>
                             )}
 
-                            {/* Owner/Admin Actions */}
+                            {/* Community Section */}
+                            <CommentSection resourceId={resourceId} />
+
                             {(isAdmin || (user && resource.addedBy === user.uid)) && (
                                 <div style={{
                                     borderTop: '1px solid var(--border-subtle)',
                                     paddingTop: 'var(--space-8)',
+                                    marginTop: 'var(--space-12)',
                                     display: 'flex',
                                     justifyContent: 'flex-end',
-                                    gap: 'var(--space-3)',
                                 }}>
                                     <button
                                         className="btn btn-danger"
@@ -598,10 +686,164 @@ export default function ResourceDetailPage() {
                                     </button>
                                 </div>
                             )}
-
-                            {/* Community Section */}
-                            <CommentSection resourceId={resourceId} />
                         </div>
+
+                        <aside className="detail-sidebar">
+                            <div className="sidebar-section">
+                                <h3 className="detail-section-title">Access</h3>
+                                <a 
+                                    href={resource.url} 
+                                    target="_blank" 
+                                    rel="noopener noreferrer" 
+                                    className="resource-link-card"
+                                    style={{ marginTop: 0 }}
+                                >
+                                    <div className="resource-link-info">
+                                        <div className="resource-link-icon">
+                                            {resource.mediaFormat === 'youtube' ? '📺' : 
+                                             resource.mediaFormat === 'pdf' ? '📄' : '🌐'}
+                                        </div>
+                                        <div className="resource-link-text">
+                                            <span className="resource-link-label">Direct Entry</span>
+                                            <span className="resource-link-url">{new URL(resource.url).hostname}</span>
+                                        </div>
+                                    </div>
+                                    <span style={{ color: 'var(--accent-primary)' }}>↗</span>
+                                </a>
+                            </div>
+
+                            <div className="sidebar-section">
+                                <h3 className="detail-section-title">Classification</h3>
+                                <div className="detail-meta-pills" style={{ marginTop: 0 }}>
+                                    <span className={`badge badge-${resource.pricing}`}>{resource.pricing}</span>
+                                    <span className="badge badge-accent">{resource.platform}</span>
+                                    <span className="badge badge-primary">{resource.type}</span>
+                                    <span className="badge badge-secondary">{resource.mediaFormat}</span>
+                                </div>
+                                
+                                <div style={{ marginTop: 'var(--space-6)' }}>
+                                    <div style={{ fontSize: '10px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--text-muted)', marginBottom: 'var(--space-3)' }}>Categories</div>
+                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-2)' }}>
+                                        {resource.categories?.map((cat) => (
+                                            <button
+                                                key={cat}
+                                                className="category-badge-editable"
+                                                onClick={() => handleRemoveCategory(cat)}
+                                                title="Click to remove category"
+                                                disabled={!isAdmin && resource.addedBy !== user?.uid}
+                                            >
+                                                {cat}
+                                            </button>
+                                        ))}
+
+                                        {(isAdmin || (user && resource.addedBy === user.uid)) && (
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+                                                {isCategoryInputOpen ? (
+                                                    <select
+                                                        autoFocus
+                                                        className="category-select-inline"
+                                                        onChange={(e) => handleAddCategory(e.target.value)}
+                                                        onBlur={() => setIsCategoryInputOpen(false)}
+                                                        defaultValue=""
+                                                    >
+                                                        <option value="" disabled>Add Category...</option>
+                                                        {allCategories
+                                                            .filter(c => !resource.categories?.includes(c))
+                                                            .map(c => (
+                                                                <option key={c} value={c}>{c}</option>
+                                                            ))
+                                                        }
+                                                    </select>
+                                                ) : (
+                                                    <button 
+                                                        className="tag-add-btn" 
+                                                        onClick={() => setIsCategoryInputOpen(true)}
+                                                        title="Add Category"
+                                                    >
+                                                        +
+                                                    </button>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {resource.credits && resource.credits.length > 0 && (
+                                <div className="sidebar-section">
+                                    <h3 className="detail-section-title">Attribution</h3>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+                                        {deduplicateCredits(resource.credits || []).map((c) => {
+                                            const isGeneric = isGenericYouTubeName(c.name) && resource.url && isYouTubeUrl(resource.url);
+                                            const name = isGeneric ? 'YouTube' : c.name;
+                                            return { ...c, name };
+                                        }).map((credit, idx) => (
+                                            <a
+                                                key={idx}
+                                                href={credit.url}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="credit-card"
+                                                style={{ padding: 'var(--space-3)', fontSize: 'var(--text-xs)' }}
+                                            >
+                                                <div className="credit-avatar" style={{ width: '32px', height: '32px', fontSize: '1rem' }}>👤</div>
+                                                <div style={{ overflow: 'hidden' }}>
+                                                    <div style={{ fontWeight: 700, color: 'var(--text-primary)', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+                                                        {credit.name}
+                                                    </div>
+                                                </div>
+                                            </a>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            <div className="sidebar-section">
+                                <h3 className="detail-section-title">Tags</h3>
+                                <div className="inline-tag-editor">
+                                    {resource.tags?.map((tag) => (
+                                        <button 
+                                            key={tag} 
+                                            className="tag-badge-editable"
+                                            onClick={() => handleRemoveTag(tag)}
+                                            title="Click to remove tag"
+                                            disabled={!isAdmin && resource.addedBy !== user?.uid}
+                                        >
+                                            #{tag}
+                                        </button>
+                                    ))}
+                                    
+                                    {(isAdmin || (user && resource.addedBy === user.uid)) && (
+                                        <>
+                                            {isTagInputOpen ? (
+                                                <input
+                                                    autoFocus
+                                                    className="tag-input-inline"
+                                                    value={newTag}
+                                                    onChange={(e) => setNewTag(e.target.value)}
+                                                    onKeyDown={(e) => {
+                                                        if (e.key === 'Enter') handleAddTag();
+                                                        if (e.key === 'Escape') setIsTagInputOpen(false);
+                                                    }}
+                                                    onBlur={() => {
+                                                        if (!newTag.trim()) setIsTagInputOpen(false);
+                                                    }}
+                                                    placeholder="Add tag..."
+                                                />
+                                            ) : (
+                                                <button 
+                                                    className="tag-add-btn" 
+                                                    onClick={() => setIsTagInputOpen(true)}
+                                                    title="Add new tag"
+                                                >
+                                                    +
+                                                </button>
+                                            )}
+                                        </>
+                                    )}
+                                </div>
+                            </div>
+                        </aside>
                     </div>
                 </div>
             </div>
@@ -828,6 +1070,7 @@ export default function ResourceDetailPage() {
                 onClose={() => setIsUnsavedChangesModalOpen(false)}
                 title="Unsaved Changes"
                 maxWidth="400px"
+                className="modal-danger"
                 footer={
                     <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 'var(--space-3)', width: '100%' }}>
                         <button
@@ -854,6 +1097,28 @@ export default function ResourceDetailPage() {
                     <p>You have unsaved changes in your note. Are you sure you want to discard them?</p>
                 </div>
             </Modal>
+
+            {/* Confirmation Modal */}
+            <Modal
+                isOpen={confirmModal.isOpen}
+                onClose={closeConfirmModal}
+                title={confirmModal.title}
+                className={confirmModal.isDanger ? 'modal-danger' : ''}
+                footer={
+                    <div style={{ display: 'flex', gap: 'var(--space-2)', justifyContent: 'flex-end', width: '100%' }}>
+                        <button className="btn btn-secondary" onClick={closeConfirmModal}>Cancel</button>
+                        <button 
+                            className={`btn ${confirmModal.isDanger ? 'btn-danger' : 'btn-primary'}`} 
+                            onClick={confirmModal.onConfirm}
+                        >
+                            {confirmModal.confirmText}
+                        </button>
+                    </div>
+                }
+            >
+                <p style={{ color: 'var(--text-secondary)' }}>{confirmModal.message}</p>
+            </Modal>
+
             <Footer />
         </div >
     );

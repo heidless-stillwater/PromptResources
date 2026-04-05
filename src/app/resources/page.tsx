@@ -2,7 +2,7 @@ import React, { Suspense } from 'react';
 import ResourcesClient from '@/components/ResourcesClient';
 import { getResourcesAction, getAllCategories } from '@/lib/resources-server';
 
-export const revalidate = 3600; // 1-hour revalidation window
+export const revalidate = 60; // 1-minute revalidation window
 
 interface ResourcesPageProps {
     searchParams: {

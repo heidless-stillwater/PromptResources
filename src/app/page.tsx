@@ -4,7 +4,7 @@ import { adminDb } from '@/lib/firebase-admin';
 import { Resource } from '@/lib/types';
 
 // Revalidate every hour
-export const revalidate = 3600;
+export const revalidate = 60;
 
 export default async function HomePage() {
     let recentResources: Resource[] = [];
@@ -41,5 +41,5 @@ export default async function HomePage() {
         console.error('Error fetching data on server:', error);
     }
 
-    return <HomeClient recentResources={recentResources} stats={stats} />;
+    return <HomeClient recentResources={recentResources as any} />;
 }
