@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { adminDb } from '@/lib/firebase-admin';
-import { isYouTubeUrl, getYouTubeMetadataServer, isGenericYouTubeName, deduplicateCredits } from '@/lib/youtube';
+import { isYouTubeUrl, getYouTubeMetadataServer, isGenericYouTubeName, deduplicateCredits, extractYouTubeId } from '@/lib/youtube';
 import { Resource } from '@/lib/types';
 
 export async function GET(
@@ -111,6 +111,10 @@ export async function PATCH(
             updatedAt: now,
         };
 
+        if (body.url !== undefined) {
+            updateData.youtubeVideoId = body.url ? extractYouTubeId(body.url) : null;
+        }
+
         // Remove sensitive fields if present in body to avoid writing them as fields
         delete updateData.id;
         delete updateData.addedBy;
@@ -119,6 +123,9 @@ export async function PATCH(
         await docRef.update(updateData);
 
         // Revalidate the paths immediately
+        revalidatePath('/resources', 'page');
+        revalidatePath(`/resources/${params.id}`, 'page');
+        revalidatePath('/', 'page');
         revalidatePath('/resources');
         revalidatePath(`/resources/${params.id}`);
         revalidatePath('/'); // Homepage might show this resource too

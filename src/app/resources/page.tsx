@@ -2,7 +2,8 @@ import React, { Suspense } from 'react';
 import ResourcesClient from '@/components/ResourcesClient';
 import { getResourcesAction, getAllCategories } from '@/lib/resources-server';
 
-export const revalidate = 60; // 1-minute revalidation window
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 interface ResourcesPageProps {
     searchParams: {

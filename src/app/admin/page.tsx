@@ -242,6 +242,9 @@ function AdminContent() {
                                         <Link href="/resources/new" className="btn btn-primary" style={{ width: '100%' }}>
                                             ➕ Add Resource
                                         </Link>
+                                        <Link href="/resources/admin/assets" className="btn btn-secondary" style={{ width: '100%', justifyContent: 'flex-start' }}>
+                                            🖼️ Nanobanana Scenario Hub
+                                        </Link>
                                         <div style={{ height: '1px', background: 'rgba(255,255,255,0.05)', margin: 'var(--space-1) 0' }} />
                                         <button className="btn btn-secondary" style={{ width: '100%', justifyContent: 'flex-start' }}
                                             onClick={() => setActiveTab('users')}>

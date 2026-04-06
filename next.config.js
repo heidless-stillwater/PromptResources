@@ -17,6 +17,10 @@ module.exports = {
                 protocol: 'https',
                 hostname: 'firebasestorage.googleapis.com',
             },
+            {
+                protocol: 'https',
+                hostname: 'storage.googleapis.com',
+            },
         ],
     },
     transpilePackages: ['@tanstack/react-query'],

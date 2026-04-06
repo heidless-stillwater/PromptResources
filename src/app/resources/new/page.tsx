@@ -4,12 +4,14 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Navbar from '@/components/Navbar';
+import Modal from '@/components/Modal';
 import { db } from '@/lib/firebase';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, query, where, getDocs, limit } from 'firebase/firestore';
 import { useAuth } from '@/contexts/AuthContext';
 import { Credit, Platform, ResourcePricing, ResourceType, MediaFormat, ResourceStatus } from '@/lib/types';
 import { suggestCategories, suggestCredits, getDefaultCategories, suggestDescription, suggestTags } from '@/lib/suggestions';
 import { extractYouTubeId, isYouTubeUrl, fetchYouTubeMetadata, isGenericYouTubeName, deduplicateCredits } from '@/lib/youtube';
+import ThumbnailPicker from '@/components/ThumbnailPicker';
 
 export default function NewResourcePage() {
     const { user, loading: authLoading, isAdmin } = useAuth();
@@ -20,7 +22,7 @@ export default function NewResourcePage() {
     const [url, setUrl] = useState('');
     const [type, setType] = useState<ResourceType>('article');
     const [mediaFormat, setMediaFormat] = useState<MediaFormat>('webpage');
-    const [platform, setPlatform] = useState<Platform>('general');
+    const [platform, setPlatform] = useState<Platform>('nanobanana');
     const [pricing, setPricing] = useState<ResourcePricing>('free');
     const [pricingDetails, setPricingDetails] = useState('');
     const [tags, setTags] = useState('');
@@ -31,15 +33,21 @@ export default function NewResourcePage() {
     const [status, setStatus] = useState<ResourceStatus>(isAdmin ? 'published' : 'suggested');
     const [suggestedCredits, setSuggestedCredits] = useState<Credit[]>([]);
     const [ytMetadata, setYtMetadata] = useState<any>(null);
-    const [isFavorite, setIsFavorite] = useState(false);
+    const [isFavorite, setIsFavorite] = useState<boolean | null>(null);
     const [rank, setRank] = useState<number | ''>('');
+    const [notes, setNotes] = useState('');
+    const [adminNotes, setAdminNotes] = useState('');
     const [loading, setLoading] = useState(false);
     const [thumbnailUrl, setThumbnailUrl] = useState('');
     const [error, setError] = useState('');
+    const [dupWarning, setDupWarning] = useState<{ matches: Array<{ id: string; title: string; url: string; matchType: 'title' | 'url' }> } | null>(null);
+    const [pendingSubmit, setPendingSubmit] = useState(false);
+    const [liveCheck, setLiveCheck] = useState<{ titleMatch: boolean; urlMatch: boolean }>({ titleMatch: false, urlMatch: false });
 
     const allCategories = getDefaultCategories();
     const [isSyncing, setIsSyncing] = useState(false);
     const [syncError, setSyncError] = useState<string | null>(null);
+    const [isPickerOpen, setIsPickerOpen] = useState(false);
 
     const syncYouTubeData = async (targetUrl: string) => {
         if (!targetUrl || !isYouTubeUrl(targetUrl)) return;
@@ -73,7 +81,7 @@ export default function NewResourcePage() {
                 });
                 
                 if (!title && data.title) setTitle(data.title);
-                if (!thumbnailUrl && data.thumbnail_url) setThumbnailUrl(data.thumbnail_url);
+                if (data.thumbnail_url) setThumbnailUrl(data.thumbnail_url);
                 
                 // Also trigger logic-based suggestions
                 const currentTitle = title || data.title || '';
@@ -133,6 +141,52 @@ export default function NewResourcePage() {
         }
     }, [title, description, url, ytMetadata, tags, type, mediaFormat, platform, pricing]);
 
+    // Live duplicate check — debounced 700ms after user stops typing
+    useEffect(() => {
+        const trimmedTitle = title.trim();
+        const trimmedUrl = url.trim();
+        if (!trimmedTitle && !trimmedUrl) {
+            setLiveCheck({ titleMatch: false, urlMatch: false });
+            return;
+        }
+        const timer = setTimeout(async () => {
+            try {
+                const params = new URLSearchParams();
+                if (trimmedTitle) params.set('title', trimmedTitle);
+                if (trimmedUrl) params.set('url', trimmedUrl);
+                const res = await fetch(`/api/resources/check-duplicate?${params.toString()}`);
+                const data = await res.json();
+                setLiveCheck({ titleMatch: data.titleMatch, urlMatch: data.urlMatch });
+            } catch {
+                // silent fail — check happens on submit too
+            }
+        }, 700);
+        return () => clearTimeout(timer);
+    }, [title, url]);
+
+    // Fetch Hub Library Default Image on Load
+    useEffect(() => {
+        const fetchDefaultHubImage = async () => {
+            try {
+                const q = query(
+                    collection(db, 'thumbnailAssets'), 
+                    where('isDefault', '==', true),
+                    limit(1)
+                );
+                const snapshot = await getDocs(q);
+                if (!snapshot.empty) {
+                    const defaultAsset = snapshot.docs[0].data();
+                    if (!thumbnailUrl) { // Only set if user hasn't already picked one/youtube sync haven't run
+                        setThumbnailUrl(defaultAsset.url);
+                    }
+                }
+            } catch (error) {
+                console.error('Error fetching default hub image:', error);
+            }
+        };
+        fetchDefaultHubImage();
+    }, []);
+
     const addCategory = (cat: string) => {
         if (!selectedCategories.includes(cat)) {
             setSelectedCategories([...selectedCategories, cat]);
@@ -177,6 +231,28 @@ export default function NewResourcePage() {
             return;
         }
 
+        // Pre-flight duplicate check via server-side API
+        try {
+            const params = new URLSearchParams();
+            if (title.trim()) params.set('title', title.trim());
+            if (url.trim()) params.set('url', url.trim());
+            const res = await fetch(`/api/resources/check-duplicate?${params.toString()}`);
+            const data = await res.json();
+
+            if (data.titleMatch || data.urlMatch) {
+                setDupWarning({ matches: data.matches });
+                setPendingSubmit(true);
+                return;
+            }
+        } catch (err) {
+            console.error('Duplicate check failed:', err);
+        }
+
+        await doSubmit();
+    };
+
+    const doSubmit = async (overwriteId?: string) => {
+
         const validCredits = credits.filter((c) => c.name.trim() && c.url.trim());
 
         setLoading(true);
@@ -190,8 +266,11 @@ export default function NewResourcePage() {
                 headers['Authorization'] = `Bearer ${token}`;
             }
 
-            const response = await fetch('/api/resources', {
-                method: 'POST',
+            const endpoint = overwriteId ? `/api/resources/${overwriteId}` : '/api/resources';
+            const method = overwriteId ? 'PATCH' : 'POST';
+
+            const response = await fetch(endpoint, {
+                method,
                 headers,
                 body: JSON.stringify({
                     title: title.trim(),
@@ -209,17 +288,20 @@ export default function NewResourcePage() {
                     tags: tags.split(',').map((t) => t.trim()).filter(Boolean),
                     addedBy: user?.uid,
                     status: isAdmin ? status : 'suggested',
-                    isFavorite,
+                    isFavorite: isFavorite === null ? null : isFavorite,
                     rank: rank === '' ? null : Number(rank),
                     prompts: prompts.split('\n').map(p => p.trim()).filter(Boolean),
+                    notes: notes.trim() || null,
+                    adminNotes: adminNotes.trim() || null,
                 }),
             });
 
             const result = await response.json();
 
             if (result.success) {
+                router.refresh();
                 if (isAdmin) {
-                    router.push('/resources');
+                    router.push(`/resources/${overwriteId || result.id || ''}`);
                 } else {
                     router.push('/resources?suggested=true');
                 }
@@ -231,6 +313,8 @@ export default function NewResourcePage() {
             setError(error.message || 'Failed to add resource.');
         } finally {
             setLoading(false);
+            setPendingSubmit(false);
+            setDupWarning(null);
         }
     };
 
@@ -262,6 +346,17 @@ export default function NewResourcePage() {
             <Navbar />
             <div className="main-content">
                 <div className="container" style={{ maxWidth: '900px' }}>
+                    {/* Breadcrumb */}
+                    <div style={{ marginBottom: 'var(--space-4)', display: 'flex', alignItems: 'center', gap: 'var(--space-2)', fontSize: 'var(--text-sm)', color: 'var(--text-muted)' }}>
+                        <Link href="/resources" style={{ color: 'var(--text-muted)', textDecoration: 'none' }}>
+                            ← Resources
+                        </Link>
+                        <span>/</span>
+                        <span style={{ color: 'var(--text-secondary)' }}>
+                            {isAdmin ? 'Add New Resource' : 'Suggest a Resource'}
+                        </span>
+                    </div>
+
                     <div className="admin-header" style={{ marginBottom: 'var(--space-8)' }}>
                         <div className="admin-title-group">
                             <h1 className="admin-title">
@@ -274,11 +369,16 @@ export default function NewResourcePage() {
                                 }
                             </p>
                         </div>
-                        {isAdmin && (
-                            <Link href="/admin" className="btn btn-secondary btn-sm" id="back-to-admin">
-                                Back to Admin
+                        <div style={{ display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap' }}>
+                            <Link href="/resources" className="btn btn-secondary btn-sm" id="back-to-resources">
+                                ← Resources
                             </Link>
-                        )}
+                            {isAdmin && (
+                                <Link href="/admin" className="btn btn-secondary btn-sm" id="back-to-admin">
+                                    Admin
+                                </Link>
+                            )}
+                        </div>
                     </div>
 
                     <form onSubmit={handleSubmit} className="admin-form">
@@ -354,46 +454,76 @@ export default function NewResourcePage() {
                                     )}
                                 </div>
                                 {syncError && <div style={{ fontSize: 'var(--text-xs)', color: 'var(--danger-400)', marginTop: 'var(--space-1)' }}>{syncError}</div>}
+                                {liveCheck.urlMatch && (
+                                    <div style={{
+                                        marginTop: 'var(--space-2)',
+                                        padding: 'var(--space-2) var(--space-3)',
+                                        background: 'rgba(239, 68, 68, 0.1)',
+                                        border: '1px solid rgba(239, 68, 68, 0.3)',
+                                        borderRadius: 'var(--radius-sm)',
+                                        fontSize: 'var(--text-xs)',
+                                        color: 'var(--danger-400)',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: 'var(--space-2)'
+                                    }}>
+                                        ⚠️ A resource with this URL already exists in the database.
+                                    </div>
+                                )}
                                 <p className="form-helper">The link to the resource (website, video, document, etc.)</p>
                             </div>
 
-                                {isAdmin && (
+                            {isAdmin && (
+                                <>
                                     <div className="form-group col-span-2">
-                                        <label className="form-label" htmlFor="thumbnailUrl">Thumbnail URL (optional)</label>
-                                        <div style={{ display: 'flex', gap: 'var(--space-4)', alignItems: 'flex-start' }}>
-                                            <div style={{ flex: 1 }}>
-                                                <input
-                                                    id="thumbnailUrl"
-                                                    type="url"
-                                                    className="form-input"
-                                                    value={thumbnailUrl}
-                                                    onChange={(e) => setThumbnailUrl(e.target.value)}
-                                                    placeholder="https://... (image url)"
-                                                />
-                                            </div>
-                                            {thumbnailUrl && (
-                                                <div style={{ width: '120px', flexShrink: 0 }}>
-                                                    <img
-                                                        src={thumbnailUrl}
-                                                        alt="Thumbnail preview"
-                                                        style={{
-                                                            width: '100%',
-                                                            aspectRatio: '16/9',
-                                                            objectFit: 'cover',
-                                                            borderRadius: 'var(--radius-sm)',
-                                                            border: '1px solid var(--border-subtle)',
-                                                            background: 'var(--bg-card)'
-                                                        }}
-                                                        onError={(e) => {
-                                                            (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden');
-                                                            (e.target as HTMLImageElement).style.display = 'none';
-                                                        }}
-                                                    />
-                                                </div>
+                                        <label className="form-label" htmlFor="thumbnailUrl">🖼️ Thumbnail Image URL</label>
+                                        <div style={{ display: 'flex', gap: 'var(--space-3)', alignItems: 'center' }}>
+                                            <input
+                                                id="thumbnailUrl"
+                                                type="text"
+                                                className="form-input"
+                                                value={thumbnailUrl}
+                                                onChange={(e) => setThumbnailUrl(e.target.value)}
+                                                placeholder="Enter image URL or pick from Nanobanana scenarios..."
+                                                style={{ flex: 1 }}
+                                            />
+                                            {isAdmin && (
+                                                <button 
+                                                    type="button" 
+                                                    className="btn btn-secondary btn-sm"
+                                                    onClick={() => setIsPickerOpen(true)}
+                                                    style={{ whiteSpace: 'nowrap', padding: 'var(--space-2) var(--space-4)', fontSize: '12px' }}
+                                                >
+                                                    📂 Browse scenarios
+                                                </button>
                                             )}
                                         </div>
+                                        
+                                        {thumbnailUrl && (
+                                            <div style={{ marginTop: 'var(--space-3)', borderRadius: 'var(--radius-md)', overflow: 'hidden', height: '140px', width: '250px', position: 'relative', border: '1px solid var(--border-subtle)', background: 'var(--bg-secondary)' }}>
+                                                <img src={thumbnailUrl} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                                <button 
+                                                    type="button" 
+                                                    className="btn btn-danger btn-sm" 
+                                                    onClick={() => setThumbnailUrl('')}
+                                                    style={{ position: 'absolute', top: '8px', right: '8px', padding: '4px 10px', fontSize: '11px', boxShadow: 'var(--shadow-lg)' }}
+                                                >
+                                                    Remove
+                                                </button>
+                                            </div>
+                                        )}
+                                        <p className="form-helper" style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                                            💡 Standard size: 1280x720 (16:9). YouTube URLs will automatically fetch thumbnails.
+                                        </p>
                                     </div>
-                                )}
+                                    
+                                    <ThumbnailPicker 
+                                        isOpen={isPickerOpen} 
+                                        onClose={() => setIsPickerOpen(false)}
+                                        onSelect={(url) => setThumbnailUrl(url)}
+                                    />
+                                </>
+                            )}
 
                                 <div className="form-group col-span-2">
                                     <label className="form-label" htmlFor="title">Title *</label>
@@ -405,7 +535,24 @@ export default function NewResourcePage() {
                                         onChange={(e) => setTitle(e.target.value)}
                                         placeholder="e.g. Ultimate Guide to Gemini Prompt Engineering"
                                         required
+                                        style={liveCheck.titleMatch ? { borderColor: 'var(--danger)' } : {}}
                                     />
+                                    {liveCheck.titleMatch && (
+                                        <div style={{
+                                            marginTop: 'var(--space-2)',
+                                            padding: 'var(--space-2) var(--space-3)',
+                                            background: 'rgba(239, 68, 68, 0.1)',
+                                            border: '1px solid rgba(239, 68, 68, 0.3)',
+                                            borderRadius: 'var(--radius-sm)',
+                                            fontSize: 'var(--text-xs)',
+                                            color: 'var(--danger-400)',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: 'var(--space-2)'
+                                        }}>
+                                            ⚠️ A resource with this title already exists in the database.
+                                        </div>
+                                    )}
                                 </div>
 
                                 <div className="form-group col-span-2">
@@ -526,6 +673,19 @@ export default function NewResourcePage() {
                                 </div>
 
                                 <div className="form-group col-span-2">
+                                    <label className="form-label" htmlFor="notes">📖 Public Notes & Instructions</label>
+                                    <textarea
+                                        id="notes"
+                                        className="form-textarea"
+                                        value={notes}
+                                        onChange={(e) => setNotes(e.target.value)}
+                                        placeholder="Publicly visible notes, special instructions, or context for users..."
+                                        rows={3}
+                                    />
+                                    <p className="form-helper" style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Visible to all visitors on the resource detail page</p>
+                                </div>
+
+                                <div className="form-group col-span-2">
                                     <label className="form-label" htmlFor="prompts">Prompts (One per line)</label>
                                     <textarea
                                         id="prompts"
@@ -551,17 +711,18 @@ export default function NewResourcePage() {
                                             />
                                         </div>
                                         <div className="form-group" style={{ display: 'flex', alignItems: 'flex-end', paddingBottom: 'var(--space-2)' }}>
-                                            <label className="checkbox-label" style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', cursor: 'pointer', userSelect: 'none' }}>
-                                                <input
-                                                    type="checkbox"
-                                                    checked={isFavorite}
-                                                    onChange={(e) => setIsFavorite(e.target.checked)}
-                                                    className="admin-checkbox"
-                                                />
-                                                <span className="checkbox-text" style={{ fontSize: 'var(--text-sm)', fontWeight: 600 }}>
-                                                    ⭐ Mark as Favorite / Featured
-                                                </span>
-                                            </label>
+                                            <div style={{ width: '100%' }}>
+                                                <label className="form-label" style={{ fontWeight: 600 }}>⭐ Featured Status</label>
+                                                <select 
+                                                    className="form-select" 
+                                                    value={isFavorite === null ? '' : isFavorite.toString()}
+                                                    onChange={(e) => setIsFavorite(e.target.value === '' ? null : e.target.value === 'true')}
+                                                >
+                                                    <option value="">Not Set (Default)</option>
+                                                    <option value="true">Featured</option>
+                                                    <option value="false">Not Featured</option>
+                                                </select>
+                                            </div>
                                         </div>
                                     </>
                                 )}
@@ -733,6 +894,19 @@ export default function NewResourcePage() {
                             </div>
                         </div>
 
+                        <div className="form-group col-span-2">
+                            <label className="form-label" htmlFor="adminNotes">🔒 Internal Curator Notes (Administrative)</label>
+                            <textarea
+                                id="adminNotes"
+                                className="form-textarea"
+                                value={adminNotes}
+                                onChange={(e) => setAdminNotes(e.target.value)}
+                                placeholder="Internal context, metadata, or follow-up notes about this resource..."
+                                rows={3}
+                            />
+                            <p className="form-helper" style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Private notes for administrators only (internal use only)</p>
+                        </div>
+
                         {/* Submit */}
                         <div className="admin-form-actions">
                             <button type="button" className="btn btn-secondary" onClick={() => router.back()}>
@@ -757,6 +931,69 @@ export default function NewResourcePage() {
                     </form>
                 </div>
             </div>
+
+            {/* Duplicate Warning Modal */}
+            {dupWarning && (
+                <Modal
+                    isOpen={true}
+                    onClose={() => { setDupWarning(null); setPendingSubmit(false); }}
+                    title="⚠️ Potential Duplicate Detected"
+                    className="modal-danger"
+                    footer={
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 'var(--space-3)' }}>
+                            <button
+                                className="btn btn-secondary"
+                                style={{ width: '100%' }}
+                                onClick={() => { setDupWarning(null); setPendingSubmit(false); }}
+                            >
+                                ← Cancel &amp; Edit
+                            </button>
+                            <button
+                                onClick={() => { setDupWarning(null); doSubmit(); }}
+                                disabled={loading}
+                                style={{
+                                    background: 'none',
+                                    border: 'none',
+                                    color: 'var(--text-muted)',
+                                    fontSize: 'var(--text-xs)',
+                                    cursor: 'pointer',
+                                    textDecoration: 'underline',
+                                    padding: 0,
+                                }}
+                            >
+                                {loading ? 'Saving...' : 'Save as new anyway (I know it\'s a duplicate)'}
+                            </button>
+                        </div>
+                    }
+                >
+                    <p style={{ color: 'var(--text-secondary)', marginBottom: 'var(--space-4)' }}>
+                        We found existing resources that match your submission. You can overwrite an existing listing with your new data, or save this as a completely new entry.
+                    </p>
+                    
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+                        {dupWarning.matches?.map((match) => (
+                            <div key={match.id} className="glass-card" style={{ padding: 'var(--space-3)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: `1px solid ${match.matchType === 'title' ? 'var(--warning)' : 'var(--danger)'}` }}>
+                                <div style={{ overflow: 'hidden', flex: 1, paddingRight: 'var(--space-3)' }}>
+                                    <h4 style={{ fontSize: '13px', margin: 0, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                        {match.matchType === 'title' ? '🏷️' : '🔗'} {match.title}
+                                    </h4>
+                                    <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                        {match.url}
+                                    </p>
+                                </div>
+                                <button 
+                                    className="btn btn-sm btn-primary" 
+                                    style={{ whiteSpace: 'nowrap', padding: 'var(--space-2) var(--space-3)', fontSize: '11px' }}
+                                    onClick={() => { setDupWarning(null); doSubmit(match.id); }}
+                                    disabled={loading}
+                                >
+                                    Overwrite
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+                </Modal>
+            )}
         </div>
     );
 }

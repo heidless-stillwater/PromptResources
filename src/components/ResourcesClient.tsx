@@ -11,6 +11,9 @@ import FilterBar from '@/components/FilterBar';
 import { Resource } from '@/lib/types';
 import { useAuth } from '@/contexts/AuthContext';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import Modal from '@/components/Modal';
+import DedupModal from '@/components/DedupModal';
+import ConfirmationModal from '@/components/ConfirmationModal';
 
 interface ResourcesClientProps {
     initialResources: Resource[];
@@ -25,13 +28,32 @@ export default function ResourcesClient({
     totalResources,
     hasMoreInitial 
 }: ResourcesClientProps) {
-    const { user } = useAuth();
+    const { user, isAdmin } = useAuth();
     const router = useRouter();
     const searchParams = useSearchParams();
     const queryClient = useQueryClient();
     
     const [resources, setResources] = useState<Resource[]>(initialResources);
     const [loading, setLoading] = useState(false);
+    const [dedupOpen, setDedupOpen] = useState(false);
+    
+    const [confirmModal, setConfirmModal] = useState<{
+        isOpen: boolean;
+        title: string;
+        message: string;
+        confirmText: string;
+        isDanger?: boolean;
+        onConfirm: () => void;
+    }>({
+        isOpen: false,
+        title: '',
+        message: '',
+        confirmText: '',
+        onConfirm: () => {},
+    });
+
+    const [isDeleting, setIsDeleting] = useState(false);
+    const closeConfirmModal = () => setConfirmModal(prev => ({ ...prev, isOpen: false }));
     
     // Filters (managed in state for UI, syncs to URL)
     const [search, setSearch] = useState(searchParams.get('search') || '');
@@ -59,6 +81,27 @@ export default function ResourcesClient({
         setResources(initialResources);
         setCurrentPage(parseInt(searchParams.get('page') || '1'));
         setLoading(false);
+
+        // Handle post-deletion focus restoration from detail page
+        const deletedId = sessionStorage.getItem('deletedResourceId');
+        if (deletedId) {
+            sessionStorage.removeItem('deletedResourceId');
+            const index = initialResources.findIndex(r => r.id === deletedId);
+            if (index !== -1) {
+                const previousItem = initialResources[index - 1] || initialResources[index + 1];
+                setResources(prev => prev.filter(r => r.id !== deletedId));
+                router.refresh();
+                if (previousItem) {
+                    setTimeout(() => {
+                        const el = document.getElementById(`resource-card-${previousItem.id}`);
+                        if (el) {
+                            el.focus();
+                            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        }
+                    }, 300);
+                }
+            }
+        }
     }, [initialResources, searchParams]);
 
     // Fetch saved resources for the current user
@@ -110,6 +153,30 @@ export default function ResourcesClient({
         }
     };
 
+    // Background fetch to ensure latest data (especially after redirects from creation)
+    const backgroundFetch = useCallback(async () => {
+        try {
+            const token = await user?.getIdToken();
+            const params = new URLSearchParams(searchParams.toString());
+            const response = await fetch(`/api/resources?${params.toString()}`, {
+                headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+            });
+            const result = await response.json();
+            if (result.success) {
+                setResources(result.data);
+            }
+        } catch (error) {
+            console.error('Error background fetching resources:', error);
+        }
+    }, [user, searchParams]);
+
+    // Perform refetch on mount if coming from creation or if admin (to see latest data)
+    useEffect(() => {
+        if (searchParams.get('suggested') === 'true' || isAdmin) {
+            backgroundFetch();
+        }
+    }, [user, isAdmin, searchParams, backgroundFetch]);
+
     const toggleSaveMutation = useMutation({
         mutationFn: async ({ resourceId, action }: { resourceId: string, action: 'save' | 'unsave' }) => {
             if (!user) throw new Error('Not authenticated');
@@ -159,6 +226,84 @@ export default function ResourcesClient({
         });
     };
 
+    const handleToggleFavorite = async (e: React.MouseEvent, resourceId: string, currentStatus: boolean) => {
+        e.preventDefault();
+        e.stopPropagation();
+
+        // Optimistic update
+        setResources(prev => prev.map(r => r.id === resourceId ? { ...r, isFavorite: !currentStatus } : r));
+
+        try {
+            const token = await user?.getIdToken();
+            const response = await fetch(`/api/resources/${resourceId}`, {
+                method: 'PATCH',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ isFavorite: !currentStatus }),
+            });
+            const result = await response.json();
+            if (!result.success) {
+                // Revert
+                setResources(prev => prev.map(r => r.id === resourceId ? { ...r, isFavorite: currentStatus } : r));
+                console.error('Error toggling favorite:', result.error);
+            }
+        } catch (error) {
+            // Revert
+            setResources(prev => prev.map(r => r.id === resourceId ? { ...r, isFavorite: currentStatus } : r));
+            console.error('Error toggling favorite:', error);
+        }
+    };
+
+    const handleDeleteResource = async (e: React.MouseEvent, resourceId: string) => {
+        e.preventDefault();
+        e.stopPropagation();
+
+        setConfirmModal({
+            isOpen: true,
+            title: 'Delete Resource',
+            message: 'Are you sure you want to delete this resource? This action cannot be undone.',
+            confirmText: 'Delete',
+            isDanger: true,
+            onConfirm: async () => {
+                try {
+                    const token = await user?.getIdToken();
+                    const res = await fetch(`/api/resources/${resourceId}`, {
+                        method: 'DELETE',
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+
+                    if (res.ok) {
+                        const index = resources.findIndex(r => r.id === resourceId);
+                        const previousItem = resources[index - 1] || resources[index + 1];
+                        
+                        setResources(prev => prev.filter(r => r.id !== resourceId));
+                        router.refresh();
+                        
+                        if (previousItem) {
+                            setTimeout(() => {
+                                const el = document.getElementById(`resource-card-${previousItem.id}`);
+                                if (el) {
+                                    el.focus();
+                                    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                }
+                            }, 100);
+                        }
+                    } else {
+                        const data = await res.json();
+                        alert(`Failed to delete resource: ${data.error || 'Unknown error'}`);
+                    }
+                } catch (error) {
+                    console.error('Error deleting resource:', error);
+                    alert('An error occurred while deleting.');
+                } finally {
+                    closeConfirmModal();
+                }
+            }
+        });
+    };
+
     return (
         <div className="page-wrapper">
             <Navbar />
@@ -195,6 +340,11 @@ export default function ResourcesClient({
                                     id="resource-search"
                                 />
                             </div>
+                            {isAdmin && (
+                                <button className="btn btn-secondary btn-sm" onClick={() => setDedupOpen(true)} id="dedup-btn">
+                                    🔍 Dedup
+                                </button>
+                            )}
                             {user && (
                                 <Link href="/resources/new" className="btn btn-primary" id="add-resource-btn">
                                     ➕ Add Resource
@@ -266,6 +416,8 @@ export default function ResourcesClient({
                                     resource={resource}
                                     savedIds={savedIds}
                                     onToggleSave={handleToggleSave}
+                                    onDelete={handleDeleteResource}
+                                    onToggleFavorite={handleToggleFavorite}
                                 />
                             ))}
                         </div>
@@ -306,6 +458,19 @@ export default function ResourcesClient({
             </div>
 
             <Footer />
+
+            {/* Dedup Modal */}
+            <DedupModal isOpen={dedupOpen} onClose={() => setDedupOpen(false)} />
+
+            <ConfirmationModal
+                isOpen={confirmModal.isOpen}
+                onClose={closeConfirmModal}
+                onConfirm={confirmModal.onConfirm}
+                title={confirmModal.title}
+                message={confirmModal.message}
+                confirmText={confirmModal.confirmText}
+                isDanger={confirmModal.isDanger}
+            />
         </div>
     );
 }

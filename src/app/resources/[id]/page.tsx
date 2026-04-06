@@ -17,6 +17,7 @@ import remarkGfm from 'remark-gfm';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Rating from '@/components/Rating';
 import CommentSection from '@/components/CommentSection';
+import ThumbnailPicker from '@/components/ThumbnailPicker';
 
 export default function ResourceDetailPage() {
     const params = useParams();
@@ -35,6 +36,17 @@ export default function ResourceDetailPage() {
     const [isSavingNote, setIsSavingNote] = useState(false);
     const [noteMessage, setNoteMessage] = useState({ type: '', text: '' });
     const noteTextareaRef = useRef<HTMLTextAreaElement>(null);
+    const [isPickerOpen, setIsPickerOpen] = useState(false);
+
+    // In-place Notes Editing State
+    const [isEditingPublicNotes, setIsEditingPublicNotes] = useState(false);
+    const [tempPublicNotes, setTempPublicNotes] = useState('');
+    const [isEditingAdminNotes, setIsEditingAdminNotes] = useState(false);
+    const [tempAdminNotes, setTempAdminNotes] = useState('');
+    const [isEditingTitle, setIsEditingTitle] = useState(false);
+    const [tempTitle, setTempTitle] = useState('');
+    const [isEditingPrompts, setIsEditingPrompts] = useState(false);
+    const [tempPrompts, setTempPrompts] = useState('');
 
     // Confirmation Modal State
     const [confirmModal, setConfirmModal] = useState<{
@@ -155,28 +167,39 @@ export default function ResourceDetailPage() {
     };
 
     const handleDelete = async () => {
-        if (!confirm('Are you sure you want to delete this resource?')) return;
-        setDeleting(true);
-        try {
-            const token = await user?.getIdToken();
-            const response = await fetch(`/api/resources/${resourceId}`, {
-                method: 'DELETE',
-                headers: {
-                    'Authorization': `Bearer ${token}`
-                }
-            });
+        setConfirmModal({
+            isOpen: true,
+            title: 'Delete Resource',
+            message: 'Are you sure you want to delete this resource? This action cannot be undone.',
+            confirmText: 'Delete',
+            isDanger: true,
+            onConfirm: async () => {
+                setDeleting(true);
+                try {
+                    const token = await user?.getIdToken();
+                    const response = await fetch(`/api/resources/${resourceId}`, {
+                        method: 'DELETE',
+                        headers: {
+                            'Authorization': `Bearer ${token}`
+                        }
+                    });
 
-            const result = await response.json();
-            if (result.success) {
-                router.push('/resources');
-            } else {
-                throw new Error(result.error || 'Failed to delete resource');
+                    const result = await response.json();
+                    if (result.success) {
+                        sessionStorage.setItem('deletedResourceId', resourceId);
+                        router.back();
+                    } else {
+                        throw new Error(result.error || 'Failed to delete resource');
+                    }
+                } catch (error: any) {
+                    console.error('Error deleting resource:', error);
+                    alert(error.message || 'Error deleting resource');
+                    setDeleting(false);
+                } finally {
+                    closeConfirmModal();
+                }
             }
-        } catch (error: any) {
-            console.error('Error deleting resource:', error);
-            alert(error.message || 'Error deleting resource');
-            setDeleting(false);
-        }
+        });
     };
 
     const handleCopyLink = (e?: React.MouseEvent) => {
@@ -240,6 +263,7 @@ export default function ResourceDetailPage() {
                     const result = await response.json();
                     if (result.success) {
                         queryClient.invalidateQueries({ queryKey: ['resource', resourceId] });
+                        router.refresh();
                     }
                 } catch (error) {
                     console.error('Error removing tag:', error);
@@ -275,6 +299,7 @@ export default function ResourceDetailPage() {
             const result = await response.json();
             if (result.success) {
                 queryClient.invalidateQueries({ queryKey: ['resource', resourceId] });
+                router.refresh();
                 setIsTagInputOpen(false);
                 setNewTag('');
             }
@@ -308,6 +333,7 @@ export default function ResourceDetailPage() {
                     const result = await response.json();
                     if (result.success) {
                         queryClient.invalidateQueries({ queryKey: ['resource', resourceId] });
+                        router.refresh();
                     }
                 } catch (error) {
                     console.error('Error removing category:', error);
@@ -342,10 +368,54 @@ export default function ResourceDetailPage() {
             const result = await response.json();
             if (result.success) {
                 queryClient.invalidateQueries({ queryKey: ['resource', resourceId] });
+                router.refresh();
                 setIsCategoryInputOpen(false);
             }
         } catch (error) {
             console.error('Error adding category:', error);
+        }
+    };
+
+    const PRICING_OPTIONS = ['free', 'paid', 'freemium'];
+    const PLATFORM_OPTIONS = ['gemini', 'nanobanana', 'chatgpt', 'claude', 'midjourney', 'general', 'other'];
+    const TYPE_OPTIONS = ['video', 'article', 'tool', 'course', 'book', 'tutorial', 'other'];
+    const MEDIA_OPTIONS = ['youtube', 'webpage', 'pdf', 'image', 'audio', 'other'];
+
+    const handleUpdateField = async (field: string, value: any) => {
+        if (!isAdmin && resource?.addedBy !== user?.uid) return;
+
+        // Optimistic update
+        const previousResource = queryClient.getQueryData(['resource', resourceId]);
+        queryClient.setQueryData(['resource', resourceId], (old: any) => ({
+            ...old,
+            [field]: value
+        }));
+
+        try {
+            const token = await user?.getIdToken();
+            const response = await fetch(`/api/resources/${resourceId}`, {
+                method: 'PATCH',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ [field]: value }),
+            });
+            const result = await response.json();
+            if (!result.success) {
+                // Revert on failure
+                queryClient.setQueryData(['resource', resourceId], previousResource);
+                console.error(`Error updating ${field}:`, result.error);
+            } else {
+                // Ensure data stays fresh on success
+                queryClient.invalidateQueries({ queryKey: ['resource', resourceId] });
+                queryClient.invalidateQueries({ queryKey: ['resources'] });
+                router.refresh();
+            }
+        } catch (error) {
+            // Revert on error
+            queryClient.setQueryData(['resource', resourceId], previousResource);
+            console.error(`Error updating ${field}:`, error);
         }
     };
 
@@ -545,12 +615,18 @@ export default function ResourceDetailPage() {
                             <span>/</span>
                             <span>{resource.title}</span>
                         </div>
-                        <button
-                            className="btn btn-secondary btn-sm"
-                            onClick={() => router.push('/resources')}
-                        >
-                            ← Back
-                        </button>
+                        <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
+                            <button
+                                className="btn btn-secondary btn-sm"
+                                onClick={() => router.back()}
+                                title="Go to previous page"
+                            >
+                                ← Back
+                            </button>
+                            <Link href="/resources" className="btn btn-primary btn-sm">
+                                📚 Resource Registry
+                            </Link>
+                        </div>
                     </div>
 
                     <div className="detail-layout animate-slide-up">
@@ -567,7 +643,7 @@ export default function ResourceDetailPage() {
                                                 allowFullScreen
                                             />
                                         </div>
-                                        <div className="video-actions-overlay">
+                                        <div className="video-actions-overlay" style={{ gap: 'var(--space-2)' }}>
                                             <a 
                                                 href={resource.url} 
                                                 target="_blank" 
@@ -577,29 +653,125 @@ export default function ResourceDetailPage() {
                                             >
                                                 📺 Watch on YouTube
                                             </a>
+                                            {(isAdmin || (user && resource.addedBy === user.uid)) && (
+                                                <button 
+                                                    className="btn btn-secondary btn-sm"
+                                                    onClick={() => setIsPickerOpen(true)}
+                                                    style={{ fontSize: '10px', background: 'rgba(168, 85, 247, 0.1)', border: '1px solid rgba(168, 85, 247, 0.2)' }}
+                                                >
+                                                    🖼️ Swap Thumbnail
+                                                </button>
+                                            )}
                                         </div>
                                     </div>
-                                ) : resource.thumbnailUrl && (
-                                    <div className="detail-media-container">
-                                        <img 
-                                            src={resource.thumbnailUrl} 
-                                            alt={resource.title}
-                                            className="detail-media"
-                                        />
+                                ) : (
+                                    <div className="detail-media-container" style={{ position: 'relative' }}>
+                                        {resource.thumbnailUrl ? (
+                                            <img 
+                                                src={resource.thumbnailUrl} 
+                                                alt={resource.title}
+                                                className="detail-media"
+                                            />
+                                        ) : (
+                                            <div style={{ height: '300px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-secondary)', borderRadius: 'var(--radius-lg)', border: '1px dashed var(--border)' }}>
+                                                <p style={{ color: 'var(--text-muted)' }}>No hero image set</p>
+                                            </div>
+                                        )}
+                                        {(isAdmin || (user && resource.addedBy === user.uid)) && (
+                                            <div style={{ position: 'absolute', bottom: '12px', right: '12px' }}>
+                                                <button 
+                                                    className="btn btn-secondary btn-sm"
+                                                    onClick={() => setIsPickerOpen(true)}
+                                                    style={{ fontSize: '10px', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', border: '1px solid rgba(255,255,255,0.1)' }}
+                                                >
+                                                    🖼️ Update Hero Image
+                                                </button>
+                                            </div>
+                                        )}
                                     </div>
                                 )}
                             </div>
 
-                            <div className="detail-title-section">
-                                <h1 className="detail-title">
-                                    {resource.isFavorite && <span title="Featured Resource">⭐ </span>}
-                                    {resource.title}
-                                    {resource.rank && (
-                                        <span className="detail-rank">
-                                            Rank #{resource.rank}
+                            <div className="detail-title-section group">
+                                {isEditingTitle ? (
+                                    <div className="animate-in fade-in zoom-in duration-200" style={{ width: '100%', marginBottom: 'var(--space-4)' }}>
+                                        <input 
+                                            type="text" 
+                                            className="form-input" 
+                                            value={tempTitle}
+                                            onChange={(e) => setTempTitle(e.target.value)}
+                                            autoFocus
+                                            style={{ fontSize: '2rem', fontWeight: 800, padding: 'var(--space-4)', background: 'var(--bg-input)' }}
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter') {
+                                                    handleUpdateField('title', tempTitle);
+                                                    setIsEditingTitle(false);
+                                                } else if (e.key === 'Escape') {
+                                                    setIsEditingTitle(false);
+                                                }
+                                            }}
+                                        />
+                                        <div style={{ display: 'flex', gap: 'var(--space-3)', marginTop: 'var(--space-3)' }}>
+                                            <button 
+                                                className="btn btn-primary btn-sm"
+                                                onClick={async () => {
+                                                    await handleUpdateField('title', tempTitle);
+                                                    setIsEditingTitle(false);
+                                                }}
+                                            >
+                                                Save Title
+                                            </button>
+                                            <button 
+                                                className="btn btn-secondary btn-sm"
+                                                onClick={() => setIsEditingTitle(false)}
+                                            >
+                                                Cancel
+                                            </button>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <h1 className="detail-title" style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-4)' }}>
+                                        {(resource.isFavorite || isAdmin || (user && resource.addedBy === user.uid)) && (
+                                            <span 
+                                                title={resource.isFavorite ? "Featured Resource (Click to unfeature)" : "Feature this resource"}
+                                                onClick={(e) => {
+                                                    if (isAdmin || (user && resource.addedBy === user.uid)) {
+                                                        e.stopPropagation();
+                                                        handleUpdateField('isFavorite', !resource.isFavorite);
+                                                    }
+                                                }}
+                                                style={{ 
+                                                    cursor: (isAdmin || (user && resource.addedBy === user.uid)) ? 'pointer' : 'default',
+                                                    opacity: resource.isFavorite ? 1 : 0.3,
+                                                    filter: resource.isFavorite ? 'drop-shadow(0 0 8px rgba(250, 204, 21, 0.5))' : 'grayscale(100%)',
+                                                    transition: 'all 0.2s ease',
+                                                }}
+                                                className="hover:scale-110"
+                                            >
+                                                ⭐
+                                            </span>
+                                        )}
+                                        <span
+                                            style={{ cursor: (isAdmin || (user && resource.addedBy === user.uid)) ? 'pointer' : 'default', display: 'flex', alignItems: 'center' }}
+                                            onClick={() => {
+                                                if (isAdmin || (user && resource.addedBy === user.uid)) {
+                                                    setIsEditingTitle(true);
+                                                    setTempTitle(resource.title);
+                                                }
+                                            }}
+                                        >
+                                            {resource.title}
+                                            {(isAdmin || (user && resource.addedBy === user.uid)) && (
+                                                <span style={{ fontSize: '14px', marginLeft: 'var(--space-2)' }}>✏️</span>
+                                            )}
                                         </span>
-                                    )}
-                                </h1>
+                                        {resource.rank && (
+                                            <span className="detail-rank">
+                                                Rank #{resource.rank}
+                                            </span>
+                                        )}
+                                    </h1>
+                                )}
                                 
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-4)' }}>
                                     <Rating value={resource.averageRating || 0} count={resource.reviewCount || 0} />
@@ -615,9 +787,21 @@ export default function ResourceDetailPage() {
                                     </button>
 
                                     {(isAdmin || (user && resource.addedBy === user.uid)) && (
-                                        <Link href={`/resources/${resource.id}/edit`} className="btn btn-secondary" id="edit-resource-top">
-                                            ✏️ Edit
-                                        </Link>
+                                        <>
+                                            <Link href={`/resources/${resource.id}/edit`} className="btn btn-secondary" id="edit-resource-top">
+                                                ✏️ Edit
+                                            </Link>
+                                            <button
+                                                className="btn btn-danger"
+                                                onClick={handleDelete}
+                                                disabled={deleting}
+                                                id="delete-resource-top"
+                                                title="Delete Resource"
+                                                style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}
+                                            >
+                                                {deleting ? '...' : '🗑 Delete'}
+                                            </button>
+                                        </>
                                     )}
 
                                     <div style={{ position: 'relative' }} ref={shareRef}>
@@ -649,12 +833,91 @@ export default function ResourceDetailPage() {
                                 </div>
                             </div>
 
-                            <div className="detail-section">
+                             <div className="detail-section">
                                 <h3 className="detail-section-title">Technical Description</h3>
                                 <div className="detail-description">
                                     {resource.description}
                                 </div>
                             </div>
+
+                            {/* Recommended Nanobanana Prompt (Editable in-place) */}
+                            {(resource.prompts && resource.prompts.length > 0 || isAdmin || (user && resource.addedBy === user.uid)) && (
+                                <div className="detail-section animate-fade-in group">
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <h3 className="detail-section-title">🚀 Recommended Nanobanana Prompt</h3>
+                                        {(isAdmin || (user && resource.addedBy === user.uid)) && !isEditingPrompts && (
+                                            <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
+                                                <button 
+                                                    className="btn btn-secondary btn-sm transition-opacity"
+                                                    onClick={() => {
+                                                        setIsEditingPrompts(true);
+                                                        setTempPrompts(resource.prompts?.join('\n') || '');
+                                                    }}
+                                                    style={{ padding: '2px 8px', fontSize: '10px' }}
+                                                >
+                                                    ✏️ Edit Prompt
+                                                </button>
+                                                {resource.prompts && resource.prompts.length > 0 && (
+                                                    <button 
+                                                        className="btn btn-primary btn-sm"
+                                                        onClick={() => {
+                                                            navigator.clipboard.writeText(resource.prompts?.join('\n') || '');
+                                                            alert('Prompt copied!');
+                                                        }}
+                                                        style={{ padding: '2px 8px', fontSize: '10px' }}
+                                                    >
+                                                        📋 Copy
+                                                    </button>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
+                                    <div className="glass-card" style={{ padding: 'var(--space-5)', background: 'rgba(0,0,0,0.4)', border: '1px solid var(--accent-primary)', boxShadow: 'var(--shadow-glow-sm)' }}>
+                                        {isEditingPrompts ? (
+                                            <div className="animate-in fade-in zoom-in duration-200">
+                                                <textarea
+                                                    className="form-textarea"
+                                                    value={tempPrompts}
+                                                    onChange={(e) => setTempPrompts(e.target.value)}
+                                                    placeholder="Paste scenario prompts here (one per line)..."
+                                                    rows={6}
+                                                    autoFocus
+                                                    style={{ fontSize: 'var(--text-sm)', fontFamily: 'var(--font-mono)', lineHeight: '1.6' }}
+                                                />
+                                                <div style={{ display: 'flex', gap: 'var(--space-3)', marginTop: 'var(--space-3)', justifyContent: 'flex-end' }}>
+                                                    <button 
+                                                        className="btn btn-secondary btn-sm"
+                                                        onClick={() => setIsEditingPrompts(false)}
+                                                    >
+                                                        Cancel
+                                                    </button>
+                                                    <button 
+                                                        className="btn btn-primary btn-sm"
+                                                        onClick={async () => {
+                                                            const promptsArray = tempPrompts.split('\n').map(p => p.trim()).filter(Boolean);
+                                                            await handleUpdateField('prompts', promptsArray);
+                                                            setIsEditingPrompts(false);
+                                                        }}
+                                                    >
+                                                        Save Prompt
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div style={{ fontSize: 'var(--text-sm)', lineHeight: '1.6', color: 'var(--accent-300)', fontFamily: 'var(--font-mono)', whiteSpace: 'pre-wrap' }}>
+                                                {resource.prompts && resource.prompts.length > 0 ? (
+                                                    resource.prompts.join('\n')
+                                                ) : (isAdmin || (user && resource.addedBy === user.uid)) ? (
+                                                    <em style={{ color: 'var(--text-muted)', cursor: 'pointer' }} onClick={() => {
+                                                        setIsEditingPrompts(true);
+                                                        setTempPrompts('');
+                                                    }}>Add scenario prompts for this resource...</em>
+                                                ) : null}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
 
                             {resource.pricingDetails && (
                                 <div className="detail-section">
@@ -665,27 +928,175 @@ export default function ResourceDetailPage() {
                                 </div>
                             )}
 
-                            {/* Community Section */}
-                            <CommentSection resourceId={resourceId} />
+                            {/* Public Notes (Editable in-place) */}
+                            <div className="detail-section animate-fade-in group">
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <h3 className="detail-section-title">📖 Important Notes & Instructions</h3>
+                                    {(isAdmin || (user && resource.addedBy === user.uid)) && !isEditingPublicNotes && (
+                                        <button 
+                                            className="btn btn-secondary btn-sm transition-opacity"
+                                            onClick={() => {
+                                                setIsEditingPublicNotes(true);
+                                                setTempPublicNotes(resource.notes || '');
+                                            }}
+                                            style={{ padding: '2px 8px', fontSize: '10px' }}
+                                        >
+                                            ✏️ Edit
+                                        </button>
+                                    )}
+                                </div>
+                                <div className="glass-card" style={{ padding: 'var(--space-5)', background: 'var(--bg-secondary)', borderLeft: '3px solid var(--primary-light)' }}>
+                                    {isEditingPublicNotes ? (
+                                        <div className="animate-in fade-in zoom-in duration-200">
+                                            <textarea
+                                                className="form-textarea"
+                                                value={tempPublicNotes}
+                                                onChange={(e) => setTempPublicNotes(e.target.value)}
+                                                placeholder="Publicly visible notes..."
+                                                rows={4}
+                                                autoFocus
+                                                style={{ fontSize: 'var(--text-sm)' }}
+                                            />
+                                            <div style={{ display: 'flex', gap: 'var(--space-3)', marginTop: 'var(--space-3)', justifyContent: 'flex-end' }}>
+                                                <button 
+                                                    className="btn btn-secondary btn-sm"
+                                                    onClick={() => setIsEditingPublicNotes(false)}
+                                                >
+                                                    Cancel
+                                                </button>
+                                                <button 
+                                                    className="btn btn-primary btn-sm"
+                                                    onClick={async () => {
+                                                        await handleUpdateField('notes', tempPublicNotes);
+                                                        setIsEditingPublicNotes(false);
+                                                    }}
+                                                >
+                                                    Save Changes
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div style={{ fontSize: 'var(--text-sm)', lineHeight: '1.6', color: 'var(--text-secondary)' }}>
+                                            {resource.notes ? (
+                                                <ReactMarkdown 
+                                                    remarkPlugins={[remarkGfm]}
+                                                    components={{
+                                                        a: ({ node, ...props }) => <a {...props} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--primary-light)', textDecoration: 'underline' }} />
+                                                    }}
+                                                >
+                                                    {resource.notes}
+                                                </ReactMarkdown>
+                                            ) : (isAdmin || (user && resource.addedBy === user.uid)) ? (
+                                                <em style={{ color: 'var(--text-muted)', cursor: 'pointer' }} onClick={() => {
+                                                    setIsEditingPublicNotes(true);
+                                                    setTempPublicNotes('');
+                                                }}>Add public notes or instructions...</em>
+                                            ) : null}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
 
+                            {/* Internal Admin Notes (Editable in-place) */}
                             {(isAdmin || (user && resource.addedBy === user.uid)) && (
-                                <div style={{
-                                    borderTop: '1px solid var(--border-subtle)',
-                                    paddingTop: 'var(--space-8)',
-                                    marginTop: 'var(--space-12)',
-                                    display: 'flex',
-                                    justifyContent: 'flex-end',
-                                }}>
-                                    <button
-                                        className="btn btn-danger"
-                                        onClick={handleDelete}
-                                        disabled={deleting}
-                                        id="delete-resource"
-                                    >
-                                        {deleting ? 'Deleting...' : '🗑 Delete Resource'}
-                                    </button>
+                                <div className="detail-section animate-fade-in group">
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <h3 className="detail-section-title">🔒 Internal Curator Notes</h3>
+                                        {!isEditingAdminNotes && (
+                                            <button 
+                                                className="btn btn-secondary btn-sm transition-opacity"
+                                                onClick={() => {
+                                                    setIsEditingAdminNotes(true);
+                                                    setTempAdminNotes(resource.adminNotes || '');
+                                                }}
+                                                style={{ padding: '2px 8px', fontSize: '10px' }}
+                                            >
+                                                ✏️ Edit
+                                            </button>
+                                        )}
+                                    </div>
+                                    <div className="glass-card" style={{ padding: 'var(--space-5)', background: 'rgba(249, 115, 22, 0.05)', border: '1px dashed var(--accent-orange)' }}>
+                                        {isEditingAdminNotes ? (
+                                            <div className="animate-in fade-in zoom-in duration-200">
+                                                <textarea
+                                                    className="form-textarea"
+                                                    value={tempAdminNotes}
+                                                    onChange={(e) => setTempAdminNotes(e.target.value)}
+                                                    placeholder="Internal curator notes..."
+                                                    rows={3}
+                                                    autoFocus
+                                                    style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}
+                                                />
+                                                <div style={{ display: 'flex', gap: 'var(--space-3)', marginTop: 'var(--space-3)', justifyContent: 'flex-end' }}>
+                                                    <button 
+                                                        className="btn btn-secondary btn-sm"
+                                                        onClick={() => setIsEditingAdminNotes(false)}
+                                                    >
+                                                        Cancel
+                                                    </button>
+                                                    <button 
+                                                        className="btn btn-primary btn-sm"
+                                                        onClick={async () => {
+                                                            await handleUpdateField('adminNotes', tempAdminNotes);
+                                                            setIsEditingAdminNotes(false);
+                                                        }}
+                                                    >
+                                                        Save
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div style={{ fontSize: 'var(--text-xs)', lineHeight: '1.6', color: 'var(--text-muted)' }}>
+                                                {resource.adminNotes ? (
+                                                    <ReactMarkdown 
+                                                        remarkPlugins={[remarkGfm]}
+                                                        components={{
+                                                            a: ({ node, ...props }) => <a {...props} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent-orange)', textDecoration: 'underline' }} />
+                                                        }}
+                                                    >
+                                                        {resource.adminNotes}
+                                                    </ReactMarkdown>
+                                                ) : (
+                                                    <em style={{ cursor: 'pointer' }} onClick={() => {
+                                                        setIsEditingAdminNotes(true);
+                                                        setTempAdminNotes('');
+                                                    }}>Add internal notes...</em>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
                             )}
+
+                            {noteContent && (
+                                <div className="detail-section">
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-4)' }}>
+                                        <h3 className="detail-section-title" style={{ margin: 0 }}>My Private Notes</h3>
+                                        <button 
+                                            className="btn btn-secondary btn-sm" 
+                                            onClick={() => setIsNoteModalOpen(true)}
+                                            style={{ padding: 'var(--space-2) var(--space-4)', fontSize: 'var(--text-xs)' }}
+                                        >
+                                            ✏️ Edit
+                                        </button>
+                                    </div>
+                                    <div className="glass-card" style={{ padding: 'var(--space-6)', borderLeft: '4px solid var(--accent-primary)', background: 'var(--bg-secondary)' }}>
+                                        <div style={{ fontSize: 'var(--text-sm)', color: 'var(--text-secondary)' }}>
+                                            <ReactMarkdown
+                                                remarkPlugins={[remarkGfm]}
+                                                components={{
+                                                    a: ({ node, ...props }) => <a {...props} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--primary-light)', textDecoration: 'underline' }} />
+                                                }}
+                                            >
+                                                {noteContent}
+                                            </ReactMarkdown>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Community Section */}
+                            <CommentSection resourceId={resourceId} />
                         </div>
 
                         <aside className="detail-sidebar">
@@ -710,15 +1121,73 @@ export default function ResourceDetailPage() {
                                     </div>
                                     <span style={{ color: 'var(--accent-primary)' }}>↗</span>
                                 </a>
+                                <button
+                                    className="btn btn-secondary btn-sm"
+                                    style={{ width: '100%', marginTop: 'var(--space-2)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 'var(--space-2)' }}
+                                    onClick={(e) => {
+                                        e.preventDefault();
+                                        navigator.clipboard.writeText(resource.url);
+                                        const btn = e.currentTarget;
+                                        const original = btn.textContent;
+                                        btn.textContent = '✅ Copied!';
+                                        setTimeout(() => { btn.textContent = original; }, 2000);
+                                    }}
+                                    title="Copy resource URL to clipboard"
+                                >
+                                    📋 Copy Link
+                                </button>
                             </div>
 
                             <div className="sidebar-section">
                                 <h3 className="detail-section-title">Classification</h3>
                                 <div className="detail-meta-pills" style={{ marginTop: 0 }}>
-                                    <span className={`badge badge-${resource.pricing}`}>{resource.pricing}</span>
-                                    <span className="badge badge-accent">{resource.platform}</span>
-                                    <span className="badge badge-primary">{resource.type}</span>
-                                    <span className="badge badge-secondary">{resource.mediaFormat}</span>
+                                    {(isAdmin || (user && resource.addedBy === user.uid)) ? (
+                                        <>
+                                            <select 
+                                                className={`badge badge-${resource.pricing}`} 
+                                                value={resource.pricing} 
+                                                onChange={(e) => handleUpdateField('pricing', e.target.value)}
+                                                style={{ appearance: 'none', cursor: 'pointer', paddingRight: '0.8rem', outline: 'none' }}
+                                                title="Update Pricing"
+                                            >
+                                                {PRICING_OPTIONS.map(opt => <option key={opt} value={opt} style={{ background: 'var(--bg-secondary)', color: 'var(--text-primary)' }}>{opt}</option>)}
+                                            </select>
+                                            <select 
+                                                className="badge badge-accent" 
+                                                value={resource.platform} 
+                                                onChange={(e) => handleUpdateField('platform', e.target.value)}
+                                                style={{ appearance: 'none', cursor: 'pointer', paddingRight: '0.8rem', outline: 'none' }}
+                                                title="Update Platform"
+                                            >
+                                                {PLATFORM_OPTIONS.map(opt => <option key={opt} value={opt} style={{ background: 'var(--bg-secondary)', color: 'var(--text-primary)' }}>{opt}</option>)}
+                                            </select>
+                                            <select 
+                                                className="badge badge-primary" 
+                                                value={resource.type} 
+                                                onChange={(e) => handleUpdateField('type', e.target.value)}
+                                                style={{ appearance: 'none', cursor: 'pointer', paddingRight: '0.8rem', outline: 'none' }}
+                                                title="Update Type"
+                                            >
+                                                {TYPE_OPTIONS.map(opt => <option key={opt} value={opt} style={{ background: 'var(--bg-secondary)', color: 'var(--text-primary)' }}>{opt}</option>)}
+                                            </select>
+                                            <select 
+                                                className="badge badge-secondary" 
+                                                value={resource.mediaFormat} 
+                                                onChange={(e) => handleUpdateField('mediaFormat', e.target.value)}
+                                                style={{ appearance: 'none', cursor: 'pointer', paddingRight: '0.8rem', outline: 'none' }}
+                                                title="Update Media Format"
+                                            >
+                                                {MEDIA_OPTIONS.map(opt => <option key={opt} value={opt} style={{ background: 'var(--bg-secondary)', color: 'var(--text-primary)' }}>{opt}</option>)}
+                                            </select>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <span className={`badge badge-${resource.pricing}`}>{resource.pricing}</span>
+                                            <span className="badge badge-accent">{resource.platform}</span>
+                                            <span className="badge badge-primary">{resource.type}</span>
+                                            <span className="badge badge-secondary">{resource.mediaFormat}</span>
+                                        </>
+                                    )}
                                 </div>
                                 
                                 <div style={{ marginTop: 'var(--space-6)' }}>
@@ -1118,6 +1587,12 @@ export default function ResourceDetailPage() {
             >
                 <p style={{ color: 'var(--text-secondary)' }}>{confirmModal.message}</p>
             </Modal>
+
+            <ThumbnailPicker 
+                isOpen={isPickerOpen}
+                onClose={() => setIsPickerOpen(false)}
+                onSelect={(url) => handleUpdateField('thumbnailUrl', url)}
+            />
 
             <Footer />
         </div >

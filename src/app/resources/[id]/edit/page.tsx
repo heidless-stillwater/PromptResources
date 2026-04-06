@@ -8,6 +8,7 @@ import { Credit, Platform, ResourcePricing, ResourceType, MediaFormat, ResourceS
 import { suggestCategories, suggestCredits, getDefaultCategories, suggestDescription, suggestTags } from '@/lib/suggestions';
 import { extractYouTubeId, isYouTubeUrl, fetchYouTubeMetadata, isGenericYouTubeName, deduplicateCredits } from '@/lib/youtube';
 import Link from 'next/link';
+import ThumbnailPicker from '@/components/ThumbnailPicker';
 
 export default function EditResourcePage() {
     const { user, loading: authLoading, isAdmin } = useAuth();
@@ -19,7 +20,7 @@ export default function EditResourcePage() {
     const [url, setUrl] = useState('');
     const [type, setType] = useState<ResourceType>('article');
     const [mediaFormat, setMediaFormat] = useState<MediaFormat>('webpage');
-    const [platform, setPlatform] = useState<Platform>('general');
+    const [platform, setPlatform] = useState<Platform>('nanobanana');
     const [pricing, setPricing] = useState<ResourcePricing>('free');
     const [pricingDetails, setPricingDetails] = useState('');
     const [tags, setTags] = useState('');
@@ -32,6 +33,8 @@ export default function EditResourcePage() {
     const [ytMetadata, setYtMetadata] = useState<any>(null);
     const [isFavorite, setIsFavorite] = useState(false);
     const [rank, setRank] = useState<number | ''>('');
+    const [notes, setNotes] = useState('');
+    const [adminNotes, setAdminNotes] = useState('');
     const [loading, setLoading] = useState(true);
     const [thumbnailUrl, setThumbnailUrl] = useState('');
     const [saving, setSaving] = useState(false);
@@ -39,6 +42,7 @@ export default function EditResourcePage() {
     const [originalResource, setOriginalResource] = useState<Resource | null>(null);
 
     const allCategories = getDefaultCategories();
+    const [isPickerOpen, setIsPickerOpen] = useState(false);
 
     // Fetch existing resource
     useEffect(() => {
@@ -64,7 +68,7 @@ export default function EditResourcePage() {
                     setUrl(res.url || '');
                     setType(res.type || 'article');
                     setMediaFormat(res.mediaFormat || 'webpage');
-                    setPlatform(res.platform || 'general');
+                    setPlatform(res.platform || 'nanobanana');
                     setPricing(res.pricing || 'free');
                     setPricingDetails(res.pricingDetails || '');
                     setTags(res.tags?.join(', ') || '');
@@ -75,6 +79,8 @@ export default function EditResourcePage() {
                     setIsFavorite(res.isFavorite || false);
                     setRank(res.rank === null ? '' : res.rank);
                     setPrompts(res.prompts?.join('\n') || '');
+                    setNotes(res.notes || '');
+                    setAdminNotes(res.adminNotes || '');
                 } else {
                     setError('Resource not found.');
                 }
@@ -255,12 +261,15 @@ export default function EditResourcePage() {
                     isFavorite,
                     rank: rank === '' ? null : Number(rank),
                     prompts: prompts.split('\n').map(p => p.trim()).filter(Boolean),
+                    notes: notes.trim() || null,
+                    adminNotes: adminNotes.trim() || null,
                 }),
             });
 
             const result = await response.json();
 
             if (result.success) {
+                router.refresh();
                 router.push(`/resources/${id}`);
             } else {
                 setError(result.error || 'Failed to update resource.');
@@ -378,34 +387,50 @@ export default function EditResourcePage() {
                                 )}
                             </div>
 
-                            {isAdmin && (
-                                <div className="form-group">
-                                    <label className="form-label" htmlFor="thumbnailUrl">Thumbnail URL (optional)</label>
-                                    <input
-                                        id="thumbnailUrl"
-                                        type="url"
-                                        className="form-input"
-                                        value={thumbnailUrl}
-                                        onChange={(e) => setThumbnailUrl(e.target.value)}
-                                        placeholder="https://... (image url)"
-                                    />
+                             {isAdmin && (
+                                <div className="form-group col-span-2">
+                                    <label className="form-label" htmlFor="thumbnailUrl">🖼️ Thumbnail Image URL</label>
+                                    <div style={{ display: 'flex', gap: 'var(--space-3)', alignItems: 'center' }}>
+                                        <input
+                                            id="thumbnailUrl"
+                                            type="text"
+                                            className="form-input"
+                                            value={thumbnailUrl}
+                                            onChange={(e) => setThumbnailUrl(e.target.value)}
+                                            placeholder="Enter image URL or pick from Nanobanana scenarios..."
+                                            style={{ flex: 1 }}
+                                        />
+                                        <button 
+                                            type="button" 
+                                            className="btn btn-secondary btn-sm"
+                                            onClick={() => setIsPickerOpen(true)}
+                                            style={{ whiteSpace: 'nowrap', padding: 'var(--space-2) var(--space-4)', fontSize: '12px' }}
+                                        >
+                                            📂 Browse scenarios
+                                        </button>
+                                    </div>
+                                    
                                     {thumbnailUrl && (
-                                        <div style={{ marginTop: 'var(--space-2)' }}>
-                                            <p className="form-helper">Preview:</p>
-                                            <img
-                                                src={thumbnailUrl}
-                                                alt="Thumbnail preview"
-                                                style={{
-                                                    maxWidth: '200px',
-                                                    borderRadius: 'var(--radius-sm)',
-                                                    border: '1px solid var(--border-subtle)'
-                                                }}
-                                                onError={(e) => {
-                                                    (e.target as HTMLImageElement).style.display = 'none';
-                                                }}
-                                            />
+                                        <div style={{ marginTop: 'var(--space-3)', borderRadius: 'var(--radius-md)', overflow: 'hidden', height: '140px', width: '250px', position: 'relative', border: '1px solid var(--border-subtle)', background: 'var(--bg-secondary)' }}>
+                                            <img src={thumbnailUrl} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                            <button 
+                                                type="button" 
+                                                className="btn btn-danger btn-sm" 
+                                                onClick={() => setThumbnailUrl('')}
+                                                style={{ position: 'absolute', top: '8px', right: '8px', padding: '4px 10px', fontSize: '11px', boxShadow: 'var(--shadow-lg)' }}
+                                            >
+                                                Remove
+                                            </button>
                                         </div>
                                     )}
+                                    <p className="form-helper" style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                                        💡 Standard size: 1280x720 (16:9). YouTube URLs will automatically fetch thumbnails.
+                                    </p>
+                                    <ThumbnailPicker 
+                                        isOpen={isPickerOpen} 
+                                        onClose={() => setIsPickerOpen(false)}
+                                        onSelect={(url) => setThumbnailUrl(url)}
+                                    />
                                 </div>
                             )}
 
@@ -778,6 +803,36 @@ export default function EditResourcePage() {
                             <button type="button" className="btn btn-ghost btn-sm" onClick={addCredit}>
                                 + Add Another Credit
                             </button>
+                        </div>
+
+                        <div className="glass-card" style={{ marginBottom: 'var(--space-6)' }}>
+                            <h3 style={{ fontSize: 'var(--text-lg)', marginBottom: 'var(--space-4)' }}>📖 Public Notes & Instructions</h3>
+                            <div className="form-group" style={{ marginBottom: 0 }}>
+                                <textarea
+                                    id="notes"
+                                    className="form-textarea"
+                                    value={notes}
+                                    onChange={(e) => setNotes(e.target.value)}
+                                    placeholder="Publicly visible notes, special instructions, or context for users..."
+                                    rows={3}
+                                />
+                                <p className="form-helper" style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '8px' }}>Visible to all visitors on the resource detail page</p>
+                            </div>
+                        </div>
+
+                        <div className="glass-card" style={{ marginBottom: 'var(--space-6)' }}>
+                            <h3 style={{ fontSize: 'var(--text-lg)', marginBottom: 'var(--space-4)' }}>🔒 Internal Curator Notes (Administrative)</h3>
+                            <div className="form-group" style={{ marginBottom: 0 }}>
+                                <textarea
+                                    id="adminNotes"
+                                    className="form-textarea"
+                                    value={adminNotes}
+                                    onChange={(e) => setAdminNotes(e.target.value)}
+                                    placeholder="Internal context, metadata, or follow-up notes about this resource..."
+                                    rows={3}
+                                />
+                                <p className="form-helper" style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '8px' }}>Private notes for administrators only (internal use only)</p>
+                            </div>
                         </div>
 
                         {/* Submit */}

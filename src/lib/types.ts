@@ -51,6 +51,8 @@ export interface Resource {
     isFavorite?: boolean;
     rank?: number;
     prompts?: string[];
+    notes?: string;        // Publicly visible notes/instructions
+    adminNotes?: string;   // Internal administrative-only notes
     averageRating?: number;
     reviewCount?: number;
 }
@@ -97,4 +99,17 @@ export interface PaginatedResponse<T> extends ApiResponse<T[]> {
     page: number;
     pageSize: number;
     hasMore: boolean;
+}
+
+export interface ThumbnailAsset {
+    id: string;
+    url: string;
+    title: string;
+    tags: string[];
+    category?: string;
+    description?: string;
+    createdAt: Date;
+    updatedAt: Date;
+    addedBy: string;
+    isDefault?: boolean;
 }

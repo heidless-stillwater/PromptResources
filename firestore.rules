@@ -122,5 +122,11 @@ service cloud.firestore {
       allow get, list: if true; // Public Hall of Fame
       allow write: if false; // Managed via API
     }
+
+    // Nanobanana Asset Library
+    match /thumbnailAssets/{assetId} {
+      allow read, list: if true;
+      allow write: if isAdmin();
+    }
   }
 }

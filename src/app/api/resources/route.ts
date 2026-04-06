@@ -4,6 +4,7 @@ import { adminDb } from '@/lib/firebase-admin';
 import { getAuthUser, isAdmin } from '@/lib/auth-server';
 import { getResourcesAction } from '@/lib/resources-server';
 import { revalidatePath } from 'next/cache';
+import { extractYouTubeId } from '@/lib/youtube';
 
 export async function GET(request: NextRequest) {
     try {
@@ -84,17 +85,22 @@ export async function POST(request: NextRequest) {
         const docData = {
             ...body,
             addedBy: decodedToken.uid,
+            youtubeVideoId: body.url ? extractYouTubeId(body.url) : null,
             thumbnailUrl: body.thumbnailUrl || null,
             createdAt: now,
             updatedAt: now,
             status: isAdminUser ? (body.status || 'published') : (['draft', 'suggested'].includes(body.status) ? body.status : 'suggested'),
-            isFavorite: isAdminUser ? (body.isFavorite || false) : false,
+            isFavorite: isAdminUser ? (body.isFavorite ?? null) : false,
             rank: isAdminUser ? (body.rank || null) : null,
+            notes: body.notes?.trim() || null,
+            adminNotes: body.adminNotes?.trim() || null,
         };
 
         const docRef = await adminDb.collection('resources').add(docData);
         
         // Revalidate listing pages to show new prompt immediately
+        revalidatePath('/resources', 'page');
+        revalidatePath('/', 'page');
         revalidatePath('/resources');
         revalidatePath('/');
 
