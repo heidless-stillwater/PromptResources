@@ -16,6 +16,14 @@ export default function SettingsPage() {
     const queryClient = useQueryClient();
     const [displayName, setDisplayName] = useState(profile?.displayName || '');
     const [photoURL, setPhotoURL] = useState(profile?.photoURL || '');
+    
+    // Creator Profile fields
+    const [isPublicProfile, setIsPublicProfile] = useState(profile?.isPublicProfile || false);
+    const [profileType, setProfileType] = useState(profile?.profileType || 'individual');
+    const [slug, setSlug] = useState(profile?.slug || '');
+    const [bio, setBio] = useState(profile?.bio || '');
+    const [bannerUrl, setBannerUrl] = useState(profile?.bannerUrl || '');
+    
     const [message, setMessage] = useState({ type: '', text: '' });
     const [imgError, setImgError] = useState(false);
 
@@ -24,12 +32,17 @@ export default function SettingsPage() {
         if (profile) {
             setDisplayName(profile.displayName || '');
             setPhotoURL(profile.photoURL || '');
+            setIsPublicProfile(profile.isPublicProfile || false);
+            setProfileType(profile.profileType || 'individual');
+            setSlug(profile.slug || '');
+            setBio(profile.bio || '');
+            setBannerUrl(profile.bannerUrl || '');
             setImgError(false);
         }
     }, [profile]);
 
     const updateProfileMutation = useMutation({
-        mutationFn: async (data: { displayName: string, photoURL: string }) => {
+        mutationFn: async (data: any) => {
             if (!user) throw new Error('Not authenticated');
             const userRef = doc(db, 'users', user.uid);
             await updateDoc(userRef, {
@@ -79,7 +92,22 @@ export default function SettingsPage() {
     const handleUpdateProfile = async (e: React.FormEvent) => {
         e.preventDefault();
         setMessage({ type: '', text: '' });
-        updateProfileMutation.mutate({ displayName, photoURL });
+        
+        let finalSlug = slug.trim();
+        if (isPublicProfile && !finalSlug) {
+            finalSlug = displayName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
+            setSlug(finalSlug);
+        }
+        
+        updateProfileMutation.mutate({ 
+            displayName, 
+            photoURL,
+            isPublicProfile,
+            profileType: profileType as any,
+            slug: finalSlug,
+            bio,
+            bannerUrl
+        });
     };
 
     const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -229,6 +257,97 @@ export default function SettingsPage() {
                                 {saving ? 'Saving...' : 'Save Changes'}
                             </button>
                         </form>
+                    </div>
+
+                    <div className="glass-card" style={{ marginBottom: 'var(--space-6)' }}>
+                        <h3 style={{
+                            fontSize: 'var(--text-lg)',
+                            marginBottom: 'var(--space-6)',
+                            paddingBottom: 'var(--space-3)',
+                            borderBottom: '1px solid var(--border-subtle)',
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center'
+                        }}>
+                            <span>🎨 Creator Profile Directory</span>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: 'var(--text-sm)' }}>
+                                <input 
+                                    type="checkbox" 
+                                    checked={isPublicProfile} 
+                                    onChange={(e) => setIsPublicProfile(e.target.checked)} 
+                                />
+                                Enable Public Profile
+                            </label>
+                        </h3>
+                        
+                        {isPublicProfile ? (
+                            <div className="animate-fade-in" style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 'var(--space-4)' }}>
+                                <div style={{ display: 'grid', gridTemplateColumns: 'minmax(200px, 1fr) minmax(200px, 1fr)', gap: 'var(--space-4)' }}>
+                                    <div className="form-group">
+                                        <label className="form-label">Profile Slug (URL)</label>
+                                        <input
+                                            type="text"
+                                            className="form-input"
+                                            value={slug}
+                                            onChange={(e) => setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
+                                            placeholder="e.g. john-doe"
+                                        />
+                                        <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
+                                            promptresources.com/creators/<b>{slug || 'john-doe'}</b>
+                                        </div>
+                                    </div>
+                                    <div className="form-group">
+                                        <label className="form-label">Creator Type</label>
+                                        <select
+                                            className="form-select"
+                                            value={profileType}
+                                            onChange={(e) => setProfileType(e.target.value as "individual" | "channel" | "organization")}
+                                        >
+                                            <option value="individual">Individual</option>
+                                            <option value="channel">Channel</option>
+                                            <option value="organization">Organization</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                
+                                <div className="form-group">
+                                    <label className="form-label">Bio</label>
+                                    <textarea
+                                        className="form-textarea"
+                                        value={bio}
+                                        onChange={(e) => setBio(e.target.value)}
+                                        placeholder="Tell the community about yourself..."
+                                        rows={3}
+                                    />
+                                </div>
+                                
+                                <div className="form-group">
+                                    <label className="form-label">Banner Image URL</label>
+                                    <input
+                                        type="text"
+                                        className="form-input"
+                                        value={bannerUrl}
+                                        onChange={(e) => setBannerUrl(e.target.value)}
+                                        placeholder="https://example.com/banner.jpg"
+                                    />
+                                    <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
+                                        Displayed at the top of your public gallery
+                                    </div>
+                                </div>
+
+                                <button
+                                    onClick={handleUpdateProfile}
+                                    className="btn btn-primary"
+                                    disabled={saving}
+                                >
+                                    {saving ? 'Saving...' : 'Save Creator Profile'}
+                                </button>
+                            </div>
+                        ) : (
+                            <p style={{ color: 'var(--text-muted)', fontSize: 'var(--text-sm)', margin: 0 }}>
+                                Enable your public profile to appear in the Creator Directory and showcase your contributed resources. Don't forget to click 'Save Changes' above.
+                            </p>
+                        )}
                     </div>
 
                     <div className="glass-card" style={{ marginBottom: 'var(--space-6)' }}>

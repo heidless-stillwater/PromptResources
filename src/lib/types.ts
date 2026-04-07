@@ -9,9 +9,20 @@ export type Platform = 'gemini' | 'nanobanana' | 'chatgpt' | 'claude' | 'midjour
 export type ResourceStatus = 'published' | 'draft' | 'pending' | 'suggested';
 export type ProgressStatus = 'new' | 'in-progress' | 'completed';
 
-export interface Credit {
+export type AttributionRole = 'creator' | 'author' | 'presenter' | 'curator' | 'contributor' | 'source';
+export type CreatorType = 'individual' | 'channel' | 'organization';
+
+export interface CreatorSocial {
+    platform: 'youtube' | 'twitter' | 'github' | 'linkedin' | 'website' | 'other';
+    url: string;
+    label?: string;
+}
+
+export interface Attribution {
     name: string;
     url: string;
+    userId?: string;
+    role?: AttributionRole;
 }
 
 export interface UserProfile {
@@ -21,6 +32,22 @@ export interface UserProfile {
     photoURL?: string;
     role: UserRole;
     subscriptionType: SubscriptionType;
+    
+    // --- Public Profile Fields ---
+    slug?: string;
+    profileType?: CreatorType;
+    bio?: string;
+    bannerUrl?: string;
+    socials?: CreatorSocial[];
+    tags?: string[];
+    isStub?: boolean;
+    isPublicProfile?: boolean;
+    isVerified?: boolean;
+    isFeatured?: boolean;
+    resourceCount?: number;
+    authoredCount?: number;
+    curatedCount?: number;
+    
     createdAt: Date;
     updatedAt: Date;
 }
@@ -37,7 +64,7 @@ export interface Resource {
     pricing: ResourcePricing;
     pricingDetails?: string;
     categories: string[];
-    credits: Credit[];
+    attributions: Attribution[];
     platform: Platform;
     tags: string[];
     addedBy: string;
@@ -45,6 +72,7 @@ export interface Resource {
         displayName: string;
         photoURL?: string;
     };
+    attributedUserIds?: string[];
     createdAt: Date;
     updatedAt: Date;
     status: ResourceStatus;

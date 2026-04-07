@@ -1,0 +1,49 @@
+import { Metadata } from 'next';
+import { notFound } from 'next/navigation';
+import { getUserBySlug, getCreatorResources, getCreatorStats } from '@/lib/creators-server';
+import CreatorProfileClient from './CreatorProfileClient';
+
+interface PageProps {
+    params: { slug: string };
+}
+
+export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+    const creator = await getUserBySlug(params.slug);
+    if (!creator) return { title: 'Creator Not Found | PromptResources' };
+
+    return {
+        title: `${creator.displayName} — Creator Profile | PromptResources`,
+        description: creator.bio || `Explore AI resources created and curated by ${creator.displayName} on PromptResources.`,
+        openGraph: {
+            title: `${creator.displayName} | PromptResources`,
+            description: creator.bio || `Explore AI resources created and curated by ${creator.displayName}.`,
+            images: creator.photoURL ? [{ url: creator.photoURL }] : [],
+            type: 'profile',
+        },
+        twitter: {
+            card: 'summary_large_image',
+            title: `${creator.displayName} | PromptResources`,
+            description: creator.bio || `Explore AI resources by ${creator.displayName}.`,
+        }
+    };
+}
+
+export default async function CreatorProfilePage({ params }: PageProps) {
+    const [creator, stats] = await Promise.all([
+        getUserBySlug(params.slug),
+        getCreatorResources(params.slug, { pageSize: 12 }).catch(() => null)
+    ]);
+
+    if (!creator) notFound();
+
+    const creatorStats = await getCreatorStats(creator.uid);
+    const initialResources = await getCreatorResources(creator.uid, { pageSize: 100 });
+
+    return (
+        <CreatorProfileClient
+            creator={creator}
+            initialResources={initialResources.data || []}
+            stats={creatorStats}
+        />
+    );
+}

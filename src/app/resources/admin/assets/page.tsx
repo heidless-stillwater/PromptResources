@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import Image from 'next/image';
+import Modal from '@/components/Modal';
 import { useAuth } from '@/contexts/AuthContext';
 import { storage, db } from '@/lib/firebase';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
@@ -38,6 +39,8 @@ export default function AssetManagerPage() {
     const [isGeneratingInStudio, setIsGeneratingInStudio] = useState(false);
     const [studioResult, setStudioResult] = useState<any>(null);
     const [studioProgress, setStudioProgress] = useState<string>('');
+    const [showErrorModal, setShowErrorModal] = useState(false);
+    const [errorDetails, setErrorDetails] = useState({ title: '', message: '' });
 
     useEffect(() => {
         if (!authLoading && !isAdmin) {
@@ -140,7 +143,11 @@ export default function AssetManagerPage() {
             }
         } catch (error: any) {
             console.error('Generation helper error:', error);
-            setMessage({ type: 'error', text: 'AI Architect is currently unavailable. Please ensure your Gemini API key is configured.' });
+            setErrorDetails({
+                title: 'AI Architect Unavailable',
+                message: 'The AI Architect is currently experiencing high demand or is temporarily offline. This usually happens when the Gemini API quota is reached or if the local service is restarting.'
+            });
+            setShowErrorModal(true);
         } finally {
             setIsGeneratingInspiration(false);
         }
@@ -218,14 +225,24 @@ export default function AssetManagerPage() {
 
                                     const docRef = await addDoc(collection(db, 'thumbnailAssets'), assetData);
                                     
-                                    // OPTIMISTIC UPDATE: Add to local state immediately
-                                    const newAsset = { ...assetData, id: docRef.id } as ThumbnailAsset;
-                                    setAssets(prev => [newAsset, ...prev]);
+                                    // FORCE IMMEDIATE UI UPDATE
+                                    const newAsset: ThumbnailAsset = { 
+                                        ...assetData, 
+                                        id: docRef.id,
+                                        createdAt: assetData.createdAt,
+                                        updatedAt: assetData.updatedAt
+                                    };
                                     
+                                    setAssets(prev => [newAsset, ...prev]);
                                     setStudioProgress('Success! Asset registered to library.');
+                                    
+                                    // Safety fetch to ensure sorted order is perfect
+                                    setTimeout(() => fetchAssets(), 1000);
                                 }
                             if (data.type === 'error') throw new Error(data.error);
-                        } catch (e) { console.error('SSE bit parse error', e); }
+                        } catch (e) { 
+                            console.error('SSE bit parse error', e); 
+                        }
                     }
                 }
             }
@@ -517,19 +534,25 @@ export default function AssetManagerPage() {
                                         <div style={{ 
                                             position: 'absolute', 
                                             top: '8px', 
-                                            right: '8px',
+                                            left: '8px',
                                             display: 'flex',
                                             gap: '4px',
                                             zIndex: 10
                                         }}>
-                                            <button 
-                                                className="btn btn-danger btn-sm" 
-                                                onClick={() => handleDelete(asset)}
-                                                style={{ padding: '4px 8px', fontSize: '10px' }}
-                                            >
-                                                🗑️ Delete
-                                            </button>
-                                            {!asset.isDefault && (
+                                            {asset.isDefault ? (
+                                                <div style={{ 
+                                                    background: 'var(--success)',
+                                                    color: 'white',
+                                                    padding: '2px 8px',
+                                                    borderRadius: '100px',
+                                                    fontSize: '9px',
+                                                    fontWeight: 800,
+                                                    textTransform: 'uppercase',
+                                                    boxShadow: '0 0 15px rgba(16, 185, 129, 0.4)',
+                                                }}>
+                                                    Primary Default
+                                                </div>
+                                            ) : (
                                                 <button 
                                                     className="btn btn-secondary btn-sm" 
                                                     onClick={() => handleSetDefault(asset)}
@@ -539,24 +562,21 @@ export default function AssetManagerPage() {
                                                 </button>
                                             )}
                                         </div>
-                                        {asset.isDefault && (
-                                            <div style={{ 
-                                                position: 'absolute', 
-                                                bottom: '8px', 
-                                                left: '8px',
-                                                background: 'var(--success)',
-                                                color: 'white',
-                                                padding: '2px 8px',
-                                                borderRadius: '100px',
-                                                fontSize: '9px',
-                                                fontWeight: 800,
-                                                textTransform: 'uppercase',
-                                                boxShadow: '0 0 15px rgba(16, 185, 129, 0.4)',
-                                                zIndex: 10
-                                            }}>
-                                                Primary Default
-                                            </div>
-                                        )}
+
+                                        <div style={{ 
+                                            position: 'absolute', 
+                                            top: '8px', 
+                                            right: '8px',
+                                            zIndex: 10
+                                        }}>
+                                            <button 
+                                                className="btn btn-danger btn-sm" 
+                                                onClick={() => handleDelete(asset)}
+                                                style={{ padding: '4px 8px', fontSize: '10px' }}
+                                            >
+                                                🗑️ Delete
+                                            </button>
+                                        </div>
                                     </div>
                                     <div style={{ padding: 'var(--space-4)' }}>
                                         <h4 style={{ fontSize: '14px', marginBottom: '8px', color: 'var(--text-primary)' }}>{asset.title}</h4>
@@ -663,6 +683,33 @@ export default function AssetManagerPage() {
             )}
 
             <Footer />
+
+            {/* ⚠️ Error Modal */}
+            <Modal
+                isOpen={showErrorModal}
+                onClose={() => setShowErrorModal(false)}
+                title={`⚠️ ${errorDetails.title}`}
+                maxWidth="480px"
+                className="modal-danger"
+                footer={
+                    <div style={{ display: 'flex', gap: 'var(--space-3)', justifyContent: 'flex-end', width: '100%' }}>
+                        <button className="btn btn-secondary" onClick={() => setShowErrorModal(false)}>Close</button>
+                        <button className="btn btn-primary" onClick={() => { setShowErrorModal(false); handleGeneratePrompt(); }}>
+                            🔄 Retry Now
+                        </button>
+                    </div>
+                }
+            >
+                <div style={{ textAlign: 'center', padding: 'var(--space-2)' }}>
+                    <div style={{ fontSize: '3rem', marginBottom: 'var(--space-4)' }}>🔌</div>
+                    <p style={{ color: 'var(--text-primary)', fontWeight: 600, marginBottom: 'var(--space-4)' }}>
+                        {errorDetails.message}
+                    </p>
+                    <p style={{ color: 'var(--text-secondary)', fontSize: '13px', fontStyle: 'italic' }}>
+                        Suggestion: Please wait about 60 seconds and try again. If the problem persists, check your Gemini API configuration in .env.local.
+                    </p>
+                </div>
+            </Modal>
         </div>
     );
 }

@@ -5,6 +5,7 @@ import { getAuthUser, isAdmin } from '@/lib/auth-server';
 import { getResourcesAction } from '@/lib/resources-server';
 import { revalidatePath } from 'next/cache';
 import { extractYouTubeId } from '@/lib/youtube';
+import { resolveAttributions } from '@/lib/creators-server';
 
 export async function GET(request: NextRequest) {
     try {
@@ -81,9 +82,20 @@ export async function POST(request: NextRequest) {
             );
         }
 
+        let finalAttributions = body.attributions || [];
+        let attributedUserIds: string[] = [];
+
+        if (finalAttributions.length > 0) {
+            const resolved = await resolveAttributions(finalAttributions);
+            finalAttributions = resolved.resolvedAttributions;
+            attributedUserIds = resolved.attributedUserIds;
+        }
+
         const now = new Date();
         const docData = {
             ...body,
+            attributions: finalAttributions,
+            attributedUserIds,
             addedBy: decodedToken.uid,
             youtubeVideoId: body.url ? extractYouTubeId(body.url) : null,
             thumbnailUrl: body.thumbnailUrl || null,

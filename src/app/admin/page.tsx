@@ -150,6 +150,7 @@ function AdminContent() {
     const freeCount = resources.filter((r) => r.pricing === 'free').length;
     const paidCount = resources.filter((r) => r.pricing === 'paid').length;
     const reviewCount = resources.filter((r) => r.status === 'pending' || r.status === 'suggested').length;
+    const creatorsCount = users.filter((u) => u.isPublicProfile || u.isStub).length;
 
     return (
         <div className="page-wrapper">
@@ -197,6 +198,10 @@ function AdminContent() {
                                 <div className="glass-card stat-card">
                                     <div className="stat-value">{resources.length}</div>
                                     <div className="stat-label">Resources</div>
+                                </div>
+                                <div className="glass-card stat-card">
+                                    <div className="stat-value">{creatorsCount}</div>
+                                    <div className="stat-label">Creators</div>
                                 </div>
                                 <div className="glass-card stat-card">
                                     <div className="stat-value">{freeCount}</div>
@@ -250,6 +255,9 @@ function AdminContent() {
                                             onClick={() => setActiveTab('users')}>
                                             👥 Manage Users
                                         </button>
+                                        <Link href="/admin/creators" className="btn btn-secondary" style={{ width: '100%', justifyContent: 'flex-start' }}>
+                                            🎨 Manage Creators
+                                        </Link>
                                         <button className="btn btn-secondary" style={{ width: '100%', justifyContent: 'flex-start' }}
                                             onClick={() => setActiveTab('resources')}>
                                             📚 Manage Resources

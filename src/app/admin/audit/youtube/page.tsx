@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import { useAuth } from '@/contexts/AuthContext';
-import { Resource, Credit } from '@/lib/types';
+import { Resource, Attribution } from '@/lib/types';
 import { isYouTubeUrl, fetchYouTubeMetadata, isGenericYouTubeName } from '@/lib/youtube';
 
 interface AuditItem {
@@ -42,12 +42,12 @@ export default function YouTubeAuditPage() {
                     const ytResources = allResources.filter(r => isYouTubeUrl(r.url));
 
                     const items: AuditItem[] = ytResources.map(r => {
-                        const ytCredit = r.credits?.find(c => isGenericYouTubeName(c.name));
+                        const ytAttribution = r.attributions?.find(c => isGenericYouTubeName(c.name));
 
                         return {
                             resource: r,
-                            currentName: ytCredit?.name || 'Unknown',
-                            status: ytCredit ? 'pending' : 'skipped'
+                            currentName: ytAttribution?.name || 'Unknown',
+                            status: ytAttribution ? 'pending' : 'skipped'
                         };
                     });
 
@@ -105,7 +105,7 @@ export default function YouTubeAuditPage() {
         setAuditItems(updatedItems);
 
         try {
-            const updatedCredits = item.resource.credits.map(c => {
+            const updatedAttributions = item.resource.attributions.map(c => {
                 if (isGenericYouTubeName(c.name)) {
                     return { ...c, name: item.suggestedName! };
                 }
@@ -115,7 +115,7 @@ export default function YouTubeAuditPage() {
             const response = await fetch(`/api/resources/${item.resource.id}`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ credits: updatedCredits })
+                body: JSON.stringify({ attributions: updatedAttributions })
             });
 
             const result = await response.json();
@@ -203,7 +203,7 @@ export default function YouTubeAuditPage() {
                                 <thead>
                                     <tr>
                                         <th>Resource</th>
-                                        <th>Current Credit</th>
+                                        <th>Current Attribution</th>
                                         <th>Suggested Channel</th>
                                         <th>Status</th>
                                         <th style={{ textAlign: 'right' }}>Actions</th>

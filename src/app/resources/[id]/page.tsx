@@ -9,7 +9,7 @@ import { db } from '@/lib/firebase';
 import { doc, getDoc, deleteDoc, updateDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
 import { Resource } from '@/lib/types';
 import { useAuth } from '@/contexts/AuthContext';
-import { getYouTubeEmbedUrl, extractYouTubeId, isYouTubeUrl, isGenericYouTubeName, deduplicateCredits } from '@/lib/youtube';
+import { getYouTubeEmbedUrl, extractYouTubeId, isYouTubeUrl, isGenericYouTubeName, deduplicateAttributions } from '@/lib/youtube';
 import { getDefaultCategories } from '@/lib/suggestions';
 import Modal from '@/components/Modal';
 import ReactMarkdown from 'react-markdown';
@@ -1238,27 +1238,27 @@ export default function ResourceDetailPage() {
                                 </div>
                             </div>
 
-                            {resource.credits && resource.credits.length > 0 && (
+                            {resource.attributions && resource.attributions.length > 0 && (
                                 <div className="sidebar-section">
                                     <h3 className="detail-section-title">Attribution</h3>
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
-                                        {deduplicateCredits(resource.credits || []).map((c) => {
+                                        {deduplicateAttributions(resource.attributions || []).map((c) => {
                                             const isGeneric = isGenericYouTubeName(c.name) && resource.url && isYouTubeUrl(resource.url);
                                             const name = isGeneric ? 'YouTube' : c.name;
                                             return { ...c, name };
-                                        }).map((credit, idx) => (
+                                        }).map((attribution, idx) => (
                                             <a
                                                 key={idx}
-                                                href={credit.url}
+                                                href={attribution.url}
                                                 target="_blank"
                                                 rel="noopener noreferrer"
-                                                className="credit-card"
+                                                className="attribution-card"
                                                 style={{ padding: 'var(--space-3)', fontSize: 'var(--text-xs)' }}
                                             >
-                                                <div className="credit-avatar" style={{ width: '32px', height: '32px', fontSize: '1rem' }}>👤</div>
+                                                <div className="attribution-avatar" style={{ width: '32px', height: '32px', fontSize: '1rem' }}>👤</div>
                                                 <div style={{ overflow: 'hidden' }}>
                                                     <div style={{ fontWeight: 700, color: 'var(--text-primary)', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
-                                                        {credit.name}
+                                                        {attribution.name}
                                                     </div>
                                                 </div>
                                             </a>

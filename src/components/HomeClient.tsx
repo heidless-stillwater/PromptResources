@@ -1,12 +1,15 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { useEffect } from 'react';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Icons } from '@/components/ui/Icons';
 import { useAuth } from '@/contexts/AuthContext'; 
 import Image from 'next/image';
+
+import { UserProfile } from '@/lib/types';
 
 interface Resource {
   id: string;
@@ -17,7 +20,7 @@ interface Resource {
   createdAt?: any;
 }
 
-export default function HomeClient({ recentResources = [], topics = [] }: { recentResources?: Resource[], topics?: string[] }) {
+export default function HomeClient({ recentResources = [], featuredCreators = [], topics = [] }: { recentResources?: Resource[], featuredCreators?: UserProfile[], topics?: string[] }) {
     const { user, loading, signInWithGoogle } = useAuth();
     const router = useRouter();
 
@@ -71,6 +74,7 @@ export default function HomeClient({ recentResources = [], topics = [] }: { rece
                         src="/assets/landing/hero-anatomy.png"
                         alt="Network Visualization"
                         fill
+                        sizes="100vw"
                         className="object-cover opacity-20 mix-blend-luminosity scale-105"
                         priority
                     />
@@ -112,7 +116,13 @@ export default function HomeClient({ recentResources = [], topics = [] }: { rece
                     <div className="relative animate-in fade-in slide-in-from-right-8 duration-1000 delay-300">
                         <Card variant="glass" className="p-8 rounded-[3rem] border-white/5 bg-white/[0.02] backdrop-blur-2xl shadow-2xl backdrop-glow">
                             <div className="relative aspect-[4/3] rounded-2xl overflow-hidden mb-8 border border-white/10 shadow-lg">
-                                <Image src="/assets/landing/hero-anatomy.png" alt="Library Visual" fill className="object-cover" />
+                                <Image 
+                                    src="/assets/landing/hero-anatomy.png" 
+                                    alt="Library Visual" 
+                                    fill 
+                                    sizes="(max-width: 768px) 100vw, 50vw"
+                                    className="object-cover" 
+                                />
                             </div>
 
                             <div className="space-y-6">
@@ -160,6 +170,7 @@ export default function HomeClient({ recentResources = [], topics = [] }: { rece
                                     src={`/assets/landing/community-${(i % 4) + 1}.png`}
                                     alt={resource?.title || `Resource ${i + 1}`}
                                     fill
+                                    sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 25vw"
                                     className="object-cover opacity-60 group-hover:opacity-100 group-hover:scale-110 transition-all duration-700 grayscale-[50%] group-hover:grayscale-0"
                                 />
                                 <div className="absolute inset-0 bg-gradient-to-t from-black via-black/80 to-transparent opacity-90 group-hover:opacity-100 transition-opacity" />
@@ -184,6 +195,50 @@ export default function HomeClient({ recentResources = [], topics = [] }: { rece
                             </div>
                         ))}
                     </div>
+
+                    {/* Featured Creators Row */}
+                    {featuredCreators.length > 0 && (
+                        <div className="space-y-8 pt-16">
+                            <div className="flex items-center justify-between">
+                                <h3 className="text-xl font-bold uppercase tracking-widest flex items-center gap-3">
+                                    <span className="w-8 h-px bg-primary/30" />
+                                    Our Top Creators
+                                </h3>
+                                <Link href="/creators" className="text-[10px] font-black uppercase tracking-widest text-primary hover:underline">
+                                    View Directory →
+                                </Link>
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                                {featuredCreators.map((creator) => (
+                                    <Link 
+                                        key={creator.uid} 
+                                        href={`/creators/${creator.slug || creator.uid}`}
+                                        className="p-6 rounded-[2rem] bg-white/[0.03] border border-white/5 hover:bg-white/[0.05] hover:border-primary/30 transition-all group flex items-center gap-4"
+                                    >
+                                        <div className="relative w-16 h-16 rounded-2xl overflow-hidden grayscale group-hover:grayscale-0 transition-all">
+                                            {creator.photoURL ? (
+                                                <Image 
+                                                    src={creator.photoURL} 
+                                                    alt={creator.displayName} 
+                                                    fill 
+                                                    sizes="64px"
+                                                    className="object-cover" 
+                                                />
+                                            ) : (
+                                                <div className="w-full h-full bg-gradient-to-tr from-primary to-accent flex items-center justify-center text-xl font-black">
+                                                    {creator.displayName[0]}
+                                                </div>
+                                            )}
+                                        </div>
+                                        <div>
+                                            <p className="text-xs font-black uppercase tracking-tight group-hover:text-primary transition-colors">{creator.displayName}</p>
+                                            <p className="text-[10px] text-foreground-muted uppercase font-bold tracking-tighter">{creator.resourceCount || 0} RESOURCES</p>
+                                        </div>
+                                    </Link>
+                                ))}
+                            </div>
+                        </div>
+                    )}
                 </div>
             </section>
 

@@ -5,13 +5,14 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Resource } from '@/lib/types';
 import { useAuth } from '@/contexts/AuthContext';
-import { getYouTubeEmbedUrl, extractYouTubeId, isYouTubeUrl, isGenericYouTubeName, deduplicateCredits } from '@/lib/youtube';
+import { getYouTubeEmbedUrl, extractYouTubeId, isYouTubeUrl, isGenericYouTubeName, deduplicateAttributions } from '@/lib/youtube';
 import Modal from '@/components/Modal';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import Image from 'next/image';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
+import CreatorChip from '@/components/CreatorChip';
 
 interface ResourceDetailClientProps {
     initialResource: Resource;
@@ -607,23 +608,16 @@ export default function ResourceDetailClient({ initialResource }: ResourceDetail
                                     </div>
                                 )}
 
-                                {resource.credits && resource.credits.length > 0 && (
+                                {resource.attributions && resource.attributions.length > 0 && (
                                     <div>
-                                        <h3 style={{ fontSize: 'var(--text-base)', color: 'var(--text-secondary)', marginBottom: 'var(--space-3)' }}>Credits & Attribution</h3>
+                                        <h3 style={{ fontSize: 'var(--text-base)', color: 'var(--text-secondary)', marginBottom: 'var(--space-3)' }}>Attribution</h3>
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
-                                            {deduplicateCredits(resource.credits || []).map((c) => {
+                                            {deduplicateAttributions(resource.attributions || []).map((c) => {
                                                 const isGeneric = isGenericYouTubeName(c.name) && resource.url && isYouTubeUrl(resource.url);
                                                 const name = isGeneric ? 'YouTube' : c.name;
                                                 return { ...c, name };
-                                            }).map((credit, idx) => (
-                                                <a key={idx} href={credit.url} target="_blank" rel="noopener noreferrer" className="card" style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', padding: 'var(--space-3) var(--space-4)', textDecoration: 'none' }}>
-                                                    <span style={{ fontSize: '1.2rem' }}>👤</span>
-                                                    <div>
-                                                        <div style={{ fontWeight: 600, fontSize: 'var(--text-sm)' }}>{credit.name}</div>
-                                                        <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>{credit.url}</div>
-                                                    </div>
-                                                    <span style={{ marginLeft: 'auto', color: 'var(--text-muted)', fontSize: 'var(--text-sm)' }}>↗</span>
-                                                </a>
+                                            }).map((attribution, idx) => (
+                                                <CreatorChip key={idx} attribution={attribution} />
                                             ))}
                                         </div>
                                     </div>

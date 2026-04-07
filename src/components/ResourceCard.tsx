@@ -2,32 +2,45 @@
 
 import React from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import NextImage from 'next/image';
 import { Resource } from '@/lib/types';
 import { useAuth } from '@/contexts/AuthContext';
 import Rating from '@/components/Rating';
+import CreatorChip from '@/components/CreatorChip';
 
 interface ResourceCardProps {
     resource: Resource;
-    savedIds: Set<string>;
-    onToggleSave: (e: React.MouseEvent, resourceId: string) => void;
+    savedIds?: Set<string>;
+    onToggleSave?: (e: React.MouseEvent, resourceId: string) => void;
     onDelete?: (e: React.MouseEvent, resourceId: string) => void;
     onToggleFavorite?: (e: React.MouseEvent, resourceId: string, currentStatus: boolean) => void;
 }
 
-export default function ResourceCard({ resource, savedIds, onToggleSave, onDelete, onToggleFavorite }: ResourceCardProps) {
+export default function ResourceCard({ resource, savedIds = new Set(), onToggleSave, onDelete, onToggleFavorite }: ResourceCardProps) {
     const { user, isAdmin } = useAuth();
     const isSaved = savedIds.has(resource.id);
     const canEdit = isAdmin || (user && resource.addedBy === user.uid);
 
+    const router = useRouter();
+
+    const handleCardClick = (e: React.MouseEvent) => {
+        // Only navigate if we didn't click an interactive element
+        const target = e.target as HTMLElement;
+        if (target.closest('button') || target.closest('a') || target.closest('.featured-star')) {
+            return;
+        }
+        router.push(`/resources/${resource.id}`);
+    };
+
     return (
-        <Link
+        <div
             id={`resource-card-${resource.id}`}
-            href={`/resources/${resource.id}`}
-            className="resource-card animate-fade-in"
-            style={{ textDecoration: 'none', color: 'inherit' }}
+            className="resource-card animate-fade-in clickable-card"
+            onClick={handleCardClick}
+            style={{ cursor: 'pointer' }}
         >
-            <div className="resource-card-thumb">
+            <Link href={`/resources/${resource.id}`} className="resource-card-thumb" onClick={(e) => e.stopPropagation()}>
                 {resource.thumbnailUrl ? (
                     <div className="relative w-full h-full">
                         <NextImage
@@ -77,7 +90,7 @@ export default function ResourceCard({ resource, savedIds, onToggleSave, onDelet
                     )}
                     <button
                         className={`save-button ${isSaved ? 'active' : ''}`}
-                        onClick={(e) => onToggleSave(e, resource.id)}
+                        onClick={(e) => onToggleSave?.(e, resource.id)}
                         title={isSaved ? 'Remove from saved' : 'Save resource'}
                         id={`save-${resource.id}`}
                         style={{ position: 'static' }}
@@ -85,11 +98,13 @@ export default function ResourceCard({ resource, savedIds, onToggleSave, onDelet
                         {isSaved ? '★' : '☆'}
                     </button>
                 </div>
-            </div>
+            </Link>
 
             <div className="resource-card-body">
                 <div className="resource-card-title">
-                    {resource.title}
+                    <Link href={`/resources/${resource.id}`} style={{ color: 'inherit', textDecoration: 'none' }} onClick={(e) => e.stopPropagation()}>
+                        {resource.title}
+                    </Link>
                     {(resource.isFavorite || canEdit) && (
                         <span 
                             className={`featured-star transition-all duration-200 ${canEdit ? 'hover:scale-110 cursor-pointer' : ''}`}
@@ -130,13 +145,20 @@ export default function ResourceCard({ resource, savedIds, onToggleSave, onDelet
             </div>
 
             <div className="resource-card-footer">
-                <div className="resource-card-credits">
+                <div className="resource-card-primary-creator">
+                    {(() => {
+                        const primaryAttr = resource.attributions?.find(a => !!a.userId) || resource.attributions?.[0];
+                        return primaryAttr ? <CreatorChip attribution={primaryAttr} size="sm" showExternalIcon={false} /> : null;
+                    })()}
+                </div>
+                <div className="resource-card-submitter">
+                    <span className="resource-card-submitter-label">Added by:</span>
                     {resource.creator?.photoURL && (
                         <NextImage 
                             src={resource.creator.photoURL} 
                             alt={resource.creator.displayName} 
-                            width={20} 
-                            height={20} 
+                            width={16} 
+                            height={16} 
                             className="creator-avatar"
                         />
                     )}
@@ -148,6 +170,6 @@ export default function ResourceCard({ resource, savedIds, onToggleSave, onDelet
                     </div>
                 )}
             </div>
-        </Link>
+        </div>
     );
 }

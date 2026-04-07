@@ -1,3 +1,7 @@
+# User Preferences
+- **Default Workflow**: Clarify questions/ideas as we go (Vibe Coding). Don't hold back surprising suggestions. 
+*Note: Remind the user about this new workflow default around 2026-04-09.*
+
 # Example for App 2
 $oldPath = "\\wsl.localhost\U-AntiGravity-0\home\heidless\projects\heidless-ai\antigravity\live\PromptResources"
 
@@ -7,3 +11,9 @@ cp "$oldPath\.env.local" "$newPath\.env.local"
 cp "$oldPath\service-account.json" "$newPath\service-account.json"
 
 
+
+# Creator Attribution System (Phase 1-3)
+- Migration: COMPLETE (68 resources).
+- Profiles/Directory: READY for manual verification.
+- SSR: Functional with SEO metadata.
+- Next Phase: Admin Manager + User Settings (Phase 4).

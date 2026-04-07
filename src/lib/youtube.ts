@@ -134,12 +134,12 @@ export function isGenericYouTubeName(name: string | null | undefined): boolean {
 }
 
 /**
- * Deduplicate credits based on name and URL
+ * Deduplicate attributions based on name and URL
  */
-export function deduplicateCredits<T extends { name: string; url: string }>(credits: T[]): T[] {
+export function deduplicateAttributions<T extends { name: string; url: string }>(attributions: T[]): T[] {
     const seen = new Set<string>();
-    return credits.filter(credit => {
-        const key = `${credit.name.trim().toLowerCase()}|${credit.url.trim().toLowerCase()}`;
+    return attributions.filter(attribution => {
+        const key = `${attribution.name.trim().toLowerCase()}|${attribution.url.trim().toLowerCase()}`;
         if (seen.has(key)) return false;
         seen.add(key);
         return true;

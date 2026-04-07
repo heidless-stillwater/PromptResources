@@ -4,9 +4,9 @@ import React, { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import Navbar from '@/components/Navbar';
 import { useAuth } from '@/contexts/AuthContext';
-import { Credit, Platform, ResourcePricing, ResourceType, MediaFormat, ResourceStatus, Resource } from '@/lib/types';
-import { suggestCategories, suggestCredits, getDefaultCategories, suggestDescription, suggestTags } from '@/lib/suggestions';
-import { extractYouTubeId, isYouTubeUrl, fetchYouTubeMetadata, isGenericYouTubeName, deduplicateCredits } from '@/lib/youtube';
+import { Attribution, Platform, ResourcePricing, ResourceType, MediaFormat, ResourceStatus, Resource } from '@/lib/types';
+import { suggestCategories, suggestAttributions, getDefaultCategories, suggestDescription, suggestTags } from '@/lib/suggestions';
+import { extractYouTubeId, isYouTubeUrl, fetchYouTubeMetadata, isGenericYouTubeName, deduplicateAttributions } from '@/lib/youtube';
 import Link from 'next/link';
 import ThumbnailPicker from '@/components/ThumbnailPicker';
 
@@ -27,9 +27,9 @@ export default function EditResourcePage() {
     const [prompts, setPrompts] = useState('');
     const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
     const [suggestedCategories, setSuggestedCategories] = useState<string[]>([]);
-    const [credits, setCredits] = useState<Credit[]>([{ name: '', url: '' }]);
+    const [attributions, setAttributions] = useState<Attribution[]>([{ name: '', url: '' }]);
     const [status, setStatus] = useState<ResourceStatus>('suggested');
-    const [suggestedCredits, setSuggestedCredits] = useState<Credit[]>([]);
+    const [suggestedAttributions, setSuggestedAttributions] = useState<Attribution[]>([]);
     const [ytMetadata, setYtMetadata] = useState<any>(null);
     const [isFavorite, setIsFavorite] = useState(false);
     const [rank, setRank] = useState<number | ''>('');
@@ -73,7 +73,7 @@ export default function EditResourcePage() {
                     setPricingDetails(res.pricingDetails || '');
                     setTags(res.tags?.join(', ') || '');
                     setSelectedCategories(res.categories || []);
-                    setCredits(res.credits && res.credits.length > 0 ? res.credits : [{ name: '', url: '' }]);
+                    setAttributions(res.attributions && res.attributions.length > 0 ? res.attributions : [{ name: '', url: '' }]);
                     setThumbnailUrl(res.thumbnailUrl || '');
                     setStatus(res.status || 'suggested');
                     setIsFavorite(res.isFavorite || false);
@@ -95,7 +95,7 @@ export default function EditResourcePage() {
         fetchResource();
     }, [id, user, isAdmin, router]);
 
-    // Auto-detect YouTube and suggest categories/credits (only if URL changes)
+    // Auto-detect YouTube and suggest categories/attributions (only if URL changes)
     useEffect(() => {
         if (url && isYouTubeUrl(url) && url !== originalResource?.url) {
             setMediaFormat('youtube');
@@ -108,7 +108,7 @@ export default function EditResourcePage() {
                     const channelName = data.author_name;
                     setYtMetadata(data);
 
-                    setSuggestedCredits(prev => {
+                    setSuggestedAttributions(prev => {
                         const newCreds = isYouTubeUrl(url) ?
                             prev.map(c => c.name === 'Youtube' ? { ...c, name: channelName, url: data.author_url || url } : c) :
                             [...prev];
@@ -116,7 +116,7 @@ export default function EditResourcePage() {
                         if (!newCreds.some(c => c.name === channelName)) {
                             newCreds.push({ name: channelName, url: data.author_url || url });
                         }
-                        return deduplicateCredits(newCreds);
+                        return deduplicateAttributions(newCreds);
                     });
 
                     // Autofill Title
@@ -153,8 +153,8 @@ export default function EditResourcePage() {
                         return prev;
                     });
 
-                    // Only autofill credits if they are empty or just have placeholders
-                    setCredits(prev => {
+                    // Only autofill attributions if they are empty or just have placeholders
+                    setAttributions(prev => {
                         if (prev.length === 0 || (prev.length === 1 && !prev[0].name && !prev[0].url)) {
                             return [{ name: channelName, url: data.author_url || url }];
                         }
@@ -178,8 +178,8 @@ export default function EditResourcePage() {
         if (title || url) {
             const cats = suggestCategories(title, description, url, { tags, type, mediaFormat, platform, pricing });
             setSuggestedCategories(cats);
-            const creds = suggestCredits(url, title, { authorName: ytMetadata?.author_name, authorUrl: ytMetadata?.author_url });
-            setSuggestedCredits(creds);
+            const creds = suggestAttributions(url, title, { authorName: ytMetadata?.author_name, authorUrl: ytMetadata?.author_url });
+            setSuggestedAttributions(creds);
         }
     }, [title, description, url, ytMetadata, tags, type, mediaFormat, platform, pricing]);
 
@@ -193,28 +193,28 @@ export default function EditResourcePage() {
         setSelectedCategories(selectedCategories.filter((c) => c !== cat));
     };
 
-    const addCredit = () => {
-        setCredits([...credits, { name: '', url: '' }]);
+    const addAttribution = () => {
+        setAttributions([...attributions, { name: '', url: '' }]);
     };
 
-    const removeCredit = (idx: number) => {
-        setCredits(credits.filter((_, i) => i !== idx));
+    const removeAttribution = (idx: number) => {
+        setAttributions(attributions.filter((_, i) => i !== idx));
     };
 
-    const updateCredit = (idx: number, field: keyof Credit, value: string) => {
-        const updated = [...credits];
+    const updateAttribution = (idx: number, field: keyof Attribution, value: string) => {
+        const updated = [...attributions];
         updated[idx] = { ...updated[idx], [field]: value };
-        setCredits(updated);
+        setAttributions(updated);
     };
 
-    const applySuggestedCredit = (credit: Credit) => {
-        const empty = credits.findIndex((c) => !c.name && !c.url);
+    const applySuggestedAttribution = (attribution: Attribution) => {
+        const empty = attributions.findIndex((c) => !c.name && !c.url);
         if (empty >= 0) {
-            const updated = [...credits];
-            updated[empty] = credit;
-            setCredits(updated);
+            const updated = [...attributions];
+            updated[empty] = attribution;
+            setAttributions(updated);
         } else {
-            setCredits([...credits, credit]);
+            setAttributions([...attributions, attribution]);
         }
     };
 
@@ -227,7 +227,7 @@ export default function EditResourcePage() {
             return;
         }
 
-        const validCredits = credits.filter((c) => c.name.trim() && c.url.trim());
+        const validAttributions = attributions.filter((c) => c.name.trim() && c.url.trim());
 
         setSaving(true);
         try {
@@ -253,7 +253,7 @@ export default function EditResourcePage() {
                     pricing,
                     pricingDetails: pricingDetails.trim(),
                     categories: selectedCategories,
-                    credits: validCredits,
+                    attributions: validAttributions,
                     youtubeVideoId: youtubeVideoId || null,
                     thumbnailUrl: thumbnailUrl.trim() || null,
                     tags: tags.split(',').map((t) => t.trim()).filter(Boolean),
@@ -349,8 +349,8 @@ export default function EditResourcePage() {
                                     onClick={() => {
                                         const cats = suggestCategories(title, description, url, { tags, type, mediaFormat, platform, pricing });
                                         setSelectedCategories(Array.from(new Set([...selectedCategories, ...cats])));
-                                        const creds = suggestCredits(url, title, { authorName: ytMetadata?.author_name, authorUrl: ytMetadata?.author_url });
-                                        if (creds.length > 0) setCredits(creds);
+                                        const creds = suggestAttributions(url, title, { authorName: ytMetadata?.author_name, authorUrl: ytMetadata?.author_url });
+                                        if (creds.length > 0) setAttributions(creds);
                                         if (!description) {
                                             const desc = suggestDescription(title);
                                             if (desc) setDescription(desc);
@@ -363,7 +363,7 @@ export default function EditResourcePage() {
                                         }
                                     }}
                                     id="ai-quick-autofill"
-                                    title="Autofill Description, Tags, Categories and Credits using AI"
+                                    title="Autofill Description, Tags, Categories and Attributions using AI"
                                 >
                                     ✨ Magic AI Autofill
                                 </button>
@@ -713,25 +713,25 @@ export default function EditResourcePage() {
                             </div>
                         </div>
 
-                        {/* Credits */}
+                        {/* Attributions */}
                         <div className="glass-card" style={{ marginBottom: 'var(--space-6)' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-4)' }}>
-                                <h3 style={{ fontSize: 'var(--text-lg)', marginBottom: 0 }}>👤 Credits & Attribution</h3>
+                                <h3 style={{ fontSize: 'var(--text-lg)', marginBottom: 0 }}>👤 Attributions & Attribution</h3>
                                 <button
                                     type="button"
                                     className="btn btn-secondary btn-sm"
                                     onClick={() => {
-                                        const creds = suggestCredits(url, title, { authorName: ytMetadata?.author_name });
-                                        if (creds.length > 0) setCredits(creds);
+                                        const creds = suggestAttributions(url, title, { authorName: ytMetadata?.author_name });
+                                        if (creds.length > 0) setAttributions(creds);
                                     }}
-                                    id="ai-suggest-credits"
+                                    id="ai-suggest-attributions"
                                 >
-                                    ✨ AI Suggest Credits
+                                    ✨ AI Suggest Attributions
                                 </button>
                             </div>
 
-                            {/* AI Suggested Credits */}
-                            {suggestedCredits.length > 0 && suggestedCredits.some(sc => !credits.some(c => c.name === sc.name)) && (
+                            {/* AI Suggested Attributions */}
+                            {suggestedAttributions.length > 0 && suggestedAttributions.some(sc => !attributions.some(c => c.name === sc.name)) && (
                                 <div style={{ marginBottom: 'var(--space-4)' }}>
                                     <div style={{
                                         fontSize: 'var(--text-xs)',
@@ -740,26 +740,26 @@ export default function EditResourcePage() {
                                         marginBottom: 'var(--space-2)',
                                         textTransform: 'uppercase',
                                     }}>
-                                        🤖 AI Suggested Credits
+                                        🤖 AI Suggested Attributions
                                     </div>
                                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-2)' }}>
-                                        {suggestedCredits
-                                            .filter(sc => !credits.some(c => c.name === sc.name))
-                                            .map((credit, idx) => (
+                                        {suggestedAttributions
+                                            .filter(sc => !attributions.some(c => c.name === sc.name))
+                                            .map((attribution, idx) => (
                                                 <button
                                                     key={idx}
                                                     type="button"
                                                     className="btn btn-sm btn-secondary"
-                                                    onClick={() => applySuggestedCredit(credit)}
+                                                    onClick={() => applySuggestedAttribution(attribution)}
                                                 >
-                                                    + {credit.name}
+                                                    + {attribution.name}
                                                 </button>
                                             ))}
                                     </div>
                                 </div>
                             )}
 
-                            {credits.map((credit, idx) => (
+                            {attributions.map((attribution, idx) => (
                                 <div key={idx} style={{
                                     display: 'grid',
                                     gridTemplateColumns: '1fr 1fr auto',
@@ -772,8 +772,8 @@ export default function EditResourcePage() {
                                         <input
                                             type="text"
                                             className="form-input"
-                                            value={credit.name}
-                                            onChange={(e) => updateCredit(idx, 'name', e.target.value)}
+                                            value={attribution.name}
+                                            onChange={(e) => updateAttribution(idx, 'name', e.target.value)}
                                             placeholder="Creator/Provider name"
                                         />
                                     </div>
@@ -782,16 +782,16 @@ export default function EditResourcePage() {
                                         <input
                                             type="url"
                                             className="form-input"
-                                            value={credit.url}
-                                            onChange={(e) => updateCredit(idx, 'url', e.target.value)}
+                                            value={attribution.url}
+                                            onChange={(e) => updateAttribution(idx, 'url', e.target.value)}
                                             placeholder="https://..."
                                         />
                                     </div>
-                                    {credits.length > 1 && (
+                                    {attributions.length > 1 && (
                                         <button
                                             type="button"
                                             className="btn btn-ghost btn-sm"
-                                            onClick={() => removeCredit(idx)}
+                                            onClick={() => removeAttribution(idx)}
                                             style={{ color: 'var(--danger-400)' }}
                                         >
                                             ✕
@@ -800,8 +800,8 @@ export default function EditResourcePage() {
                                 </div>
                             ))}
 
-                            <button type="button" className="btn btn-ghost btn-sm" onClick={addCredit}>
-                                + Add Another Credit
+                            <button type="button" className="btn btn-ghost btn-sm" onClick={addAttribution}>
+                                + Add Another Attribution
                             </button>
                         </div>
 

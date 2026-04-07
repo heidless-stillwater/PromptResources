@@ -8,9 +8,9 @@ import Modal from '@/components/Modal';
 import { db } from '@/lib/firebase';
 import { collection, addDoc, serverTimestamp, query, where, getDocs, limit } from 'firebase/firestore';
 import { useAuth } from '@/contexts/AuthContext';
-import { Credit, Platform, ResourcePricing, ResourceType, MediaFormat, ResourceStatus } from '@/lib/types';
-import { suggestCategories, suggestCredits, getDefaultCategories, suggestDescription, suggestTags } from '@/lib/suggestions';
-import { extractYouTubeId, isYouTubeUrl, fetchYouTubeMetadata, isGenericYouTubeName, deduplicateCredits } from '@/lib/youtube';
+import { Attribution, Platform, ResourcePricing, ResourceType, MediaFormat, ResourceStatus } from '@/lib/types';
+import { suggestCategories, suggestAttributions, getDefaultCategories, suggestDescription, suggestTags } from '@/lib/suggestions';
+import { extractYouTubeId, isYouTubeUrl, fetchYouTubeMetadata, isGenericYouTubeName, deduplicateAttributions } from '@/lib/youtube';
 import ThumbnailPicker from '@/components/ThumbnailPicker';
 
 export default function NewResourcePage() {
@@ -29,9 +29,9 @@ export default function NewResourcePage() {
     const [prompts, setPrompts] = useState('');
     const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
     const [suggestedCategories, setSuggestedCategories] = useState<string[]>([]);
-    const [credits, setCredits] = useState<Credit[]>([{ name: '', url: '' }]);
+    const [attributions, setAttributions] = useState<Attribution[]>([{ name: '', url: '' }]);
     const [status, setStatus] = useState<ResourceStatus>(isAdmin ? 'published' : 'suggested');
-    const [suggestedCredits, setSuggestedCredits] = useState<Credit[]>([]);
+    const [suggestedAttributions, setSuggestedAttributions] = useState<Attribution[]>([]);
     const [ytMetadata, setYtMetadata] = useState<any>(null);
     const [isFavorite, setIsFavorite] = useState<boolean | null>(null);
     const [rank, setRank] = useState<number | ''>('');
@@ -61,8 +61,8 @@ export default function NewResourcePage() {
                 const channelName = data.author_name;
                 
                 // Set suggested values
-                setCredits(prev => {
-                    // If credits list contains generic placeholder or is empty, update/add
+                setAttributions(prev => {
+                    // If attributions list contains generic placeholder or is empty, update/add
                     if (prev.length === 0 || (prev.length === 1 && !prev[0].name && !prev[0].url)) {
                         return [{ name: channelName, url: data.author_url || targetUrl }];
                     }
@@ -72,7 +72,7 @@ export default function NewResourcePage() {
                         return prev.map(c => isGenericYouTubeName(c.name) ? { ...c, name: channelName, url: data.author_url || targetUrl } : c);
                     }
                     
-                    // If channel name is not already in credits, add it
+                    // If channel name is not already in attributions, add it
                     if (!prev.some(c => c.name === channelName)) {
                         return [...prev, { name: channelName, url: data.author_url || targetUrl }];
                     }
@@ -113,7 +113,7 @@ export default function NewResourcePage() {
         }
     };
 
-    // Auto-detect YouTube and suggest categories/credits
+    // Auto-detect YouTube and suggest categories/attributions
     useEffect(() => {
         if (url && isYouTubeUrl(url)) {
             setMediaFormat('youtube');
@@ -136,8 +136,8 @@ export default function NewResourcePage() {
         if (title || url) {
             const cats = suggestCategories(title, description, url, { tags, type, mediaFormat, platform, pricing });
             setSuggestedCategories(cats);
-            const creds = suggestCredits(url, title, { authorName: ytMetadata?.author_name, authorUrl: ytMetadata?.author_url });
-            setSuggestedCredits(creds);
+            const creds = suggestAttributions(url, title, { authorName: ytMetadata?.author_name, authorUrl: ytMetadata?.author_url });
+            setSuggestedAttributions(creds);
         }
     }, [title, description, url, ytMetadata, tags, type, mediaFormat, platform, pricing]);
 
@@ -197,28 +197,38 @@ export default function NewResourcePage() {
         setSelectedCategories(selectedCategories.filter((c) => c !== cat));
     };
 
-    const addCredit = () => {
-        setCredits([...credits, { name: '', url: '' }]);
+    const addAttribution = () => {
+        setAttributions([...attributions, { name: '', url: '' }]);
     };
 
-    const removeCredit = (idx: number) => {
-        setCredits(credits.filter((_, i) => i !== idx));
+    const removeAttribution = (idx: number) => {
+        setAttributions(attributions.filter((_, i) => i !== idx));
     };
 
-    const updateCredit = (idx: number, field: keyof Credit, value: string) => {
-        const updated = [...credits];
+    const updateAttribution = (idx: number, field: keyof Attribution, value: string) => {
+        const updated = [...attributions];
         updated[idx] = { ...updated[idx], [field]: value };
-        setCredits(updated);
+        setAttributions(updated);
     };
 
-    const applySuggestedCredit = (credit: Credit) => {
-        const empty = credits.findIndex((c) => !c.name && !c.url);
-        if (empty >= 0) {
-            const updated = [...credits];
-            updated[empty] = credit;
-            setCredits(updated);
+    const toggleSelfAttribution = () => {
+        if (!user) return;
+        const selfIdx = attributions.findIndex(a => a.userId === user.uid);
+        if (selfIdx >= 0) {
+            removeAttribution(selfIdx);
         } else {
-            setCredits([...credits, credit]);
+            setAttributions([...attributions, { name: user.displayName || 'Me', userId: user.uid, url: '', role: 'author' }]);
+        }
+    };
+
+    const applySuggestedAttribution = (attribution: Attribution) => {
+        const empty = attributions.findIndex((c) => !c.name && !c.url);
+        if (empty >= 0) {
+            const updated = [...attributions];
+            updated[empty] = attribution;
+            setAttributions(updated);
+        } else {
+            setAttributions([...attributions, attribution]);
         }
     };
 
@@ -253,7 +263,7 @@ export default function NewResourcePage() {
 
     const doSubmit = async (overwriteId?: string) => {
 
-        const validCredits = credits.filter((c) => c.name.trim() && c.url.trim());
+        const validAttributions = attributions.filter((c) => c.name.trim() && c.url.trim());
 
         setLoading(true);
         try {
@@ -282,7 +292,7 @@ export default function NewResourcePage() {
                     pricing,
                     pricingDetails: pricingDetails.trim(),
                     categories: selectedCategories,
-                    credits: validCredits,
+                    attributions: validAttributions,
                     youtubeVideoId: youtubeVideoId || null,
                     thumbnailUrl: thumbnailUrl.trim() || null,
                     tags: tags.split(',').map((t) => t.trim()).filter(Boolean),
@@ -407,8 +417,8 @@ export default function NewResourcePage() {
                                     onClick={() => {
                                         const cats = suggestCategories(title, description, url, { tags, type, mediaFormat, platform, pricing });
                                         setSelectedCategories(Array.from(new Set([...selectedCategories, ...cats])));
-                                        const creds = suggestCredits(url, title, { authorName: ytMetadata?.author_name, authorUrl: ytMetadata?.author_url });
-                                        if (creds.length > 0) setCredits(creds);
+                                        const creds = suggestAttributions(url, title, { authorName: ytMetadata?.author_name, authorUrl: ytMetadata?.author_url });
+                                        if (creds.length > 0) setAttributions(creds);
                                         if (!description) {
                                             const desc = suggestDescription(title);
                                             setDescription(desc);
@@ -421,7 +431,7 @@ export default function NewResourcePage() {
                                         }
                                     }}
                                     id="ai-quick-autofill"
-                                    title="Autofill Description, Tags, Categories and Credits using AI"
+                                    title="Autofill Description, Tags, Categories and Attributions using AI"
                                 >
                                     ✨ Magic AI Autofill
                                 </button>
@@ -551,6 +561,102 @@ export default function NewResourcePage() {
                                             gap: 'var(--space-2)'
                                         }}>
                                             ⚠️ A resource with this title already exists in the database.
+                                        </div>
+                                    )}
+                                </div>
+
+                                   <div className="form-group col-span-2">
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-4)' }}>
+                                        <label className="form-label" style={{ marginBottom: 0 }}>👥 Creators & Attributions</label>
+                                        <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
+                                            <button
+                                                type="button"
+                                                className={`btn btn-sm ${attributions.some(a => a.userId === user.uid) ? 'btn-primary' : 'btn-secondary'}`}
+                                                onClick={toggleSelfAttribution}
+                                            >
+                                                {attributions.some(a => a.userId === user.uid) ? '✅ I am the Author' : '👤 Add Me as Author'}
+                                            </button>
+                                            <button
+                                                type="button"
+                                                className="btn btn-secondary btn-sm"
+                                                onClick={addAttribution}
+                                            >
+                                                ➕ Add Another
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <div style={{ display: 'grid', gap: 'var(--space-3)' }}>
+                                        {attributions.map((attr, idx) => (
+                                            <div key={idx} className="glass-card" style={{ padding: 'var(--space-3)', border: '1px solid var(--border-subtle)', background: 'rgba(255,255,255,0.02)' }}>
+                                                <div style={{ display: 'grid', gridTemplateColumns: '2fr 2fr 1.5fr auto', gap: 'var(--space-3)', alignItems: 'end' }}>
+                                                    <div className="form-group" style={{ margin: 0 }}>
+                                                        <label className="form-label" style={{ fontSize: '10px', textTransform: 'uppercase' }}>Name</label>
+                                                        <input
+                                                            type="text"
+                                                            className="form-input"
+                                                            value={attr.name}
+                                                            onChange={(e) => updateAttribution(idx, 'name', e.target.value)}
+                                                            placeholder="Creator name"
+                                                            disabled={attr.userId === user.uid}
+                                                        />
+                                                    </div>
+                                                    <div className="form-group" style={{ margin: 0 }}>
+                                                        <label className="form-label" style={{ fontSize: '10px', textTransform: 'uppercase' }}>URL</label>
+                                                        <input
+                                                            type="url"
+                                                            className="form-input"
+                                                            value={attr.url}
+                                                            onChange={(e) => updateAttribution(idx, 'url', e.target.value)}
+                                                            placeholder="Profile/Video Link"
+                                                        />
+                                                    </div>
+                                                    <div className="form-group" style={{ margin: 0 }}>
+                                                        <label className="form-label" style={{ fontSize: '10px', textTransform: 'uppercase' }}>Role</label>
+                                                        <select
+                                                            className="form-select"
+                                                            value={attr.role || 'author'}
+                                                            onChange={(e) => updateAttribution(idx, 'role', e.target.value)}
+                                                        >
+                                                            <option value="author">Author/Creator</option>
+                                                            <option value="curator">Curator/Collector</option>
+                                                            <option value="presenter">Presenter</option>
+                                                            <option value="contributor">Contributor</option>
+                                                        </select>
+                                                    </div>
+                                                    <button
+                                                        type="button"
+                                                        className="btn btn-ghost btn-sm"
+                                                        onClick={() => removeAttribution(idx)}
+                                                        style={{ color: 'var(--danger-400)', padding: 'var(--space-2)' }}
+                                                        title="Remove attribution"
+                                                    >
+                                                        ✕
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    
+                                    {suggestedAttributions.length > 0 && suggestedAttributions.some(s => !attributions.some(a => a.name === s.name)) && (
+                                        <div style={{ marginTop: 'var(--space-3)' }}>
+                                            <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: 'var(--space-2)' }}>🤖 Suggested from URL:</div>
+                                            <div style={{ display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap' }}>
+                                                {suggestedAttributions
+                                                    .filter(s => !attributions.some(a => a.name === s.name))
+                                                    .map((s, i) => (
+                                                        <button
+                                                            key={i}
+                                                            type="button"
+                                                            className="chip chip-accent clickable"
+                                                            onClick={() => applySuggestedAttribution(s)}
+                                                            style={{ fontSize: '11px' }}
+                                                        >
+                                                            + {s.name}
+                                                        </button>
+                                                    ))
+                                                }
+                                            </div>
                                         </div>
                                     )}
                                 </div>
@@ -811,54 +917,54 @@ export default function NewResourcePage() {
                             </div>
                         </div>
 
-                        {/* Credits */}
+                        {/* Attributions */}
                         <div className="admin-section">
                             <div className="admin-section-header">
-                                <h3 className="admin-section-title">👤 Credits & Attribution</h3>
+                                <h3 className="admin-section-title">👤 Attributions & Attribution</h3>
                                 <button
                                     type="button"
                                     className="btn btn-secondary btn-sm"
                                     onClick={() => {
-                                        const creds = suggestCredits(url, title, { authorName: ytMetadata?.author_name });
-                                        if (creds.length > 0) setCredits(creds);
+                                        const creds = suggestAttributions(url, title, { authorName: ytMetadata?.author_name });
+                                        if (creds.length > 0) setAttributions(creds);
                                     }}
-                                    id="ai-suggest-credits"
+                                    id="ai-suggest-attributions"
                                 >
-                                    ✨ AI Suggest Credits
+                                    ✨ AI Suggest Attributions
                                 </button>
                             </div>
 
-                            <div className="admin-credits-section">
-                                {/* AI Suggested Credits */}
-                                {suggestedCredits.length > 0 && (
-                                    <div className="suggested-credits-pill-group">
+                            <div className="admin-attributions-section">
+                                {/* AI Suggested Attributions */}
+                                {suggestedAttributions.length > 0 && (
+                                    <div className="suggested-attributions-pill-group">
                                         <div className="selection-label ai-label">🤖 AI Suggested:</div>
                                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-2)' }}>
-                                            {suggestedCredits.map((credit, idx) => (
+                                            {suggestedAttributions.map((attribution, idx) => (
                                                 <button
                                                     key={idx}
                                                     type="button"
                                                     className="btn btn-xs btn-secondary"
                                                     style={{ borderRadius: '20px' }}
-                                                    onClick={() => applySuggestedCredit(credit)}
+                                                    onClick={() => applySuggestedAttribution(attribution)}
                                                 >
-                                                    + {credit.name}
+                                                    + {attribution.name}
                                                 </button>
                                             ))}
                                         </div>
                                     </div>
                                 )}
 
-                                <div className="credits-list">
-                                    {credits.map((credit, idx) => (
-                                        <div key={idx} className="credit-row">
+                                <div className="attributions-list">
+                                    {attributions.map((attribution, idx) => (
+                                        <div key={idx} className="attribution-row">
                                             <div className="form-group">
                                                 <label className="form-label">Name</label>
                                                 <input
                                                     type="text"
                                                     className="form-input"
-                                                    value={credit.name}
-                                                    onChange={(e) => updateCredit(idx, 'name', e.target.value)}
+                                                    value={attribution.name}
+                                                    onChange={(e) => updateAttribution(idx, 'name', e.target.value)}
                                                     placeholder="Creator/Provider name"
                                                 />
                                             </div>
@@ -867,18 +973,18 @@ export default function NewResourcePage() {
                                                 <input
                                                     type="url"
                                                     className="form-input"
-                                                    value={credit.url}
-                                                    onChange={(e) => updateCredit(idx, 'url', e.target.value)}
+                                                    value={attribution.url}
+                                                    onChange={(e) => updateAttribution(idx, 'url', e.target.value)}
                                                     placeholder="https://..."
                                                 />
                                             </div>
-                                            <div className="credit-actions">
-                                                {credits.length > 1 && (
+                                            <div className="attribution-actions">
+                                                {attributions.length > 1 && (
                                                     <button
                                                         type="button"
                                                         className="btn-icon btn-danger"
-                                                        onClick={() => removeCredit(idx)}
-                                                        title="Remove Credit"
+                                                        onClick={() => removeAttribution(idx)}
+                                                        title="Remove Attribution"
                                                     >
                                                         ✕
                                                     </button>
@@ -888,7 +994,7 @@ export default function NewResourcePage() {
                                     ))}
                                 </div>
 
-                                <button type="button" className="btn btn-secondary btn-sm" onClick={addCredit} style={{ marginTop: 'var(--space-2)' }}>
+                                <button type="button" className="btn btn-secondary btn-sm" onClick={addAttribution} style={{ marginTop: 'var(--space-2)' }}>
                                     + Add Another Attribution
                                 </button>
                             </div>

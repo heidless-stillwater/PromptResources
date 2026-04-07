@@ -121,7 +121,7 @@ export default function ApiDocsPage() {
                                 <code style={{ fontFamily: 'var(--font-mono)', fontWeight: 600 }}>/api/resources/[id]</code>
                             </div>
                             <p style={{ fontSize: 'var(--text-sm)', color: 'var(--text-secondary)' }}>
-                                Get a single resource by its ID. Returns full resource details including categories, credits, and metadata.
+                                Get a single resource by its ID. Returns full resource details including categories, attributions, and metadata.
                             </p>
                         </div>
 

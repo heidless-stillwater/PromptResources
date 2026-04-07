@@ -1,13 +1,15 @@
 import React from 'react';
 import HomeClient from '@/components/HomeClient';
 import { adminDb } from '@/lib/firebase-admin';
-import { Resource } from '@/lib/types';
+import { Resource, UserProfile } from '@/lib/types';
+import { getAllCreators } from '@/lib/creators-server';
 
 // Revalidate every hour
 export const revalidate = 60;
 
 export default async function HomePage() {
     let recentResources: Resource[] = [];
+    let featuredCreators: UserProfile[] = [];
     let stats = { resources: 0, categories: 0, platforms: 6 };
 
     try {
@@ -28,6 +30,9 @@ export default async function HomePage() {
             };
         }) as Resource[];
 
+        // Fetch featured creators
+        featuredCreators = await getAllCreators({ featured: true, limit: 3 });
+
         // Fetch counts for stats
         const allResourcesSnap = await adminDb.collection('resources').count().get();
         const catSnap = await adminDb.collection('categories').get();
@@ -41,5 +46,5 @@ export default async function HomePage() {
         console.error('Error fetching data on server:', error);
     }
 
-    return <HomeClient recentResources={recentResources as any} />;
+    return <HomeClient recentResources={recentResources as any} featuredCreators={featuredCreators} />;
 }

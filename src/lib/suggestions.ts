@@ -1,5 +1,5 @@
-import { Credit } from '@/lib/types';
-import { isYouTubeUrl, isGenericYouTubeName, deduplicateCredits } from '@/lib/youtube';
+import { Attribution } from '@/lib/types';
+import { isYouTubeUrl, isGenericYouTubeName, deduplicateAttributions } from '@/lib/youtube';
 
 // Common AI prompt-related categories
 const CATEGORY_KEYWORDS: Record<string, string[]> = {
@@ -90,18 +90,18 @@ export function suggestCategories(title: string, description: string = '', url: 
 
 
 /**
- * Suggest credits based on URL and title
+ * Suggest attributions based on URL and title
  */
-export function suggestCredits(url: string, title: string = '', metadata?: { authorName?: string, authorUrl?: string }): Credit[] {
-    const credits: Credit[] = [];
+export function suggestAttributions(url: string, title: string = '', metadata?: { authorName?: string, authorUrl?: string }): Attribution[] {
+    const attributions: Attribution[] = [];
 
     // Prioritize metadata if provided
     if (metadata?.authorName) {
-        credits.push({
+        attributions.push({
             name: metadata.authorName,
             url: metadata.authorUrl || url,
         });
-        return credits;
+        return attributions;
     }
 
     // Check URL domain against known providers
@@ -111,7 +111,7 @@ export function suggestCredits(url: string, title: string = '', metadata?: { aut
 
         for (const [providerDomain, provider] of Object.entries(KNOWN_PROVIDERS)) {
             if (domain.includes(providerDomain)) {
-                credits.push({ ...provider });
+                attributions.push({ ...provider });
                 break;
             }
         }
@@ -121,37 +121,37 @@ export function suggestCredits(url: string, title: string = '', metadata?: { aut
 
     // If only generic YouTube/placeholders found, try authorName
     if (metadata?.authorName) {
-        const ytGenIdx = credits.findIndex(c => isGenericYouTubeName(c.name));
+        const ytGenIdx = attributions.findIndex(c => isGenericYouTubeName(c.name));
 
         if (ytGenIdx >= 0) {
-            credits[ytGenIdx] = { name: metadata.authorName, url: metadata.authorUrl || url };
-        } else if (credits.length === 0) {
-            credits.push({
+            attributions[ytGenIdx] = { name: metadata.authorName, url: metadata.authorUrl || url };
+        } else if (attributions.length === 0) {
+            attributions.push({
                 name: metadata.authorName,
                 url: metadata.authorUrl || url,
             });
         }
-        return credits;
+        return attributions;
     }
 
-    // If no credits found, suggest based on title keywords
-    if (credits.length === 0 && title) {
+    // If no attributions found, suggest based on title keywords
+    if (attributions.length === 0 && title) {
         const titleLower = title.toLowerCase();
         for (const [, provider] of Object.entries(KNOWN_PROVIDERS)) {
             if (titleLower.includes(provider.name.toLowerCase())) {
-                credits.push({ ...provider });
+                attributions.push({ ...provider });
             }
         }
     }
 
     // Defensive cleanup: Normalize generic placeholders to "YouTube"
-    credits.forEach(c => {
+    attributions.forEach(c => {
         if (isGenericYouTubeName(c.name) && isYouTubeUrl(url)) {
             c.name = 'YouTube';
         }
     });
 
-    return deduplicateCredits(credits);
+    return deduplicateAttributions(attributions);
 }
 
 /**
