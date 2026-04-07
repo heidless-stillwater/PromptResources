@@ -9,10 +9,21 @@ export async function GET(
 ) {
     try {
         const resourceId = params.id;
-        const commentsRef = collection(db, 'resources', resourceId, 'comments');
-        const q = query(commentsRef);
+        if (!resourceId) {
+            return NextResponse.json({ success: false, error: 'Resource ID is required' }, { status: 400 });
+        }
+
+        // Check if resource exists before fetching comments to avoid 500s on parent misses
+        const resourceRef = doc(db, 'resources', resourceId);
+        const resourceSnap = await getDoc(resourceRef);
         
-        const querySnapshot = await getDocs(q);
+        if (!resourceSnap.exists()) {
+             return NextResponse.json({ success: true, data: [], message: 'Resource not found, returning empty comments' });
+        }
+
+        const commentsRef = collection(db, 'resources', resourceId, 'comments');
+        const querySnapshot = await getDocs(query(commentsRef));
+        
         const comments = querySnapshot.docs.map(doc => {
             const data = doc.data() as any;
             return {

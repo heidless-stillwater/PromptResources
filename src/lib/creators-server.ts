@@ -20,22 +20,42 @@ export interface CreatorStats {
 }
 
 /**
- * Fetch a user profile by slug
+ * Fetch a user profile by slug or UID
  */
 export async function getUserBySlug(slug: string): Promise<UserProfile | null> {
+    // 1. Try slug lookup first (preferred for SEO)
     const snapshot = await adminDb.collection('users')
         .where('slug', '==', slug)
         .limit(1)
         .get();
 
-    if (snapshot.empty) return null;
+    if (!snapshot.empty) {
+        const data = snapshot.docs[0].data();
+        return {
+            ...data,
+            uid: snapshot.docs[0].id,
+            createdAt: data.createdAt?.toDate?.() || new Date(data.createdAt),
+            updatedAt: data.updatedAt?.toDate?.() || new Date(data.updatedAt)
+        } as UserProfile;
+    }
 
-    const data = snapshot.docs[0].data();
-    return {
-        ...data,
-        createdAt: data.createdAt?.toDate?.() || new Date(data.createdAt),
-        updatedAt: data.updatedAt?.toDate?.() || new Date(data.updatedAt)
-    } as UserProfile;
+    // 2. Try ID lookup as fallback (essential for stubs/new users)
+    try {
+        const docSnap = await adminDb.collection('users').doc(slug).get();
+        if (docSnap.exists) {
+            const data = docSnap.data()!;
+            return {
+                ...data,
+                uid: docSnap.id,
+                createdAt: data.createdAt?.toDate?.() || new Date(data.createdAt),
+                updatedAt: data.updatedAt?.toDate?.() || new Date(data.updatedAt)
+            } as UserProfile;
+        }
+    } catch (e) {
+        // Not a valid ID or fetch failed
+    }
+
+    return null;
 }
 
 /**

@@ -35,7 +35,8 @@ function CreatorsAdminContent() {
     const queryClient = useQueryClient();
 
     const [isCreatingStub, setIsCreatingStub] = useState(false);
-    const [newStub, setNewStub] = useState({ name: '', slug: '', type: 'individual' });
+    const [editingCreator, setEditingCreator] = useState<UserProfile | null>(null);
+    const [newStub, setNewStub] = useState({ name: '', slug: '', type: 'individual', bio: '' });
     const [searchQuery, setSearchQuery] = useState('');
     const [isSyncingAll, setIsSyncingAll] = useState(false);
     const [syncStatus, setSyncStatus] = useState<{ message: string; type: 'success' | 'error' | 'none' }>({ message: '', type: 'none' });
@@ -80,7 +81,7 @@ function CreatorsAdminContent() {
     });
 
     const createStubMutation = useMutation({
-        mutationFn: async (stubData: { name: string, slug: string, type: string }) => {
+        mutationFn: async (stubData: { name: string, slug: string, type: string, bio: string }) => {
             const id = 'stub_' + nanoid();
             await setDoc(doc(db, 'users', id), {
                 uid: id,
@@ -90,8 +91,9 @@ function CreatorsAdminContent() {
                 subscriptionType: 'free',
                 slug: stubData.slug || id,
                 profileType: stubData.type,
+                bio: stubData.bio,
                 isStub: true,
-                isPublicProfile: true, // Need to be public to show in directory
+                isPublicProfile: true,
                 isFeatured: false,
                 isVerified: false,
                 resourceCount: 0,
@@ -102,7 +104,23 @@ function CreatorsAdminContent() {
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['admin', 'creators'] });
             setIsCreatingStub(false);
-            setNewStub({ name: '', slug: '', type: 'individual' });
+            setNewStub({ name: '', slug: '', type: 'individual', bio: '' });
+        }
+    });
+
+    const updateProfileMutation = useMutation({
+        mutationFn: async (profileData: Partial<UserProfile>) => {
+            if (!profileData.uid) return;
+            const docRef = doc(db, 'users', profileData.uid);
+            await updateDoc(docRef, {
+                ...profileData,
+                updatedAt: serverTimestamp()
+            });
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['admin', 'creators'] });
+            setEditingCreator(null);
+            setSyncStatus({ message: 'Profile updated successfully!', type: 'success' });
         }
     });
 
@@ -273,7 +291,7 @@ function CreatorsAdminContent() {
                                     e.preventDefault();
                                     createStubMutation.mutate(newStub);
                                 }}
-                                style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr auto', gap: 'var(--space-4)', alignItems: 'end' }}
+                                style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 'var(--space-4)' }}
                             >
                                 <div className="form-group">
                                     <label>Display Name</label>
@@ -311,9 +329,21 @@ function CreatorsAdminContent() {
                                         <option value="organization">Organization</option>
                                     </select>
                                 </div>
-                                <button type="submit" className="btn btn-primary" style={{ height: '42px' }}>
-                                    Save Stub
-                                </button>
+                                <div className="form-group" style={{ gridColumn: 'span 3' }}>
+                                    <label>Short Bio</label>
+                                    <textarea 
+                                        rows={2}
+                                        value={newStub.bio}
+                                        onChange={(e) => setNewStub(s => ({...s, bio: e.target.value}))}
+                                        placeholder="Brief description of the creator..."
+                                        style={{ width: '100%' }}
+                                    />
+                                </div>
+                                <div style={{ gridColumn: 'span 3', display: 'flex', justifyContent: 'flex-end' }}>
+                                    <button type="submit" className="btn btn-primary">
+                                        Save Stub
+                                    </button>
+                                </div>
                             </form>
                         </div>
                     )}
@@ -394,6 +424,14 @@ function CreatorsAdminContent() {
                                             <div style={{ display: 'flex', gap: '4px' }}>
                                                 <button 
                                                     className="btn btn-ghost btn-sm" 
+                                                    title="Edit Profile"
+                                                    onClick={() => setEditingCreator(c)}
+                                                >
+                                                    <Icons.settings size={16} />
+                                                    <span style={{ fontSize: '10px' }}>Profile</span>
+                                                </button>
+                                                <button 
+                                                    className="btn btn-ghost btn-sm" 
                                                     title="Sync Stats"
                                                     disabled={syncCreatorMutation.isPending}
                                                     onClick={() => syncCreatorMutation.mutate(c.uid)}
@@ -440,6 +478,151 @@ function CreatorsAdminContent() {
                         >
                             Got it
                         </button>
+                    </div>
+                </div>
+            )}
+
+            {/* Edit Profile Modal (Premium Glassmorphism + Scroll Recovery) */}
+            {editingCreator && (
+                <div className="modal-overlay animate-fade-in" style={{ 
+                    zIndex: 1100, 
+                    backdropFilter: 'blur(8px)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: 'var(--space-4)'
+                }}>
+                    <div className="glass-card modal-content" style={{ 
+                        maxWidth: '700px', 
+                        width: '100%',
+                        maxHeight: 'min(900px, 90vh)',
+                        overflowY: 'auto',
+                        padding: 'var(--space-8)',
+                        background: 'rgba(20, 20, 30, 0.9)',
+                        border: '1px solid rgba(255, 255, 255, 0.1)',
+                        boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
+                        position: 'relative'
+                    }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-8)' }}>
+                            <div>
+                                <h2 style={{ margin: 0, fontSize: '1.75rem', fontWeight: 700, letterSpacing: '-0.02em' }}>Edit Registry Profile</h2>
+                                <p className="text-muted text-sm" style={{ marginTop: '4px' }}>Curate {editingCreator.displayName}'s public presence</p>
+                            </div>
+                            <button className="btn btn-ghost" onClick={() => setEditingCreator(null)} style={{ borderRadius: '50%' }}>✕</button>
+                        </div>
+
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-6)', marginBottom: 'var(--space-8)' }}>
+                            <div className="form-group">
+                                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)' }}>
+                                    <Icons.user size={12} /> DISPLAY NAME
+                                </label>
+                                <input 
+                                    type="text" 
+                                    className="form-input"
+                                    style={{ background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.05)' }}
+                                    value={editingCreator.displayName} 
+                                    onChange={(e) => setEditingCreator({...editingCreator, displayName: e.target.value})}
+                                />
+                            </div>
+                            <div className="form-group">
+                                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)' }}>
+                                    <Icons.tag size={12} /> PROFILE SLUG
+                                </label>
+                                <input 
+                                    type="text" 
+                                    className="form-input"
+                                    style={{ background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.05)' }}
+                                    value={editingCreator.slug || ''} 
+                                    onChange={(e) => setEditingCreator({...editingCreator, slug: e.target.value})}
+                                />
+                            </div>
+                            <div className="form-group" style={{ gridColumn: 'span 2' }}>
+                                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)' }}>
+                                    <Icons.text size={12} /> BIOGRAPHY
+                                </label>
+                                <textarea 
+                                    rows={4}
+                                    className="form-input"
+                                    style={{ background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.05)', minHeight: '120px' }}
+                                    value={editingCreator.bio || ''}
+                                    onChange={(e) => setEditingCreator({...editingCreator, bio: e.target.value})}
+                                    placeholder="Write a compelling biography for this creator..."
+                                />
+                            </div>
+                        </div>
+
+                        <div style={{ marginBottom: 'var(--space-8)' }}>
+                            <h4 style={{ 
+                                marginBottom: 'var(--space-6)', 
+                                fontSize: '0.85rem', 
+                                fontWeight: 800, 
+                                letterSpacing: '0.1em', 
+                                textTransform: 'uppercase', 
+                                color: 'var(--accent-primary)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '8px'
+                            }}>
+                                <Icons.globe size={14} /> Global Social Hub
+                            </h4>
+                            
+                            <div style={{ 
+                                display: 'flex', 
+                                flexDirection: 'column', 
+                                gap: 'var(--space-4)', 
+                                padding: 'var(--space-6)',
+                                background: 'rgba(0, 0, 0, 0.2)',
+                                borderRadius: 'var(--radius-lg)',
+                                border: '1px solid rgba(255, 255, 255, 0.03)'
+                            }}>
+                                {/* Social Field Helper */}
+                                {['youtube', 'twitter', 'website'].map(platform => (
+                                    <div key={platform} style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-4)' }}>
+                                        <div style={{ 
+                                            width: '40px', 
+                                            height: '40px', 
+                                            borderRadius: '10px', 
+                                            background: 'rgba(255,255,255,0.05)', 
+                                            display: 'flex', 
+                                            alignItems: 'center', 
+                                            justifyContent: 'center',
+                                            color: platform === 'youtube' ? '#FF0000' : platform === 'twitter' ? '#1DA1F2' : 'var(--text-muted)'
+                                        }}>
+                                            {platform === 'youtube' ? <Icons.play size={20} /> : platform === 'twitter' ? <Icons.twitter size={20} /> : <Icons.globe size={20} />}
+                                        </div>
+                                        <div style={{ flex: 1 }}>
+                                            <input 
+                                                type="text" 
+                                                placeholder={platform === 'youtube' ? 'YouTube Channel ID / URL' : platform === 'twitter' ? '@handle' : 'https://personal-site.com'} 
+                                                className="form-input"
+                                                style={{ background: 'transparent', borderTop: 'none', borderLeft: 'none', borderRight: 'none', borderRadius: 0, paddingLeft: 0 }}
+                                                value={editingCreator.socials?.find(s => s.platform === platform)?.url || ''}
+                                                onChange={(e) => {
+                                                    const val = e.target.value;
+                                                    const current = [...(editingCreator.socials || [])];
+                                                    const idx = current.findIndex(s => s.platform === platform);
+                                                    if (idx >= 0) current[idx].url = val;
+                                                    else current.push({ platform: platform as any, url: val });
+                                                    setEditingCreator({...editingCreator, socials: current});
+                                                }}
+                                            />
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div style={{ display: 'flex', gap: 'var(--space-4)', justifyContent: 'flex-end', borderTop: '1px solid rgba(255, 255, 255, 0.05)', paddingTop: 'var(--space-6)' }}>
+                            <button className="btn btn-ghost" onClick={() => setEditingCreator(null)}>Cancel</button>
+                            <button 
+                                className="btn btn-primary" 
+                                style={{ padding: 'var(--space-3) var(--space-6)', fontWeight: 600 }}
+                                onClick={() => updateProfileMutation.mutate(editingCreator)}
+                                disabled={updateProfileMutation.isPending}
+                            >
+                                {updateProfileMutation.isPending ? <Icons.spinner className="animate-spin" /> : <><Icons.check size={18} /> Update Registry Profile</>}
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}
