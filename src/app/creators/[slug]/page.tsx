@@ -29,21 +29,19 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 }
 
 export default async function CreatorProfilePage({ params }: PageProps) {
-    const [creator, stats] = await Promise.all([
-        getUserBySlug(params.slug),
-        getCreatorResources(params.slug, { pageSize: 12 }).catch(() => null)
-    ]);
-
+    const creator = await getUserBySlug(params.slug);
     if (!creator) notFound();
 
-    const creatorStats = await getCreatorStats(creator.uid);
-    const initialResources = await getCreatorResources(creator.uid, { pageSize: 100 });
+    const [stats, resources] = await Promise.all([
+        getCreatorStats(creator.uid),
+        getCreatorResources(creator.uid, { pageSize: 120 }) // Higher limit for profile page
+    ]);
 
     return (
         <CreatorProfileClient
             creator={creator}
-            initialResources={initialResources.data || []}
-            stats={creatorStats}
+            initialResources={resources.data || []}
+            stats={stats}
         />
     );
 }

@@ -3,16 +3,22 @@ import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import * as dotenv from 'dotenv';
 import * as path from 'path';
 
-dotenv.config({ path: path.resolve(process.cwd(), '.env.local') });
+const envStatus = dotenv.config({ path: path.resolve(process.cwd(), '.env.local'), override: true });
+console.log('Dotenv status:', !!envStatus.parsed);
+const privateKey = process.env.FIREBASE_ADMIN_PRIVATE_KEY;
+console.log('Raw private key length:', privateKey?.length);
+const cleanPrivateKey = privateKey?.replace(/\\n/g, '\n')?.trim()?.replace(/^"(.*)"$/, '$1')?.replace(/^'(.*)'$/, '$1');
+console.log('Cleaned private key length:', cleanPrivateKey?.length);
+console.log('Private key starts with:', cleanPrivateKey?.substring(0, 30));
 
 if (getApps().length === 0) {
-  initializeApp({
-    credential: cert({
-        projectId: process.env.FIREBASE_ADMIN_PROJECT_ID,
-        clientEmail: process.env.FIREBASE_ADMIN_CLIENT_EMAIL,
-        privateKey: process.env.FIREBASE_ADMIN_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-    })
-  });
+    initializeApp({
+        credential: cert({
+            projectId: process.env.FIREBASE_ADMIN_PROJECT_ID,
+            clientEmail: process.env.FIREBASE_ADMIN_CLIENT_EMAIL,
+            privateKey: cleanPrivateKey,
+        })
+    });
 }
 
 const db = getFirestore();

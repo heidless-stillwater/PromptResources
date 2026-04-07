@@ -23,9 +23,28 @@ const profileTypeBadge = (type?: string) => {
 export default function CreatorsDirectoryClient({ featured, creators }: Props) {
     const [search, setSearch] = useState('');
     const [filterType, setFilterType] = useState<'all' | 'individual' | 'channel' | 'organization'>('all');
+    const [sortBy, setSortBy] = useState<'authored' | 'curated' | 'total' | 'newest'>('authored');
+
+    const sortedCreators = useMemo(() => {
+        return [...creators].sort((a, b) => {
+            if (sortBy === 'authored') return (b.authoredCount || 0) - (a.authoredCount || 0);
+            if (sortBy === 'curated') return (b.curatedCount || 0) - (a.curatedCount || 0);
+            if (sortBy === 'total') return (b.resourceCount || 0) - (a.resourceCount || 0);
+            if (sortBy === 'newest') {
+                const getTime = (val: any) => {
+                    if (!val) return 0;
+                    if (typeof val?.toDate === 'function') return val.toDate().getTime();
+                    if (val instanceof Date) return val.getTime();
+                    return new Date(val).getTime() || 0;
+                };
+                return getTime(b.createdAt) - getTime(a.createdAt);
+            }
+            return 0;
+        });
+    }, [creators, sortBy]);
 
     const filtered = useMemo(() => {
-        return creators.filter(c => {
+        return sortedCreators.filter(c => {
             const matchesSearch =
                 !search ||
                 c.displayName.toLowerCase().includes(search.toLowerCase()) ||
@@ -34,7 +53,7 @@ export default function CreatorsDirectoryClient({ featured, creators }: Props) {
             const matchesType = filterType === 'all' || c.profileType === filterType;
             return matchesSearch && matchesType;
         });
-    }, [creators, search, filterType]);
+    }, [sortedCreators, search, filterType]);
 
     return (
         <div className="page-wrapper dashboard-theme">
@@ -47,10 +66,10 @@ export default function CreatorsDirectoryClient({ featured, creators }: Props) {
                             <div className="creators-dir-header-inner">
                                 <h1 className="creators-dir-title">
                                     <span className="creators-dir-title-icon">🌟</span>
-                                    Creator Directory
+                                    Community Registry
                                 </h1>
                                 <p className="creators-dir-subtitle">
-                                    Discover the creators and curators behind the best AI learning resources.
+                                    Discover the creators, builders, and curators shaping the future of AI learning.
                                 </p>
                             </div>
                         </div>
@@ -58,35 +77,51 @@ export default function CreatorsDirectoryClient({ featured, creators }: Props) {
                         {/* ── FEATURED STRIP ── */}
                         {featured.length > 0 && (
                             <section className="creators-featured-section">
-                                <h2 className="creators-section-label">Featured Creators</h2>
+                                <h2 className="creators-section-label">Featured Members</h2>
                                 <div className="creators-featured-strip">
                                     {featured.map(c => <CreatorCard key={c.uid} creator={c} featured />)}
                                 </div>
                             </section>
                         )}
 
-                        {/* ── FILTERS ── */}
-                        <div className="creators-filters">
-                            <div className="creators-search-wrap">
-                                <span className="creators-search-icon">🔍</span>
-                                <input
-                                    type="text"
-                                    className="creators-search-input"
-                                    placeholder="Search creators by name, bio, or expertise…"
-                                    value={search}
-                                    onChange={e => setSearch(e.target.value)}
-                                />
+                        {/* ── FILTERS & SORTing ── */}
+                        <div className="creators-filters-row">
+                            <div className="creators-filters">
+                                <div className="creators-search-wrap">
+                                    <span className="creators-search-icon">🔍</span>
+                                    <input
+                                        type="text"
+                                        className="creators-search-input"
+                                        placeholder="Search by name or bio…"
+                                        value={search}
+                                        onChange={e => setSearch(e.target.value)}
+                                    />
+                                </div>
+                                <div className="creators-filter-chips">
+                                    {(['all', 'individual', 'channel', 'organization'] as const).map(type => (
+                                        <button
+                                            key={type}
+                                            className={`creators-filter-chip${filterType === type ? ' active' : ''}`}
+                                            onClick={() => setFilterType(type)}
+                                        >
+                                            {type === 'all' ? 'All' : type.charAt(0).toUpperCase() + type.slice(1)}
+                                        </button>
+                                    ))}
+                                </div>
                             </div>
-                            <div className="creators-filter-chips">
-                                {(['all', 'individual', 'channel', 'organization'] as const).map(type => (
-                                    <button
-                                        key={type}
-                                        className={`creators-filter-chip${filterType === type ? ' active' : ''}`}
-                                        onClick={() => setFilterType(type)}
-                                    >
-                                        {type === 'all' ? 'All' : type.charAt(0).toUpperCase() + type.slice(1)}
-                                    </button>
-                                ))}
+
+                            <div className="creators-sort-wrap">
+                                <span className="creators-sort-label">Sort by:</span>
+                                <select 
+                                    className="creators-sort-select"
+                                    value={sortBy}
+                                    onChange={(e) => setSortBy(e.target.value as any)}
+                                >
+                                    <option value="authored">Most Authored ✍️</option>
+                                    <option value="curated">Top Curators 📂</option>
+                                    <option value="total">Total Impact 📈</option>
+                                    <option value="newest">Newest Members ✨</option>
+                                </select>
                             </div>
                         </div>
 
@@ -94,11 +129,13 @@ export default function CreatorsDirectoryClient({ featured, creators }: Props) {
                         {filtered.length === 0 ? (
                             <div className="creators-empty">
                                 <span>😔</span>
-                                <p>No creators match your search.</p>
+                                <p>No community members match your criteria.</p>
                             </div>
                         ) : (
                             <>
-                                <p className="creators-result-count">{filtered.length} creators</p>
+                                <div className="creators-result-meta">
+                                    {filtered.length} {filtered.length === 1 ? 'member' : 'members'} found
+                                </div>
                                 <div className="creators-grid">
                                     {filtered.map(c => <CreatorCard key={c.uid} creator={c} />)}
                                 </div>

@@ -5,7 +5,7 @@ import { getAuthUser, isAdmin } from '@/lib/auth-server';
 import { getResourcesAction } from '@/lib/resources-server';
 import { revalidatePath } from 'next/cache';
 import { extractYouTubeId } from '@/lib/youtube';
-import { resolveAttributions } from '@/lib/creators-server';
+import { resolveAttributions, syncCreatorStats } from '@/lib/creators-server';
 
 export async function GET(request: NextRequest) {
     try {
@@ -115,6 +115,12 @@ export async function POST(request: NextRequest) {
         revalidatePath('/', 'page');
         revalidatePath('/resources');
         revalidatePath('/');
+        
+        // Sync stats for attributed creators in the background (fire and forget)
+        if (attributedUserIds.length > 0) {
+            Promise.all(attributedUserIds.map(uid => syncCreatorStats(uid)))
+                .catch(e => console.error('Error syncing creator stats after POST:', e));
+        }
 
         return NextResponse.json({
             success: true,

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { adminDb } from '@/lib/firebase-admin';
 import { isYouTubeUrl, getYouTubeMetadataServer, isGenericYouTubeName, deduplicateAttributions, extractYouTubeId } from '@/lib/youtube';
-import { resolveAttributions } from '@/lib/creators-server';
+import { resolveAttributions, syncCreatorStats } from '@/lib/creators-server';
 import { Resource } from '@/lib/types';
 
 export async function GET(
@@ -147,6 +147,20 @@ export async function PATCH(
         revalidatePath('/resources');
         revalidatePath(`/resources/${params.id}`);
         revalidatePath('/'); // Homepage might show this resource too
+        
+        // Sync stats for affected creators
+        const affectedUids = new Set<string>();
+        if (resourceData?.attributedUserIds) {
+            resourceData.attributedUserIds.forEach((uid: string) => affectedUids.add(uid));
+        }
+        if (attributedUserIds) {
+            attributedUserIds.forEach((uid: string) => affectedUids.add(uid));
+        }
+        
+        if (affectedUids.size > 0) {
+            Promise.all(Array.from(affectedUids).map(uid => syncCreatorStats(uid)))
+                .catch(e => console.error('Error syncing creator stats after PATCH:', e));
+        }
 
         return NextResponse.json({
             success: true,
@@ -205,6 +219,12 @@ export async function DELETE(
         // Revalidate listing page
         revalidatePath('/resources');
         revalidatePath('/');
+
+        // Sync stats for previously attributed creators
+        if (resourceData?.attributedUserIds && Array.isArray(resourceData.attributedUserIds)) {
+            Promise.all(resourceData.attributedUserIds.map((uid: string) => syncCreatorStats(uid)))
+                .catch(e => console.error('Error syncing creator stats after DELETE:', e));
+        }
 
         return NextResponse.json({
             success: true,

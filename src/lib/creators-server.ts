@@ -1,6 +1,7 @@
 import { adminDb } from '@/lib/firebase-admin';
 import { UserProfile, Resource, Attribution } from '@/lib/types';
 import { PaginatedResponse } from '@/lib/types';
+import { slugify } from '@/lib/utils';
 
 export interface PaginationOptions {
     limit?: number;
@@ -11,6 +12,8 @@ export interface PaginationOptions {
 
 export interface CreatorStats {
     totalResources: number;
+    authoredCount: number;
+    curatedCount: number;
     categories: string[];
     platforms: string[];
     averageRating: number;
@@ -127,27 +130,48 @@ export async function getAllCreators(options?: { featured?: boolean; limit?: num
  * Aggregate stats for a creator
  */
 export async function getCreatorStats(userId: string): Promise<CreatorStats> {
-    const resources = await adminDb.collection('resources')
+    // 1. Resources authored by them (attributedUserIds contains userId)
+    const authoredSnapshot = await adminDb.collection('resources')
         .where('status', '==', 'published')
         .where('attributedUserIds', 'array-contains', userId)
+        .get();
+
+    // 2. Resources curated by them (addedBy == userId)
+    const curatedSnapshot = await adminDb.collection('resources')
+        .where('status', '==', 'published')
+        .where('addedBy', '==', userId)
         .get();
         
     const categories = new Set<string>();
     const platforms = new Set<string>();
     let totalScore = 0;
+    let reviewsCount = 0;
     
-    resources.docs.forEach(doc => {
-        const data = doc.data();
-        if (data.categories) data.categories.forEach((c: string) => categories.add(c));
-        if (data.platform) platforms.add(data.platform);
-        if (data.averageRating) totalScore += data.averageRating;
+    // Merge both for unique resource list for platform/category stats
+    const allDocIds = new Set<string>();
+    const allDocs: FirebaseFirestore.DocumentData[] = [];
+    
+    [...authoredSnapshot.docs, ...curatedSnapshot.docs].forEach(doc => {
+        if (!allDocIds.has(doc.id)) {
+            allDocIds.add(doc.id);
+            const data = doc.data();
+            allDocs.push(data);
+            if (data.categories) data.categories.forEach((c: string) => categories.add(c));
+            if (data.platform) platforms.add(data.platform);
+            if (data.averageRating) {
+                totalScore += data.averageRating;
+                reviewsCount++;
+            }
+        }
     });
     
     return {
-        totalResources: resources.docs.length,
+        totalResources: allDocIds.size,
+        authoredCount: authoredSnapshot.docs.length,
+        curatedCount: curatedSnapshot.docs.length,
         categories: Array.from(categories),
         platforms: Array.from(platforms),
-        averageRating: resources.docs.length > 0 ? (totalScore / resources.docs.length) : 0
+        averageRating: reviewsCount > 0 ? (totalScore / reviewsCount) : 0
     };
 }
 
@@ -185,6 +209,28 @@ export async function resolveAttributions(attributions: Attribution[]): Promise<
                     attr.userId = doc.id;
                     userIds.add(doc.id);
                 }
+            } else {
+                // CREATE STUB: If no profile exists, create a stub profile.
+                // This fulfills Phase 4 requirement: 'Auto-creation from attributions'.
+                const stubId = `stub_${slugify(attr.name)}_${Math.random().toString(36).substring(2, 7)}`;
+                const slug = slugify(attr.name);
+                
+                const newStub: Partial<UserProfile> = {
+                    uid: stubId,
+                    displayName: attr.name,
+                    slug: slug,
+                    isStub: true,
+                    isPublicProfile: true, // Make stubs visible in directory by default
+                    profileType: 'individual',
+                    resourceCount: 0,
+                    createdAt: new Date(),
+                    updatedAt: new Date(),
+                };
+
+                await adminDb.collection('users').doc(stubId).set(newStub);
+                attr.userId = stubId;
+                userIds.add(stubId);
+                console.log(`Created new creator stub for: ${attr.name} (${stubId})`);
             }
         } catch (e) {
             console.error('Error resolving attribution:', attr.name, e);
@@ -195,4 +241,24 @@ export async function resolveAttributions(attributions: Attribution[]): Promise<
         resolvedAttributions: resolved,
         attributedUserIds: Array.from(userIds)
     };
+}
+
+/**
+ * Synchronize aggregate statistics for a creator profile.
+ */
+export async function syncCreatorStats(userId: string): Promise<void> {
+    try {
+        const stats = await getCreatorStats(userId);
+        await adminDb.collection('users').doc(userId).update({
+            resourceCount: stats.totalResources,
+            authoredCount: stats.authoredCount,
+            curatedCount: stats.curatedCount,
+            categories: stats.categories,
+            platforms: stats.platforms,
+            updatedAt: new Date()
+        });
+        console.log(`Synced stats for creator ${userId}: Authored: ${stats.authoredCount}, Curated: ${stats.curatedCount}`);
+    } catch (e) {
+        console.error(`Failed to sync stats for creator ${userId}:`, e);
+    }
 }

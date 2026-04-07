@@ -58,7 +58,8 @@ import {
     Rows,
     Tag,
     Play,
-    Award
+    Award,
+    RefreshCw
 } from "lucide-react"
 
 // Twitter/X icon (removed from lucide-react v1)
@@ -140,5 +141,6 @@ export const Icons = {
     list: List,
     feed: LayoutList,
     rows: Rows,
-    exemplar: Award
+    exemplar: Award,
+    refresh: RefreshCw
 }
