@@ -3,6 +3,7 @@ import { adminDb } from '@/lib/firebase-admin';
 import { isYouTubeUrl, getYouTubeMetadataServer, isGenericYouTubeName, deduplicateAttributions, extractYouTubeId } from '@/lib/youtube';
 import { resolveAttributions, syncCreatorStats } from '@/lib/creators-server';
 import { Resource } from '@/lib/types';
+import { generateSearchKeywords } from '@/lib/utils';
 
 export async function GET(
     request: NextRequest,
@@ -131,6 +132,13 @@ export async function PATCH(
 
         if (body.url !== undefined) {
             updateData.youtubeVideoId = body.url ? extractYouTubeId(body.url) : null;
+        }
+
+        // Regenerate search keywords if title or categories change
+        if (body.title !== undefined || body.categories !== undefined) {
+            const updatedTitle = body.title !== undefined ? body.title : resourceData?.title;
+            const updatedCategories = body.categories !== undefined ? body.categories : resourceData?.categories;
+            updateData.searchKeywords = generateSearchKeywords(updatedTitle, updatedCategories);
         }
 
         // Remove sensitive fields if present in body to avoid writing them as fields

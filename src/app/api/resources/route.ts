@@ -6,6 +6,7 @@ import { getResourcesAction } from '@/lib/resources-server';
 import { revalidatePath } from 'next/cache';
 import { extractYouTubeId } from '@/lib/youtube';
 import { resolveAttributions, syncCreatorStats } from '@/lib/creators-server';
+import { generateSearchKeywords } from '@/lib/utils';
 
 export async function GET(request: NextRequest) {
     try {
@@ -99,6 +100,7 @@ export async function POST(request: NextRequest) {
             addedBy: decodedToken.uid,
             youtubeVideoId: body.url ? extractYouTubeId(body.url) : null,
             thumbnailUrl: body.thumbnailUrl || null,
+            searchKeywords: generateSearchKeywords(body.title, body.categories),
             createdAt: now,
             updatedAt: now,
             status: isAdminUser ? (body.status || 'published') : (['draft', 'suggested'].includes(body.status) ? body.status : 'suggested'),

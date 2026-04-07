@@ -68,45 +68,32 @@ export async function getResourcesAction(options: GetResourcesOptions) {
         let total = 0;
 
         if (search) {
-            // Search still requires in-memory filtering for now due to lack of partial match in Firestore
-            // We fetch a larger subset to allow for filtering
-            const MAX_DOCS_TO_SCAN = 1000;
-            const snapshot = await query.limit(MAX_DOCS_TO_SCAN).get();
-            
-            let allDocs = snapshot.docs.map((doc: any) => ({
-                id: doc.id,
-                ...doc.data(),
-                createdAt: doc.data().createdAt?.toDate()?.toISOString() || null,
-                updatedAt: doc.data().updatedAt?.toDate()?.toISOString() || null,
-            }));
+            const searchTokens = search.toLowerCase()
+                .replace(/[^\w\s]/g, '')
+                .split(/\s+/)
+                .filter(t => t.length >= 2)
+                .slice(0, 10); // Firestore limit
 
-            const term = search.toLowerCase();
-            const filtered = allDocs.filter((r: any) =>
-                r.title?.toLowerCase().includes(term) ||
-                r.description?.toLowerCase().includes(term) ||
-                (r.prompts && r.prompts.some((p: string) => p.toLowerCase().includes(term)))
-            );
-
-            total = filtered.length;
-            const start = (page - 1) * pageSize;
-            finalResources = filtered.slice(start, start + pageSize);
-        } else {
-            // No search term: We can use Firestore for pagination
-            const countSnapshot = await query.count().get();
-            total = countSnapshot.data().count;
-
-            const snapshot = await query
-                .offset((page - 1) * pageSize)
-                .limit(pageSize)
-                .get();
-
-            finalResources = snapshot.docs.map((doc: any) => ({
-                id: doc.id,
-                ...doc.data(),
-                createdAt: doc.data().createdAt?.toDate()?.toISOString() || null,
-                updatedAt: doc.data().updatedAt?.toDate()?.toISOString() || null,
-            }));
+            if (searchTokens.length > 0) {
+                query = query.where('searchKeywords', 'array-contains-any', searchTokens);
+            }
         }
+
+        // No search term or tokens: We can use Firestore for pagination
+        const countSnapshot = await query.count().get();
+        total = countSnapshot.data().count;
+
+        const snapshot = await query
+            .offset((page - 1) * pageSize)
+            .limit(pageSize)
+            .get();
+
+        finalResources = snapshot.docs.map((doc: any) => ({
+            id: doc.id,
+            ...doc.data(),
+            createdAt: doc.data().createdAt?.toDate()?.toISOString() || null,
+            updatedAt: doc.data().updatedAt?.toDate()?.toISOString() || null,
+        }));
 
         // Fetch creator profiles for the current page
         const userIds = Array.from(new Set(finalResources.map((r: any) => r.addedBy).filter(Boolean)));

@@ -48,6 +48,14 @@ export interface UserProfile {
     authoredCount?: number;
     curatedCount?: number;
     
+    // Suite Entitlements
+    subscription?: {
+        bundleId: string;
+        activeSuites: string[]; // e.g. ['resources', 'studio', 'registry']
+        status: 'active' | 'past_due' | 'canceled' | 'incomplete';
+        expiresAt?: any;
+    };
+    
     createdAt: Date;
     updatedAt: Date;
 }
@@ -79,6 +87,7 @@ export interface Resource {
     isFavorite?: boolean;
     rank?: number;
     prompts?: string[];
+    searchKeywords?: string[]; // Lowercase tokens for indexed search
     notes?: string;        // Publicly visible notes/instructions
     adminNotes?: string;   // Internal administrative-only notes
     averageRating?: number;

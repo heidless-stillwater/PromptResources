@@ -146,10 +146,20 @@ export async function getAllCreators(options?: { featured?: boolean; limit?: num
     return creators.sort((a, b) => (b.resourceCount || 0) - (a.resourceCount || 0));
 }
 
+// Simple in-memory cache for creator stats to reduce Firestore reads
+const statsCache = new Map<string, { stats: CreatorStats; timestamp: number }>();
+const CACHE_TTL = 10 * 60 * 1000; // 10 minutes
+
 /**
  * Aggregate stats for a creator
  */
 export async function getCreatorStats(userId: string): Promise<CreatorStats> {
+    // Check Cache first
+    const cached = statsCache.get(userId);
+    if (cached && (Date.now() - cached.timestamp < CACHE_TTL)) {
+        return cached.stats;
+    }
+
     // 1. Resources authored by them (attributedUserIds contains userId)
     const authoredSnapshot = await adminDb.collection('resources')
         .where('status', '==', 'published')
@@ -185,7 +195,7 @@ export async function getCreatorStats(userId: string): Promise<CreatorStats> {
         }
     });
     
-    return {
+    const stats = {
         totalResources: allDocIds.size,
         authoredCount: authoredSnapshot.docs.length,
         curatedCount: curatedSnapshot.docs.length,
@@ -193,6 +203,11 @@ export async function getCreatorStats(userId: string): Promise<CreatorStats> {
         platforms: Array.from(platforms),
         averageRating: reviewsCount > 0 ? (totalScore / reviewsCount) : 0
     };
+
+    // Update Cache
+    statsCache.set(userId, { stats, timestamp: Date.now() });
+    
+    return stats;
 }
 
 /**
