@@ -11,7 +11,7 @@ import {
     User,
     updateProfile,
 } from 'firebase/auth';
-import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, setDoc, onSnapshot, serverTimestamp } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 import { UserProfile, UserRole } from '@/lib/types';
 
@@ -40,70 +40,94 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [loading, setLoading] = useState(true);
     const [activeRole, setActiveRole] = useState<UserRole>('member');
 
-    const fetchOrCreateProfile = useCallback(async (firebaseUser: User) => {
+    const createNewProfile = useCallback(async (firebaseUser: User) => {
         const userRef = doc(db, 'users', firebaseUser.uid);
-        const userSnap = await getDoc(userRef);
-
-        if (userSnap.exists()) {
-            const data = userSnap.data();
-            const userProfile: UserProfile = {
-                uid: firebaseUser.uid,
-                email: data.email,
-                displayName: data.displayName,
-                photoURL: data.photoURL,
-                role: data.role || 'member',
-                subscriptionType: data.subscriptionType || 'free',
-                createdAt: data.createdAt?.toDate() || new Date(),
-                updatedAt: data.updatedAt?.toDate() || new Date(),
-            };
-            setProfile(userProfile);
-            setActiveRole(userProfile.role);
-        } else {
-            // Create new user profile
-            const isAdmin = firebaseUser.email === ADMIN_EMAIL;
-            const newProfileData: any = {
-                uid: firebaseUser.uid,
-                email: firebaseUser.email || '',
-                displayName: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'User',
-                role: isAdmin ? 'admin' : 'member',
-                subscriptionType: 'free',
-                createdAt: serverTimestamp(),
-                updatedAt: serverTimestamp(),
-            };
-            
-            if (firebaseUser.photoURL) {
-                newProfileData.photoURL = firebaseUser.photoURL;
-            }
-
-            await setDoc(userRef, newProfileData);
-            const profile: UserProfile = {
-                ...newProfileData,
-                photoURL: firebaseUser.photoURL || undefined,
-                createdAt: new Date(),
-                updatedAt: new Date(),
-            };
-            setProfile(profile);
-            setActiveRole(profile.role);
+        const isAdminUser = firebaseUser.email === ADMIN_EMAIL;
+        const newProfileData: any = {
+            uid: firebaseUser.uid,
+            email: firebaseUser.email || '',
+            displayName: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'User',
+            role: isAdminUser ? 'admin' : 'member',
+            subscriptionType: 'free',
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+        };
+        if (firebaseUser.photoURL) {
+            newProfileData.photoURL = firebaseUser.photoURL;
         }
+        await setDoc(userRef, newProfileData);
     }, []);
 
     useEffect(() => {
-        const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+        let unsubscribeSnapshot: (() => void) | null = null;
+
+        const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
+            // Clean up previous snapshot listener when user changes
+            if (unsubscribeSnapshot) {
+                unsubscribeSnapshot();
+                unsubscribeSnapshot = null;
+            }
+
             setUser(firebaseUser);
+
             if (firebaseUser) {
                 try {
-                    await fetchOrCreateProfile(firebaseUser);
+                    // Ensure the user document exists before subscribing
+                    const userRef = doc(db, 'users', firebaseUser.uid);
+                    const snap = await getDoc(userRef);
+                    if (!snap.exists()) {
+                        await createNewProfile(firebaseUser);
+                    }
+
+                    // Subscribe to real-time updates on the user document
+                    unsubscribeSnapshot = onSnapshot(userRef, (docSnap) => {
+                        if (docSnap.exists()) {
+                            const data = docSnap.data();
+                            const userProfile: UserProfile = {
+                                uid: firebaseUser.uid,
+                                email: data.email,
+                                displayName: data.displayName,
+                                photoURL: data.photoURL,
+                                role: data.role || 'member',
+                                subscriptionType: data.subscriptionType || 'free',
+                                subscription: data.subscription || undefined,
+                                slug: data.slug,
+                                profileType: data.profileType,
+                                bio: data.bio,
+                                bannerUrl: data.bannerUrl,
+                                isPublicProfile: data.isPublicProfile,
+                                isVerified: data.isVerified,
+                                isFeatured: data.isFeatured,
+                                resourceCount: data.resourceCount,
+                                authoredCount: data.authoredCount,
+                                curatedCount: data.curatedCount,
+                                createdAt: data.createdAt?.toDate() || new Date(),
+                                updatedAt: data.updatedAt?.toDate() || new Date(),
+                            };
+                            setProfile(userProfile);
+                            setActiveRole(userProfile.role);
+                        }
+                        setLoading(false);
+                    }, (error) => {
+                        console.error('Error in profile snapshot:', error);
+                        setLoading(false);
+                    });
                 } catch (error) {
-                    console.error('Error fetching profile:', error);
+                    console.error('Error setting up profile listener:', error);
+                    setLoading(false);
                 }
             } else {
                 setProfile(null);
                 setActiveRole('member');
+                setLoading(false);
             }
-            setLoading(false);
         });
-        return unsubscribe;
-    }, [fetchOrCreateProfile]);
+
+        return () => {
+            unsubscribeAuth();
+            if (unsubscribeSnapshot) unsubscribeSnapshot();
+        };
+    }, [createNewProfile]);
 
     const signIn = async (email: string, password: string) => {
         await signInWithEmailAndPassword(auth, email, password);
@@ -116,7 +140,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const signInWithGoogle = async () => {
         const provider = new GoogleAuthProvider();
-        await signInWithPopup(auth, provider);
+        try {
+            await signInWithPopup(auth, provider);
+        } catch (err: any) {
+            // User closed the popup — not an error, ignore silently
+            if (err?.code === 'auth/popup-closed-by-user' ||
+                err?.code === 'auth/cancelled-popup-request') {
+                return;
+            }
+            throw err; // Re-throw genuine errors
+        }
     };
 
     const signOut = async () => {

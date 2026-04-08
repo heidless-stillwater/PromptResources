@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { adminDb } from '@/lib/firebase-admin';
+import { getAuthUser } from '@/lib/auth-server';
 
 function extractYouTubeId(url: string): string | null {
     const patterns = [
         /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/v\/|youtube\.com\/shorts\/)([a-zA-Z0-9_-]{11})/,
         /^([a-zA-Z0-9_-]{11})$/, // Direct ID
     ];
-
     for (const pattern of patterns) {
         const match = url.match(pattern);
         if (match) return match[1];
@@ -15,6 +15,14 @@ function extractYouTubeId(url: string): string | null {
 }
 
 export async function GET(request: NextRequest) {
+    // Require auth so we can scope the check to the current user's resources
+    const decodedToken = await getAuthUser(request);
+    if (!decodedToken) {
+        // No auth — skip duplicate check rather than blocking unauthenticated users
+        return NextResponse.json({ titleMatch: false, urlMatch: false, matches: [] });
+    }
+    const uid = decodedToken.uid;
+
     const { searchParams } = new URL(request.url);
     const title = searchParams.get('title')?.trim() || '';
     const url = searchParams.get('url')?.trim() || '';
@@ -23,26 +31,44 @@ export async function GET(request: NextRequest) {
         const ytId = url ? extractYouTubeId(url) : null;
         const queries: Promise<any>[] = [];
 
-        // 1. Title match
+        // All queries are SCOPED to addedBy == uid so cross-user matches are never flagged
+
+        // 1. Title match within this user's resources
         if (title) {
-            queries.push(adminDb.collection('resources').where('title', '==', title).limit(3).get());
+            queries.push(
+                adminDb.collection('resources')
+                    .where('addedBy', '==', uid)
+                    .where('title', '==', title)
+                    .limit(3)
+                    .get()
+            );
         } else {
             queries.push(Promise.resolve(null));
         }
 
-        // 2. Exact URL match
+        // 2. Exact URL match within this user's resources
         if (url) {
-            queries.push(adminDb.collection('resources').where('url', '==', url).limit(3).get());
+            queries.push(
+                adminDb.collection('resources')
+                    .where('addedBy', '==', uid)
+                    .where('url', '==', url)
+                    .limit(3)
+                    .get()
+            );
         } else {
             queries.push(Promise.resolve(null));
         }
 
-        // 3. YouTube specific matches (if applicable)
+        // 3. YouTube ID variations within this user's resources
         if (ytId) {
-            // First check the explicit field
-            queries.push(adminDb.collection('resources').where('youtubeVideoId', '==', ytId).limit(3).get());
-            
-            // Then check common URL variations to catch older records missing the ID field
+            queries.push(
+                adminDb.collection('resources')
+                    .where('addedBy', '==', uid)
+                    .where('youtubeVideoId', '==', ytId)
+                    .limit(3)
+                    .get()
+            );
+
             const variants = [
                 `https://www.youtube.com/watch?v=${ytId}`,
                 `https://youtube.com/watch?v=${ytId}`,
@@ -51,14 +77,20 @@ export async function GET(request: NextRequest) {
                 `https://www.youtube.com/shorts/${ytId}`
             ];
             variants.forEach(v => {
-                if (v !== url) { // Already checked exact match
-                    queries.push(adminDb.collection('resources').where('url', '==', v).limit(2).get());
+                if (v !== url) {
+                    queries.push(
+                        adminDb.collection('resources')
+                            .where('addedBy', '==', uid)
+                            .where('url', '==', v)
+                            .limit(2)
+                            .get()
+                    );
                 }
             });
         }
 
         const results = await Promise.all(queries);
-        
+
         const matches: Array<{ id: string; title: string; url: string; matchType: 'title' | 'url' }> = [];
         const seenDocIds = new Set<string>();
 
@@ -70,7 +102,7 @@ export async function GET(request: NextRequest) {
             });
         }
 
-        // Process all other results (URL and YT variations)
+        // Process URL and YT variations (index 1+)
         for (let i = 1; i < results.length; i++) {
             if (results[i]) {
                 results[i].docs.forEach((d: any) => {
@@ -92,5 +124,3 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ titleMatch: false, urlMatch: false, matches: [] });
     }
 }
-
-

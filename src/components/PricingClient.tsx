@@ -1,11 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Icons } from '@/components/ui/Icons';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
+import Link from 'next/link';
 
 const PLAN_FEATURES = [
     { name: 'Stillwater Resources', description: 'Full access to the global elite library.', suite: 'resources' },
@@ -18,6 +19,23 @@ export default function PricingClient({ priceId }: { priceId: string }) {
     const { user, signInWithGoogle } = useAuth();
     const [loading, setLoading] = useState(false);
     const router = useRouter();
+    const searchParams = useSearchParams();
+    
+    // Explicitly persist the return path so it's never lost during re-renders or hydration
+    const [persistedReturnUrl, setPersistedReturnUrl] = useState<string | null>(null);
+
+    useEffect(() => {
+        // Run once on mount to lock in the return target
+        const urlParams = new URLSearchParams(window.location.search);
+        const r = urlParams.get('returnUrl') || searchParams.get('returnUrl');
+        if (r) {
+            console.log('🔗 Return path locked:', r);
+            setPersistedReturnUrl(r);
+        }
+    }, [searchParams]);
+
+    const isMasterRedirect = persistedReturnUrl?.includes('5173') || persistedReturnUrl?.includes('promptmaster');
+    const isToolRedirect = persistedReturnUrl?.includes('3001') || persistedReturnUrl?.includes('prompttool');
 
     const handleSubscribe = async () => {
         if (!user) {
@@ -27,12 +45,20 @@ export default function PricingClient({ priceId }: { priceId: string }) {
 
         setLoading(true);
         try {
+            const token = await user.getIdToken();
+            // Use the persisted return URL if available, otherwise fallback to local dashboard
+            const baseUrl = persistedReturnUrl || (window.location.origin + '/dashboard');
+            const successUrl = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}subscribed=true`;
+
             const res = await fetch('/api/checkout', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}` 
+                },
                 body: JSON.stringify({
                     priceId: priceId,
-                    successUrl: `${window.location.origin}/dashboard?session_id={CHECKOUT_SESSION_ID}`,
+                    successUrl,
                     cancelUrl: `${window.location.origin}/pricing`,
                 }),
             });
@@ -54,6 +80,21 @@ export default function PricingClient({ priceId }: { priceId: string }) {
     return (
         <div className="min-h-screen bg-[#0a0a0f] text-foreground pt-32 pb-20 px-6">
             <div className="max-w-5xl mx-auto space-y-16">
+                {/* Dynamic Return Breadcrumb */}
+                {persistedReturnUrl && (
+                    <div className="flex justify-center mb-8 animate-in fade-in slide-in-from-top-4 duration-1000">
+                        <Link 
+                            href={persistedReturnUrl}
+                            className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 border border-white/10 hover:border-primary/50 hover:bg-primary/5 transition-all group"
+                        >
+                            <Icons.arrowLeft size={12} className="text-primary group-hover:-translate-x-1 transition-transform" />
+                            <span className="text-[10px] font-black uppercase tracking-widest text-foreground-muted group-hover:text-white">
+                                Return to {isMasterRedirect ? 'Stillwater Registry' : isToolRedirect ? 'Stillwater Studio' : 'Previous Location'}
+                            </span>
+                        </Link>
+                    </div>
+                )}
+
                 <div className="text-center space-y-4">
                     <h1 className="text-5xl md:text-7xl font-black uppercase tracking-tighter">
                         The Master <span className="text-primary">Suite</span>
@@ -92,7 +133,7 @@ export default function PricingClient({ priceId }: { priceId: string }) {
                             <div className="pt-8 border-t border-white/10 flex flex-col sm:flex-row items-center justify-between gap-8">
                                 <div className="space-y-1">
                                     <p className="text-xs font-black uppercase tracking-widest text-foreground-muted">All-In Subscription</p>
-                                    <p className="text-4xl font-black tracking-tighter text-white font-mono">$XX.XX <span className="text-sm font-medium text-foreground-muted">/ month</span></p>
+                                    <p className="text-4xl font-black tracking-tighter text-white font-mono">£50.00 <span className="text-sm font-medium text-foreground-muted">/ month</span></p>
                                 </div>
                                 <Button
                                     disabled={loading}
@@ -105,6 +146,13 @@ export default function PricingClient({ priceId }: { priceId: string }) {
                             </div>
                         </div>
                     </Card>
+
+                {persistedReturnUrl && (
+                    <div style={{ marginTop: 'var(--space-4)', textAlign: 'center', fontSize: '10px', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+                        <Icons.check size={10} style={{ display: 'inline', marginRight: '4px', color: 'var(--success-500)' }} />
+                        Return path active: <span style={{ color: 'var(--primary-400)' }}>{isMasterRedirect ? 'PromptMaster' : isToolRedirect ? 'PromptTool' : 'External App'}</span>
+                    </div>
+                )}
                 </div>
 
                 <p className="text-center text-[10px] uppercase font-black tracking-widest text-foreground-muted opacity-40">

@@ -359,19 +359,47 @@ export default function SettingsPage() {
                         }}>
                             💎 Subscription
                         </h3>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        {profile?.subscription?.status === 'active' ? (
                             <div>
-                                <div style={{ fontWeight: 600, marginBottom: 'var(--space-1)' }}>
-                                    Current Plan: <span className="badge badge-primary" style={{ textTransform: 'uppercase' }}>{profile?.subscriptionType || 'FREE'}</span>
-                                </div>
-                                <div style={{ fontSize: 'var(--text-sm)', color: 'var(--text-muted)' }}>
-                                    Your plan determines your access to premium resources and features.
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 'var(--space-4)' }}>
+                                    <div>
+                                        <div style={{ fontWeight: 700, fontSize: 'var(--text-md)', marginBottom: 'var(--space-2)' }}>
+                                            {profile.subscription.bundleId}
+                                        </div>
+                                        <span className="badge badge-success" style={{ marginBottom: 'var(--space-3)', display: 'inline-block' }}>
+                                            ✅ ACTIVE
+                                        </span>
+                                        <div style={{ fontSize: 'var(--text-sm)', color: 'var(--text-muted)', marginBottom: 'var(--space-3)' }}>
+                                            Active suite access:
+                                        </div>
+                                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-2)' }}>
+                                            {profile.subscription.activeSuites.map((suite) => (
+                                                <span key={suite} className="badge badge-primary" style={{ textTransform: 'capitalize' }}>
+                                                    {suite === 'resources' ? '📚' : suite === 'studio' ? '🎨' : suite === 'registry' ? '📋' : '✨'} {suite}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    </div>
+                                    <a href="/pricing" className="btn btn-ghost btn-sm" style={{ whiteSpace: 'nowrap' }}>
+                                        Manage Plan
+                                    </a>
                                 </div>
                             </div>
-                            <button className="btn btn-secondary btn-sm" onClick={() => alert('Pricing coming soon!')}>
-                                Change Plan
-                            </button>
-                        </div>
+                        ) : (
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <div>
+                                    <div style={{ fontWeight: 600, marginBottom: 'var(--space-1)' }}>
+                                        Current Plan: <span className="badge badge-secondary" style={{ textTransform: 'uppercase' }}>FREE</span>
+                                    </div>
+                                    <div style={{ fontSize: 'var(--text-sm)', color: 'var(--text-muted)' }}>
+                                        Upgrade to unlock the full Stillwater ecosystem — Studio, Registry &amp; more.
+                                    </div>
+                                </div>
+                                <a href="/pricing" className="btn btn-primary btn-sm">
+                                    Upgrade Plan
+                                </a>
+                            </div>
+                        )}
                     </div>
 
                     <div className="glass-card" style={{ opacity: 0.7 }}>

@@ -28,7 +28,7 @@ export default function ResourcesClient({
     totalResources,
     hasMoreInitial 
 }: ResourcesClientProps) {
-    const { user, isAdmin } = useAuth();
+    const { user, isAdmin, loading: authLoading } = useAuth();
     const router = useRouter();
     const searchParams = useSearchParams();
     const queryClient = useQueryClient();
@@ -36,6 +36,13 @@ export default function ResourcesClient({
     const [resources, setResources] = useState<Resource[]>(initialResources);
     const [loading, setLoading] = useState(false);
     const [dedupOpen, setDedupOpen] = useState(false);
+
+    // Auth guard and private scoping
+    useEffect(() => {
+        if (!authLoading && !user) {
+            router.push('/');
+        }
+    }, [user, authLoading, router]);
     
     const [confirmModal, setConfirmModal] = useState<{
         isOpen: boolean;
@@ -78,7 +85,12 @@ export default function ResourcesClient({
 
     // Sync state from server props when they change (initial load or navigation)
     useEffect(() => {
-        setResources(initialResources);
+        // Only use initialResources if we're an admin, otherwise we want to rely on the background fetch which scopes to user
+        if (isAdmin) {
+            setResources(initialResources);
+        } else {
+            setResources([]);
+        }
         setCurrentPage(parseInt(searchParams.get('page') || '1'));
         setLoading(false);
 
@@ -155,11 +167,18 @@ export default function ResourcesClient({
 
     // Background fetch to ensure latest data (especially after redirects from creation)
     const backgroundFetch = useCallback(async () => {
+        if (!user) return;
         try {
-            const token = await user?.getIdToken();
+            const token = await user.getIdToken();
             const params = new URLSearchParams(searchParams.toString());
+            
+            // Scope to current user unless they are admin managing everything
+            if (!isAdmin) {
+                params.set('addedBy', user.uid);
+            }
+
             const response = await fetch(`/api/resources?${params.toString()}`, {
-                headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+                headers: { 'Authorization': `Bearer ${token}` }
             });
             const result = await response.json();
             if (result.success) {
@@ -168,14 +187,14 @@ export default function ResourcesClient({
         } catch (error) {
             console.error('Error background fetching resources:', error);
         }
-    }, [user, searchParams]);
+    }, [user, searchParams, isAdmin]);
 
-    // Perform refetch on mount if coming from creation or if admin (to see latest data)
+    // Perform refetch on mount to apply user scoping
     useEffect(() => {
-        if (searchParams.get('suggested') === 'true' || isAdmin) {
+        if (user) {
             backgroundFetch();
         }
-    }, [user, isAdmin, searchParams, backgroundFetch]);
+    }, [user, searchParams, backgroundFetch]);
 
     const toggleSaveMutation = useMutation({
         mutationFn: async ({ resourceId, action }: { resourceId: string, action: 'save' | 'unsave' }) => {

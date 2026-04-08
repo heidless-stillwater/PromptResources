@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import { useAuth } from '@/contexts/AuthContext';
@@ -11,10 +11,13 @@ import { db } from '@/lib/firebase';
 import { collection, getDocs, query, where, doc, getDoc } from 'firebase/firestore';
 import { Resource, UserResourceData } from '@/lib/types';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { Icons } from '@/components/ui/Icons';
 
 export default function DashboardPage() {
     const { user, profile, loading: authLoading, activeRole } = useAuth();
     const router = useRouter();
+    const searchParams = useSearchParams();
+    const isSubscribedSuccess = searchParams.get('subscribed') === 'true';
     const [savedExpanded, setSavedExpanded] = useState(false);
     const [contributionsExpanded, setContributionsExpanded] = useState(false);
 
@@ -137,6 +140,38 @@ export default function DashboardPage() {
             <Navbar />
             <div className="main-content">
                 <div className="container">
+                    {/* Success Banner */}
+                    {isSubscribedSuccess && (
+                        <div className="glass-card" style={{ 
+                            marginBottom: 'var(--space-6)', 
+                            background: 'rgba(16,185,129,0.1)', 
+                            border: '1px solid rgba(16,185,129,0.3)',
+                            padding: 'var(--space-4) var(--space-6)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 'var(--space-4)',
+                            animation: 'fade-in 0.5s ease-out'
+                        }}>
+                            <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'var(--success-500)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white' }}>
+                                <Icons.check size={24} />
+                            </div>
+                            <div>
+                                <div style={{ fontWeight: 700, fontSize: 'var(--text-lg)' }}>Welcome to the Master Suite! 🚀</div>
+                                <div style={{ fontSize: 'var(--text-sm)', color: 'var(--text-muted)' }}>Your subscription is now active. Explore all products below.</div>
+                            </div>
+                            <button 
+                                onClick={() => {
+                                    const params = new URLSearchParams(window.location.search);
+                                    params.delete('subscribed');
+                                    router.replace(`/dashboard?${params.toString()}`);
+                                }}
+                                style={{ marginLeft: 'auto', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+                            >
+                                <Icons.close size={20} />
+                            </button>
+                        </div>
+                    )}
+
                     {/* Welcome Header */}
                     <div style={{
                         marginBottom: 'var(--space-8)',
@@ -175,8 +210,10 @@ export default function DashboardPage() {
                                     ⚙️ Admin Panel
                                 </Link>
                             )}
-                            <span className={`badge badge-${profile?.subscriptionType === 'pro' ? 'accent' : profile?.subscriptionType === 'standard' ? 'primary' : 'success'}`}>
-                                {profile?.subscriptionType?.toUpperCase() || 'FREE'} Plan
+                            <span className={`badge badge-${profile?.subscription?.status === 'active' ? 'accent' : profile?.subscriptionType === 'pro' ? 'accent' : profile?.subscriptionType === 'standard' ? 'primary' : 'success'}`}>
+                                {profile?.subscription?.status === 'active' 
+                                    ? (profile.subscription.bundleId?.toUpperCase() || 'MASTER SUITE') 
+                                    : (profile?.subscriptionType?.toUpperCase() || 'FREE')} Plan
                             </span>
                             <span className="badge badge-primary">
                                 {activeRole?.toUpperCase() || 'MEMBER'}
@@ -203,6 +240,114 @@ export default function DashboardPage() {
                             <div className="stat-label">Total Available</div>
                         </div>
                     </div>
+
+                    {/* Subscription Suite Card */}
+                    {(profile?.subscription?.status === 'active' || profile?.subscriptionType === 'pro') ? (
+                        <div className="glass-card" style={{ marginBottom: 'var(--space-8)', background: 'linear-gradient(135deg, rgba(99,102,241,0.1) 0%, rgba(168,85,247,0.1) 100%)', border: '1px solid rgba(99,102,241,0.3)', position: 'relative', overflow: 'hidden' }}>
+                            <div style={{ position: 'absolute', top: '-20px', right: '-20px', width: '150px', height: '150px', background: 'radial-gradient(circle, rgba(99,102,241,0.2) 0%, transparent 70%)', zIndex: 0, filter: 'blur(30px)' }}></div>
+                            
+                            <div style={{ position: 'relative', zIndex: 1 }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 'var(--space-6)' }}>
+                                    <div>
+                                        <div style={{ fontSize: 'var(--text-xs)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.2em', color: 'var(--primary-400)', marginBottom: 'var(--space-1)' }}>
+                                            Premium Platform Access
+                                        </div>
+                                        <div style={{ fontWeight: 800, fontSize: 'var(--text-2xl)', letterSpacing: '-0.02em', color: 'var(--text-primary)' }}>
+                                            {profile.subscription?.bundleId || (profile.subscriptionType === 'pro' ? 'Pro Architect' : 'Master Suite')}
+                                        </div>
+                                    </div>
+                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px' }}>
+                                        <span className="badge badge-accent" style={{ fontSize: '10px', padding: '4px 12px', border: '1px solid rgba(255,255,255,0.1)' }}>✅ SUBSCRIPTION ACTIVE</span>
+                                        <Link href="/pricing" style={{ fontSize: '10px', color: 'var(--text-muted)', textDecoration: 'none', fontWeight: 600 }}>Manage Billing →</Link>
+                                    </div>
+                                </div>
+ 
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 'var(--space-4)' }}>
+                                    {[
+                                        { suite: 'resources', label: 'Stillwater Resources', description: 'Elite library of prompt engineering & AI blueprints.', emoji: '📚', href: '/resources' },
+                                        { suite: 'studio', label: 'Stillwater Studio', description: 'Multi-modal content generation engine.', emoji: '🎨', href: 'http://localhost:3001/generate' },
+                                        { suite: 'prompttool', label: 'PromptTool', description: 'Advanced prompt refining & testing environment.', emoji: '✨', href: 'http://localhost:3001/generate' },
+                                        { suite: 'registry', label: 'Stillwater Registry', description: 'Private organizational blueprint management.', emoji: '📋', href: 'http://localhost:5173' },
+                                    ].map(({ suite, label, description, emoji, href }) => {
+                                        const isCurrentApp = suite === 'resources';
+                                        
+                                        // Hardened access check for Hub
+                                        const activeSuites = profile.subscription?.activeSuites || [];
+                                        const hasAccess = 
+                                            activeSuites.includes(suite) || 
+                                            profile.subscriptionType === 'pro' ||
+                                            (suite === 'resources' && (activeSuites.includes('promptresources') || profile.subscription?.status === 'active')) ||
+                                            (suite === 'prompttool' && activeSuites.includes('studio')) ||
+                                            (suite === 'studio' && activeSuites.includes('prompttool'));
+                                        
+                                        return (
+                                            <a
+                                                key={suite}
+                                                href={hasAccess ? href : '/pricing'}
+                                                target={href.startsWith('http') ? '_blank' : undefined}
+                                                rel="noreferrer"
+                                                className={`suite-tile ${hasAccess ? 'active' : 'locked'} ${isCurrentApp ? 'current' : ''}`}
+                                                style={{
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: 'var(--space-4)',
+                                                    padding: 'var(--space-4)',
+                                                    borderRadius: 'var(--radius-lg)',
+                                                    background: isCurrentApp ? 'rgba(99,102,241,0.08)' : hasAccess ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.2)',
+                                                    border: `1px solid ${isCurrentApp ? 'var(--primary-500)' : hasAccess ? 'rgba(99,102,241,0.2)' : 'rgba(255,255,255,0.05)'}`,
+                                                    textDecoration: 'none',
+                                                    color: 'inherit',
+                                                    transition: 'all 0.2s ease',
+                                                    position: 'relative',
+                                                    boxShadow: isCurrentApp ? '0 0 20px rgba(99,102,241,0.15)' : 'none'
+                                                }}
+                                            >
+                                                <div style={{ 
+                                                    width: '48px', 
+                                                    height: '48px', 
+                                                    borderRadius: '12px', 
+                                                    background: isCurrentApp ? 'var(--primary-500)' : hasAccess ? 'rgba(99,102,241,0.1)' : 'rgba(255,255,255,0.02)',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'center',
+                                                    fontSize: '1.5rem',
+                                                    border: `1px solid ${hasAccess || isCurrentApp ? 'rgba(99,102,241,0.2)' : 'transparent'}`,
+                                                    color: isCurrentApp ? 'white' : 'inherit'
+                                                }}>
+                                                    {emoji}
+                                                </div>
+                                                <div style={{ flex: 1 }}>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                        <div style={{ fontWeight: 700, fontSize: 'var(--text-sm)', color: isCurrentApp || hasAccess ? 'var(--text-primary)' : 'var(--text-muted)' }}>{label}</div>
+                                                        {isCurrentApp && (
+                                                            <span style={{ fontSize: '8px', fontWeight: 900, background: 'var(--primary-500)', color: 'white', padding: '1px 6px', borderRadius: '4px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Current App</span>
+                                                        )}
+                                                    </div>
+                                                    <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginBottom: '4px' }}>{description}</div>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '10px', fontWeight: 800, textTransform: 'uppercase', color: isCurrentApp || hasAccess ? 'var(--success-400)' : 'var(--text-muted)' }}>
+                                                        {isCurrentApp ? '✓ Active & Current' : hasAccess ? '✓ Unlocked' : '🔒 Upgrade to Unlock'}
+                                                    </div>
+                                                </div>
+                                                {hasAccess && (
+                                                    <div style={{ color: 'var(--primary-400)', opacity: 0.5 }}>
+                                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14m-7-7 7 7-7 7"/></svg>
+                                                    </div>
+                                                )}
+                                            </a>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="glass-card" style={{ marginBottom: 'var(--space-8)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div>
+                                <div style={{ fontWeight: 600, marginBottom: 'var(--space-1)' }}>💎 Free Plan</div>
+                                <div style={{ fontSize: 'var(--text-sm)', color: 'var(--text-muted)' }}>Upgrade to unlock Studio, PromptTool &amp; the full Registry.</div>
+                            </div>
+                            <Link href="/pricing" className="btn btn-primary btn-sm">Upgrade →</Link>
+                        </div>
+                    )}
 
                     {/* Quick Actions */}
                     <div style={{

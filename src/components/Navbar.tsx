@@ -44,6 +44,7 @@ export default function Navbar() {
                     <li><Link href="/resources" className="navbar-link" id="nav-resources">📚 Resources</Link></li>
                     <li><Link href="/categories" className="navbar-link" id="nav-categories">🏷️ Categories</Link></li>
                     <li><Link href="/creators" className="navbar-link" id="nav-creators">👥 Creators</Link></li>
+                    <li><Link href="/pricing" className="navbar-link" id="nav-pricing">💎 Pricing</Link></li>
                     {user && <li><Link href="/dashboard" className="navbar-link" id="nav-dashboard">📊 Dashboard</Link></li>}
                     {isAdmin && <li><Link href="/admin" className="navbar-link" id="nav-admin">⚙️ Admin</Link></li>}
                 </ul>

@@ -154,7 +154,10 @@ export default function NewResourcePage() {
                 const params = new URLSearchParams();
                 if (trimmedTitle) params.set('title', trimmedTitle);
                 if (trimmedUrl) params.set('url', trimmedUrl);
-                const res = await fetch(`/api/resources/check-duplicate?${params.toString()}`);
+                const token = user ? await user.getIdToken() : '';
+                const res = await fetch(`/api/resources/check-duplicate?${params.toString()}`, {
+                    headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+                });
                 const data = await res.json();
                 setLiveCheck({ titleMatch: data.titleMatch, urlMatch: data.urlMatch });
             } catch {
@@ -162,7 +165,7 @@ export default function NewResourcePage() {
             }
         }, 700);
         return () => clearTimeout(timer);
-    }, [title, url]);
+    }, [title, url, user]);
 
     // Fetch Hub Library Default Image on Load
     useEffect(() => {
@@ -241,12 +244,15 @@ export default function NewResourcePage() {
             return;
         }
 
-        // Pre-flight duplicate check via server-side API
+        // Pre-flight duplicate check via server-side API (scoped to this user's resources)
         try {
             const params = new URLSearchParams();
             if (title.trim()) params.set('title', title.trim());
             if (url.trim()) params.set('url', url.trim());
-            const res = await fetch(`/api/resources/check-duplicate?${params.toString()}`);
+            const token = user ? await user.getIdToken() : '';
+            const res = await fetch(`/api/resources/check-duplicate?${params.toString()}`, {
+                headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+            });
             const data = await res.json();
 
             if (data.titleMatch || data.urlMatch) {

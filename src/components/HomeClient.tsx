@@ -62,7 +62,7 @@ export default function HomeClient({ recentResources = [], featuredCreators = []
                         variant="ghost"
                         className="text-xs font-black uppercase tracking-widest hover:bg-white/5"
                     >
-                        Access Network
+                        Sign In
                     </Button>
                 </div>
             </nav>
@@ -104,7 +104,7 @@ export default function HomeClient({ recentResources = [], featuredCreators = []
                                 className="h-16 px-12 group relative overflow-hidden bg-primary hover:bg-primary-hover rounded-2xl shadow-2xl shadow-primary/20"
                             >
                                 <span className="relative z-10 flex items-center gap-3 text-sm font-black uppercase tracking-widest">
-                                    Start Building
+                                    Get Started
                                     <Icons.arrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                                 </span>
                             </Button>
@@ -279,7 +279,7 @@ export default function HomeClient({ recentResources = [], featuredCreators = []
                             size="lg"
                             className="h-16 px-16 bg-white text-black hover:bg-white/90 rounded-2xl font-black uppercase tracking-widest text-sm shadow-xl shadow-white/10"
                         >
-                            Open Your Vault
+                            Get Started Now
                         </Button>
                     </div>
                 </div>

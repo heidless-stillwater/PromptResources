@@ -15,4 +15,6 @@ const adminApp = getApps().length === 0 ? initializeApp(adminConfig) : getApps()
 
 export const adminAuth = getAuth(adminApp);
 export const adminDb = getFirestore(adminApp);
+export const toolDbAdmin = getFirestore(adminApp, 'prompttool-db-0');
+export const masterDbAdmin = getFirestore(adminApp, 'promptmaster-spa-db-0');
 export default adminApp;

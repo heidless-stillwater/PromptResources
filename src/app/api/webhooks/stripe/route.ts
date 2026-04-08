@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { stripe } from '@/lib/stripe';
-import { adminDb } from '@/lib/firebase-admin';
+import { adminDb, toolDbAdmin, masterDbAdmin } from '@/lib/firebase-admin';
 import Stripe from 'stripe';
 
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
@@ -51,16 +51,42 @@ export async function POST(req: NextRequest) {
                     }
                 }
 
-                // 3. Update Firestore
-                await adminDb.collection('users').doc(userId).update({
+                // 3. Update Firestore (Dual-Sync across Ecosystem)
+                const activeSuitesArray = Array.from(activeSuites);
+                const updatePayload = {
+                    subscriptionType: 'pro',
                     subscription: {
                         bundleId,
-                        activeSuites: Array.from(activeSuites),
+                        activeSuites: activeSuitesArray,
                         status: 'active',
-                        expiresAt: null, // Subscriptions stay active until canceled
+                        expiresAt: null,
+                    },
+                    // Compatibility for PromptMaster
+                    subscriptionMetadata: {
+                        bundleId,
+                        activeSuites: activeSuitesArray,
+                        status: 'active'
+                    },
+                    // Compatibility for legacy PromptTool
+                    suiteSubscription: {
+                        bundleId,
+                        activeSuites: activeSuitesArray,
+                        status: 'active'
                     },
                     updatedAt: new Date()
-                });
+                };
+
+                await Promise.all([
+                    adminDb.collection('users').doc(userId).update(updatePayload),
+                    toolDbAdmin.collection('users').doc(userId).set({
+                        ...updatePayload,
+                        subscription: 'pro' // Master override for PromptTool's enum check
+                    }, { merge: true }),
+                    masterDbAdmin.collection('users').doc(userId).set({
+                        ...updatePayload,
+                        subscription: 'pro' // Master override for PromptMaster's gate
+                    }, { merge: true })
+                ]);
 
                 console.log(`✅ User ${userId} (${customerEmail}) granted access to: ${Array.from(activeSuites).join(', ')}`);
                 break;
