@@ -36,11 +36,11 @@ export default function ResourceCard({ resource, savedIds = new Set(), onToggleS
     return (
         <div
             id={`resource-card-${resource.id}`}
-            className="resource-card animate-fade-in clickable-card"
+            className="resource-card group hover-glow bg-[#12121a]/60 backdrop-blur-md"
             onClick={handleCardClick}
             style={{ cursor: 'pointer' }}
         >
-            <Link href={`/resources/${resource.id}`} className="resource-card-thumb" onClick={(e) => e.stopPropagation()}>
+            <Link href={`/resources/${resource.id}`} className="resource-card-thumb relative block overflow-hidden" onClick={(e) => e.stopPropagation()}>
                 {resource.thumbnailUrl ? (
                     <div className="relative w-full h-full">
                         <NextImage
@@ -48,7 +48,7 @@ export default function ResourceCard({ resource, savedIds = new Set(), onToggleS
                             alt={resource.title}
                             fill
                             sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-                            style={{ objectFit: 'cover' }}
+                            className="object-cover transition-transform duration-700 group-hover:scale-110"
                             priority={resource.isFavorite}
                         />
                     </div>
@@ -59,116 +59,117 @@ export default function ResourceCard({ resource, savedIds = new Set(), onToggleS
                             alt={resource.title}
                             fill
                             sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-                            style={{ objectFit: 'cover' }}
+                            className="object-cover transition-transform duration-700 group-hover:scale-110"
                             priority={resource.isFavorite}
                         />
                     </div>
                 ) : (
-                    <div className="resource-card-placeholder">
-                        {resource.type === 'article' ? '📄' :
-                            resource.type === 'tool' ? '🔧' :
-                                resource.type === 'course' ? '🎓' :
-                                    resource.type === 'book' ? '📚' : '📖'}
+                    <div className="resource-card-placeholder flex items-center justify-center bg-gradient-to-br from-white/5 to-white/[0.02]">
+                        <span className="text-4xl">
+                            {resource.type === 'article' ? '📄' :
+                                resource.type === 'tool' ? '🔧' :
+                                    resource.type === 'course' ? '🎓' :
+                                        resource.type === 'book' ? '📚' : '📖'}
+                        </span>
                     </div>
                 )}
-                <div className="resource-card-pricing">
+                
+                <div className="absolute top-3 left-3 z-[5]">
                     <span className={`badge badge-${resource.pricing}`}>
                         {resource.pricing}
                     </span>
                 </div>
 
-                <div style={{ position: 'absolute', bottom: 'var(--space-3)', right: 'var(--space-3)', display: 'flex', gap: 'var(--space-2)', zIndex: 2 }}>
+                <div className="absolute bottom-3 right-3 flex gap-2 z-[5] opacity-0 group-hover:opacity-100 transition-opacity duration-300">
                     {canEdit && onDelete && (
                         <button
-                            className="save-button"
+                            className="p-2 rounded-xl bg-red-500/80 hover:bg-red-500 text-white border border-red-500/20 backdrop-blur-md transition-all active:scale-95"
                             onClick={(e) => onDelete(e, resource.id)}
                             title="Delete resource"
-                            style={{ position: 'static', background: 'rgba(239, 68, 68, 0.8)', borderColor: 'rgba(239, 68, 68, 0.4)', fontSize: '0.9rem' }}
                         >
                             🗑
                         </button>
                     )}
                     <button
-                        className={`save-button ${isSaved ? 'active' : ''}`}
+                        className={`p-2 px-3 rounded-xl border transition-all active:scale-95 backdrop-blur-md ${isSaved ? 'bg-primary border-primary text-white shadow-lg shadow-primary/20' : 'bg-black/60 border-white/10 text-white/70 hover:text-white'}`}
                         onClick={(e) => onToggleSave?.(e, resource.id)}
                         title={isSaved ? 'Remove from saved' : 'Save resource'}
                         id={`save-${resource.id}`}
-                        style={{ position: 'static' }}
                     >
                         {isSaved ? '★' : '☆'}
                     </button>
                 </div>
             </Link>
 
-            <div className="resource-card-body">
-                <div className="resource-card-title">
-                    <Link href={`/resources/${resource.id}`} style={{ color: 'inherit', textDecoration: 'none' }} onClick={(e) => e.stopPropagation()}>
+            <div className="resource-card-body p-5 space-y-3">
+                <div className="resource-card-title flex justify-between items-start gap-2">
+                    <Link href={`/resources/${resource.id}`} className="text-lg font-bold leading-tight hover:text-primary transition-colors" onClick={(e) => e.stopPropagation()}>
                         {resource.title}
                     </Link>
                     {(resource.isFavorite || canEdit) && (
-                        <span 
-                            className={`featured-star transition-all duration-200 ${canEdit ? 'hover:scale-110 cursor-pointer' : ''}`}
-                            style={{ 
-                                opacity: resource.isFavorite ? 1 : 0.3,
-                                filter: resource.isFavorite ? 'drop-shadow(0 0 4px rgba(250, 204, 21, 0.5))' : 'grayscale(100%)',
-                            }}
-                            title={resource.isFavorite ? "Featured Resource (Click to unfeature)" : "Feature this resource"}
+                        <div 
+                            className={`flex items-center gap-1.5 px-2 py-0.5 rounded-lg border transition-all ${resource.isFavorite ? 'bg-yellow-500/10 border-yellow-500/20 text-yellow-500' : 'bg-white/5 border-white/10 text-white/30 hover:text-white/60'} ${canEdit ? 'cursor-pointer' : ''}`}
                             onClick={(e) => {
                                 if (canEdit && onToggleFavorite) {
                                     onToggleFavorite(e, resource.id, resource.isFavorite || false);
                                 }
                             }}
                         >
-                            ⭐
-                        </span>
+                            <span className="text-xs">⭐</span>
+                            {resource.isFavorite && <span className="premium-label text-[8px]">Featured</span>}
+                        </div>
                     )}
                 </div>
-                <div style={{ marginBottom: 'var(--space-2)' }}>
+                
+                <div className="flex items-center">
                     <Rating value={resource.averageRating || 0} size="sm" showLabel={false} />
                 </div>
-                <div className="resource-card-desc">{resource.description}</div>
+
+                <div className="resource-card-desc text-sm text-foreground-muted line-clamp-3 leading-relaxed">{resource.description}</div>
                 
                 {resource.tags && resource.tags.length > 0 && (
-                    <div className="resource-card-tags">
-                        {resource.tags.map((tag) => (
-                            <span key={tag} className="resource-card-tag">#{tag}</span>
+                    <div className="flex flex-wrap gap-2 pt-1">
+                        {resource.tags.slice(0, 3).map((tag) => (
+                            <span key={tag} className="text-[10px] font-bold text-primary/70">#{tag}</span>
                         ))}
                     </div>
                 )}
 
-                <div className="resource-card-meta">
+                <div className="flex flex-wrap gap-2">
                     {resource.categories?.slice(0, 2).map((cat) => (
                         <span key={cat} className="badge badge-primary">{cat}</span>
                     ))}
-                    <span className="badge badge-accent">{resource.platform}</span>
+                    <span className="badge badge-accent bg-transparent border-accent/30 text-accent">{resource.platform}</span>
                 </div>
             </div>
 
-            <div className="resource-card-footer">
-                <div className="resource-card-primary-creator">
+            <div className="mt-auto border-t border-white/5 bg-black/20 p-4 space-y-3">
+                <div className="flex items-center">
                     {(() => {
                         const primaryAttr = resource.attributions?.find(a => !!a.userId) || resource.attributions?.[0];
                         return primaryAttr ? <CreatorChip attribution={primaryAttr} size="sm" showExternalIcon={false} /> : null;
                     })()}
                 </div>
-                <div className="resource-card-submitter">
-                    <span className="resource-card-submitter-label">Added by:</span>
-                    {resource.creator?.photoURL && (
-                        <NextImage 
-                            src={resource.creator.photoURL} 
-                            alt={resource.creator.displayName} 
-                            width={16} 
-                            height={16} 
-                            className="creator-avatar"
-                        />
-                    )}
-                    <span>{resource.creator?.displayName || 'Community'}</span>
-                </div>
-                {resource.rank && (
-                    <div className="resource-card-rank">
-                        🏆 #{resource.rank}
+                <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-widest text-white/30">
+                    <div className="flex items-center gap-2">
+                        <span>Added by</span>
+                        {resource.creator?.photoURL && (
+                            <NextImage 
+                                src={resource.creator.photoURL} 
+                                alt={resource.creator.displayName} 
+                                width={14} 
+                                height={14} 
+                                className="rounded-full ring-1 ring-white/10"
+                            />
+                        )}
+                        <span className="text-white/60">{resource.creator?.displayName || 'Community'}</span>
                     </div>
-                )}
+                    {resource.rank && (
+                        <div className="flex items-center gap-1.5 text-yellow-500">
+                            🏆 #{resource.rank}
+                        </div>
+                    )}
+                </div>
             </div>
         </div>
     );

@@ -2,6 +2,7 @@
 
 import React from 'react';
 import Modal from './Modal';
+import { Button } from './ui/Button';
 
 interface ConfirmationModalProps {
     isOpen: boolean;
@@ -31,23 +32,25 @@ export default function ConfirmationModal({
             isOpen={isOpen}
             onClose={onClose}
             title={title}
-            maxWidth="400px"
+            maxWidth="450px"
             footer={
-                <div style={{ display: 'flex', gap: 'var(--space-3)', justifyContent: 'flex-end', width: '100%' }}>
-                    <button 
-                        className="btn btn-secondary" 
+                <div className="flex gap-4 justify-end w-full">
+                    <Button 
+                        variant="secondary" 
                         onClick={onClose}
                         disabled={loading}
+                        className="font-bold"
                     >
                         {cancelText}
-                    </button>
-                    <button 
-                        className={`btn ${isDanger ? 'btn-danger' : 'btn-primary'}`}
+                    </Button>
+                    <Button 
+                        variant={isDanger ? 'danger' : 'primary'}
                         onClick={onConfirm}
                         disabled={loading}
+                        className="font-bold min-w-[100px]"
                     >
-                        {loading ? '...' : confirmText}
-                    </button>
+                        {loading ? 'Processing...' : confirmText}
+                    </Button>
                 </div>
             }
         >

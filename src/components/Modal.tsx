@@ -40,28 +40,23 @@ export default function Modal({ isOpen, onClose, title, children, footer, maxWid
     if (!isOpen) return null;
 
     return (
-        <div className="modal-backdrop" onClick={handleBackdropClick} style={{ 
-            position: 'fixed', 
-            top: 0, 
-            left: 0, 
-            width: '100%', 
-            height: '100%', 
-            zIndex: 1000,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: 'var(--space-4)'
-        }}>
+        <div className="modal-backdrop fixed inset-0 z-[1000] flex items-center justify-center p-4" onClick={handleBackdropClick}>
             <div
                 ref={modalRef}
-                className={`modal ${className || ''}`}
+                className={`modal relative overflow-hidden ${className || ''}`}
                 style={{ maxWidth: maxWidth || '640px', width: '100%' }}
             >
-                <div className="modal-header">
-                    <h2 className="modal-title">{title}</h2>
+                {/* Premium Neural Indicator */}
+                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-primary/50 to-transparent"></div>
+                
+                <div className="modal-header flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                        <div className="w-2 h-2 rounded-full bg-primary shadow-[0_0_10px_rgba(99,102,241,0.8)] animate-pulse"></div>
+                        <h2 className="modal-title m-0">{title}</h2>
+                    </div>
                     <button
                         onClick={onClose}
-                        style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '1.5rem' }}
+                        className="text-foreground-muted hover:text-white transition-colors text-2xl bg-transparent border-none cursor-pointer"
                     >
                         &times;
                     </button>

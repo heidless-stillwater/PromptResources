@@ -14,6 +14,10 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Modal from '@/components/Modal';
 import DedupModal from '@/components/DedupModal';
 import ConfirmationModal from '@/components/ConfirmationModal';
+import { Card } from '@/components/ui/Card';
+import { Button } from '@/components/ui/Button';
+import { Icons } from '@/components/ui/Icons';
+import { SkeletonGrid } from '@/components/ui/Skeleton';
 
 interface ResourcesClientProps {
     initialResources: Resource[];
@@ -394,26 +398,21 @@ export default function ResourcesClient({
 
                     {/* Resource Grid */}
                     {loading ? (
-                        <div className="loading-page">
-                            <div className="spinner" />
-                            <div className="loading-text">Loading resources...</div>
+                        <div style={{ paddingTop: '1rem' }}>
+                            <SkeletonGrid count={8} columns={4} aspectRatio="16/9" />
                         </div>
                     ) : resources.length === 0 ? (
-                        <div style={{
-                            padding: 'var(--space-12) var(--space-4)',
-                            textAlign: 'center',
-                            background: 'rgba(255, 255, 255, 0.03)',
-                            borderRadius: 'var(--radius-lg)',
-                            border: '1px dashed rgba(255, 255, 255, 0.1)',
-                        }}>
-                            <div style={{ fontSize: '3rem', marginBottom: 'var(--space-4)' }}>🔍</div>
-                            <h3>No resources found</h3>
-                            <p style={{ color: 'var(--text-muted)' }}>
-                                Try adjusting your filters or search terms.
+                        <Card variant="glass" className="flex flex-col items-center justify-center py-20 text-center bg-background-secondary/20 border-dashed border-2">
+                            <div className="w-20 h-20 rounded-full bg-background-secondary flex items-center justify-center mb-6">
+                                <Icons.search className="w-10 h-10 text-foreground-muted opacity-20" />
+                            </div>
+                            <h3 className="text-xl font-bold mb-2">No resources found</h3>
+                            <p className="text-foreground-muted mb-8 max-w-xs mx-auto">
+                                Try adjusting your filters or search terms to discover new architectural templates.
                             </p>
-                            <button
-                                className="btn btn-secondary"
-                                style={{ marginTop: 'var(--space-4)' }}
+                            <Button 
+                                variant="secondary" 
+                                className="font-bold"
                                 onClick={() => {
                                     setSearch('');
                                     setPlatformFilter('');
@@ -425,8 +424,8 @@ export default function ResourcesClient({
                                 }}
                             >
                                 Clear All Filters
-                            </button>
-                        </div>
+                            </Button>
+                        </Card>
                     ) : (
                         <div className="resource-grid">
                             {resources.map((resource) => (

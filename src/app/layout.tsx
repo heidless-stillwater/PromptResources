@@ -18,9 +18,11 @@ import ReactQueryProvider from '@/components/providers/ReactQueryProvider';
 import CommandPalette from '@/components/CommandPalette';
 
 export const metadata: Metadata = {
-    title: 'PromptResources - AI Prompt Education & Reference Hub',
-    description: 'Discover, organize, and master AI prompts. Curated educational resources for Gemini, NanoBanana, ChatGPT, Claude, and more. Free and premium content for all skill levels.',
-    keywords: 'AI prompts, prompt engineering, Gemini, NanoBanana, ChatGPT, Claude, Midjourney, AI education',
+    title: 'Stillwater Resources | AI Education Hub',
+    description: 'Discover, organize, and master architectural AI prompts. Part of the Stillwater Ecosystem.',
+    icons: {
+        icon: '/favicon.svg',
+    },
 };
 
 import { Agentation } from 'agentation';
