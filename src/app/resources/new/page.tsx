@@ -1398,7 +1398,10 @@ export default function NewResourcePage() {
                         </div>
                         <div className="space-y-3">
                             <label className="text-xs font-black text-white/40 uppercase tracking-widest">Symbol / Emoji</label>
-                            <div className="flex flex-wrap gap-2 mb-2 p-3 bg-black/20 rounded-xl border border-white/5">
+                            <div 
+                                className="flex flex-wrap gap-2 mb-2 p-3 bg-black/20 rounded-xl border border-white/5"
+                                style={{ maxHeight: '160px', overflowY: 'auto' }}
+                            >
                                 {['📂', '🤖', '🧠', '🔮', '⚡', '🏗️', '📐', '🧩', '🔗', '📝', '🖼️', '🎬', '🎵', '🎨', '🎯', '✅', '📘', '📋', '🔄', '💎', '🚀', '💻', '🌐', '📱', '📖', '📚', '✍️', '🔬', '🧪', '🔭', '🧮', '📊', '📈', '📉', '🎮', '🎲', '🏆', '🛠️', '⚒️', '⚙️', '💡', '🔦', '🌍', '🪐', '☀️', '⭐', '🔥', '✨', '🌟', '💫', '💥', '💢', '💦', '💨', '💤', '🕳️', '💬', '🗨️', '🗯️', '💭', '👁️', '👂', '👃', '👄', '👅', '👆', '👇', '👈', '👉', '👊', '👋', '👌', '👍', '👎', '👏', '👐', '👑', '👒', '🎓', '🎩', '🎒', '👝', '👛', '👜', '💼', '👓', '🕶️', '💍', '🌂'].map(sym => (
                                     <button
                                         key={sym}
