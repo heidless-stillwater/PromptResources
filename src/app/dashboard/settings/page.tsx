@@ -10,6 +10,7 @@ import { doc, updateDoc } from 'firebase/firestore';
 import { storage } from '@/lib/firebase';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import ManageSubscriptionButton from '@/components/ManageSubscriptionButton';
 
 export default function SettingsPage() {
     const { user, profile, loading: authLoading } = useAuth();
@@ -380,9 +381,10 @@ export default function SettingsPage() {
                                             ))}
                                         </div>
                                     </div>
-                                    <a href="/pricing" className="btn btn-ghost btn-sm" style={{ whiteSpace: 'nowrap' }}>
-                                        Manage Plan
-                                    </a>
+                                    <ManageSubscriptionButton 
+                                        className="btn btn-ghost btn-sm"
+                                        label="Manage Plan"
+                                    />
                                 </div>
                             </div>
                         ) : (

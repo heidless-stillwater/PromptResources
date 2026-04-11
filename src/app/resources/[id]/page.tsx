@@ -18,6 +18,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Rating from '@/components/Rating';
 import CommentSection from '@/components/CommentSection';
 import ThumbnailPicker from '@/components/ThumbnailPicker';
+import { Icons } from '@/components/ui/Icons';
 
 export default function ResourceDetailPage() {
     const params = useParams();
@@ -47,6 +48,8 @@ export default function ResourceDetailPage() {
     const [tempTitle, setTempTitle] = useState('');
     const [isEditingPrompts, setIsEditingPrompts] = useState(false);
     const [tempPrompts, setTempPrompts] = useState('');
+    const [isEditingRank, setIsEditingRank] = useState(false);
+    const [tempRank, setTempRank] = useState<string>('');
 
     // Confirmation Modal State
     const [confirmModal, setConfirmModal] = useState<{
@@ -616,15 +619,13 @@ export default function ResourceDetailPage() {
                             <span>{resource.title}</span>
                         </div>
                         <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
-                            <button
-                                className="btn btn-secondary btn-sm"
-                                onClick={() => router.back()}
-                                title="Go to previous page"
-                            >
-                                ← Back
-                            </button>
+                            {user && (
+                                <Link href="/resources/new" className="btn btn-secondary btn-sm">
+                                    ➕ Add Resource
+                                </Link>
+                            )}
                             <Link href="/resources" className="btn btn-primary btn-sm">
-                                📚 Resource Registry
+                                📚 Resources
                             </Link>
                         </div>
                     </div>
@@ -765,9 +766,47 @@ export default function ResourceDetailPage() {
                                                 <span style={{ fontSize: '14px', marginLeft: 'var(--space-2)' }}>✏️</span>
                                             )}
                                         </span>
-                                        {resource.rank && (
-                                            <span className="detail-rank">
-                                                Rank #{resource.rank}
+                                        {isEditingRank ? (
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+                                                <input 
+                                                    type="number" 
+                                                    className="form-input" 
+                                                    style={{ width: '80px', padding: 'var(--space-1) var(--space-2)' }} 
+                                                    value={tempRank} 
+                                                    onChange={(e) => setTempRank(e.target.value)} 
+                                                    placeholder="Priority..."
+                                                    autoFocus
+                                                />
+                                                <button 
+                                                    className="btn btn-primary btn-sm"
+                                                    onClick={async () => {
+                                                        const numRank = parseInt(tempRank);
+                                                        await handleUpdateField('rank', isNaN(numRank) ? null : numRank);
+                                                        setIsEditingRank(false);
+                                                    }}
+                                                >
+                                                    Save
+                                                </button>
+                                                <button 
+                                                    className="btn btn-secondary btn-sm" 
+                                                    onClick={() => setIsEditingRank(false)}
+                                                >
+                                                    Cancel
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <span 
+                                                className="detail-rank" 
+                                                style={{ cursor: (isAdmin || (user && resource.addedBy === user.uid)) ? 'pointer' : 'default', padding: '0 var(--space-2)', borderRadius: 'var(--radius-sm)' }}
+                                                onClick={() => {
+                                                    if (isAdmin || (user && resource.addedBy === user.uid)) {
+                                                        setIsEditingRank(true);
+                                                        setTempRank(resource.rank ? resource.rank.toString() : '');
+                                                    }
+                                                }}
+                                                title={(isAdmin || (user && resource.addedBy === user.uid)) ? "Click to set priority rank" : ""}
+                                            >
+                                                {(isAdmin || (user && resource.addedBy === user.uid)) && !resource.rank ? 'Set Priority' : `Rank #${resource.rank}`}
                                             </span>
                                         )}
                                     </h1>
@@ -1246,23 +1285,60 @@ export default function ResourceDetailPage() {
                                             const isGeneric = isGenericYouTubeName(c.name) && resource.url && isYouTubeUrl(resource.url);
                                             const name = isGeneric ? 'YouTube' : c.name;
                                             return { ...c, name };
-                                        }).map((attribution, idx) => (
-                                            <a
-                                                key={idx}
-                                                href={attribution.url}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                className="attribution-card"
-                                                style={{ padding: 'var(--space-3)', fontSize: 'var(--text-xs)' }}
-                                            >
-                                                <div className="attribution-avatar" style={{ width: '32px', height: '32px', fontSize: '1rem' }}>👤</div>
-                                                <div style={{ overflow: 'hidden' }}>
-                                                    <div style={{ fontWeight: 700, color: 'var(--text-primary)', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
-                                                        {attribution.name}
+                                        }).map((attribution, idx) => {
+                                            const internalLink = attribution.userId ? `/creators/${attribution.userId}` : null;
+                                            
+                                            return (
+                                                <div 
+                                                    key={idx}
+                                                    className="attribution-card group/attr"
+                                                    style={{ padding: 'var(--space-3)', fontSize: 'var(--text-xs)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--bg-elevated)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)' }}
+                                                >
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', flexGrow: 1, minWidth: 0 }}>
+                                                        <div className="attribution-avatar" style={{ width: '32px', height: '32px', fontSize: '1rem', flexShrink: 0 }}>👤</div>
+                                                        <div style={{ minWidth: 0 }}>
+                                                            {internalLink ? (
+                                                                <Link 
+                                                                    href={internalLink}
+                                                                    className="font-bold text-white hover:text-indigo-400 transition-colors truncate block"
+                                                                    title={`View ${attribution.name}'s profile`}
+                                                                >
+                                                                    {attribution.name}
+                                                                </Link>
+                                                            ) : (
+                                                                <div className="font-bold text-white/90 truncate">{attribution.name}</div>
+                                                            )}
+                                                            <div className="text-[10px] text-white/40 uppercase tracking-wider">
+                                                                {attribution.role || 'Contributor'}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    
+                                                    <div className="flex gap-2">
+                                                        {attribution.url && (
+                                                            <a 
+                                                                href={attribution.url}
+                                                                target="_blank"
+                                                                rel="noopener noreferrer"
+                                                                className="w-8 h-8 flex items-center justify-center rounded-lg bg-white/5 text-white/30 hover:text-white hover:bg-white/10 transition-all"
+                                                                title="External Source"
+                                                            >
+                                                                <Icons.external size={14} />
+                                                            </a>
+                                                        )}
+                                                        {internalLink && (
+                                                            <Link 
+                                                                href={internalLink}
+                                                                className="w-8 h-8 flex items-center justify-center rounded-lg bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500 hover:text-white transition-all opacity-0 group-hover/attr:opacity-100"
+                                                                title="View Registry Profile"
+                                                            >
+                                                                <Icons.user size={14} />
+                                                            </Link>
+                                                        )}
                                                     </div>
                                                 </div>
-                                            </a>
-                                        ))}
+                                            );
+                                        })}
                                     </div>
                                 </div>
                             )}

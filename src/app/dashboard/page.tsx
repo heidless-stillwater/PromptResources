@@ -12,6 +12,7 @@ import { collection, getDocs, query, where, doc, getDoc } from 'firebase/firesto
 import { Resource, UserResourceData } from '@/lib/types';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Icons } from '@/components/ui/Icons';
+import ManageSubscriptionButton from '@/components/ManageSubscriptionButton';
 
 export default function DashboardPage() {
     const { user, profile, loading: authLoading, activeRole } = useAuth();
@@ -258,7 +259,10 @@ export default function DashboardPage() {
                                     </div>
                                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px' }}>
                                         <span className="badge badge-accent" style={{ fontSize: '10px', padding: '4px 12px', border: '1px solid rgba(255,255,255,0.1)' }}>✅ SUBSCRIPTION ACTIVE</span>
-                                        <Link href="/pricing" style={{ fontSize: '10px', color: 'var(--text-muted)', textDecoration: 'none', fontWeight: 600 }}>Manage Billing →</Link>
+                                        <ManageSubscriptionButton 
+                                            label="Manage Billing →" 
+                                            style={{ fontSize: '10px', color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600, padding: 0 }} 
+                                        />
                                     </div>
                                 </div>
  

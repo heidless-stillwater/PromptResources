@@ -13,6 +13,7 @@ import Image from 'next/image';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import CreatorChip from '@/components/CreatorChip';
+import { Icons } from '@/components/ui/Icons';
 
 interface ResourceDetailClientProps {
     initialResource: Resource;
@@ -183,6 +184,56 @@ export default function ResourceDetailClient({ initialResource }: ResourceDetail
         setShareOpen(false);
     };
 
+    const handleUpdateRank = async (newRank: number | null) => {
+        if (!isAdmin || !resource) return;
+        
+        try {
+            const token = await user?.getIdToken();
+            const response = await fetch(`/api/resources/${resourceId}`, {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                    rank: newRank
+                }),
+            });
+
+            const result = await response.json();
+            if (result.success) {
+                setResource(prev => ({ ...prev, rank: newRank }));
+            }
+        } catch (error) {
+            console.error('Error updating rank:', error);
+        }
+    };
+
+    const handleUpdateFeatured = async (featured: boolean | null) => {
+        if (!isAdmin || !resource) return;
+        
+        try {
+            const token = await user?.getIdToken();
+            const response = await fetch(`/api/resources/${resourceId}`, {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                    isFavorite: featured
+                }),
+            });
+
+            const result = await response.json();
+            if (result.success) {
+                setResource(prev => ({ ...prev, isFavorite: featured }));
+            }
+        } catch (error) {
+            console.error('Error updating featured status:', error);
+        }
+    };
+
     const handleSaveNote = async () => {
         if (!user || !resource) return;
         setIsSavingNote(true);
@@ -243,7 +294,7 @@ export default function ResourceDetailClient({ initialResource }: ResourceDetail
 
         setIsExtracting(true);
         try {
-            const response = await fetch(`/api/youtube/extract?videoId=${videoId}`);
+            const response = await fetch(`/api/youtube/extract?videoId=${videoId}&uid=${user?.uid || ''}`);
             const result = await response.json();
             if (result.success && result.data.links.length > 0) {
                 setExtractedLinks(result.data.links);
@@ -267,7 +318,7 @@ export default function ResourceDetailClient({ initialResource }: ResourceDetail
         setIsExtracting(true);
         setIsUrlInputOpen(false);
         try {
-            const response = await fetch(`/api/links/extract?url=${encodeURIComponent(extractUrl)}`);
+            const response = await fetch(`/api/links/extract?url=${encodeURIComponent(extractUrl)}&uid=${user?.uid || ''}`);
             const result = await response.json();
             if (result.success && result.data.links.length > 0) {
                 setExtractedLinks(result.data.links);
@@ -276,9 +327,14 @@ export default function ResourceDetailClient({ initialResource }: ResourceDetail
             } else {
                 alert(result.error || 'No links found on that page.');
             }
-        } catch (error) {
+        } catch (error: any) {
             console.error('Error extracting links:', error);
-            alert('Failed to extract links. Please try again.');
+            if (error.status === 403 || error.code === 'LIMIT_REACHED') {
+                alert('Daily Magic AI limit reached. Upgrade to Pro for unlimited usage.');
+                router.push('/pricing');
+            } else {
+                alert('Failed to extract links. Please try again.');
+            }
         } finally {
             setIsExtracting(false);
             setExtractUrl('');
@@ -541,6 +597,93 @@ export default function ResourceDetailClient({ initialResource }: ResourceDetail
                                                 🌐 Open Resource
                                             </a>
                                         </div>
+
+                                        {isAdmin && (
+                                            <div style={{ 
+                                                marginTop: 'var(--space-6)', 
+                                                paddingTop: 'var(--space-6)', 
+                                                borderTop: '1px solid rgba(255, 255, 255, 0.05)',
+                                                display: 'flex',
+                                                flexDirection: 'column',
+                                                gap: 'var(--space-4)'
+                                            }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--space-4)', flexWrap: 'wrap' }}>
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+                                                        <label style={{ fontSize: '10px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                            <Icons.trophy size={10} className="text-amber-400" /> Discovery Weight (Rank)
+                                                        </label>
+                                                        <div style={{ display: 'flex', gap: '6px' }}>
+                                                            {[null, 1, 2, 3, 5, 10].map((r) => (
+                                                                <button
+                                                                    key={r === null ? 'none' : r}
+                                                                    type="button"
+                                                                    onClick={() => handleUpdateRank(r)}
+                                                                    style={{
+                                                                        padding: '6px 12px',
+                                                                        borderRadius: '8px',
+                                                                        fontSize: '10px',
+                                                                        fontWeight: 900,
+                                                                        transition: 'all 0.2s ease',
+                                                                        border: '1px solid',
+                                                                        cursor: 'pointer',
+                                                                        background: (r === null && resource.rank === null) || (typeof r === 'number' && resource.rank === r)
+                                                                            ? 'rgba(79, 70, 229, 0.2)'
+                                                                            : 'rgba(255, 255, 255, 0.03)',
+                                                                        borderColor: (r === null && resource.rank === null) || (typeof r === 'number' && resource.rank === r)
+                                                                            ? 'rgba(79, 70, 229, 0.4)'
+                                                                            : 'rgba(255, 255, 255, 0.05)',
+                                                                        color: (r === null && resource.rank === null) || (typeof r === 'number' && resource.rank === r)
+                                                                            ? '#fff'
+                                                                            : 'rgba(255, 255, 255, 0.4)'
+                                                                    }}
+                                                                >
+                                                                    {r === null ? 'None' : r}
+                                                                </button>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+                                                        <label style={{ fontSize: '10px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                            <Icons.star size={10} className="text-amber-400" /> Featured Elevation
+                                                        </label>
+                                                        <div style={{ display: 'flex', gap: '6px' }}>
+                                                            {[
+                                                                { label: 'Standard', value: null },
+                                                                { label: 'Featured', value: true },
+                                                                { label: 'Baseline', value: false }
+                                                            ].map((opt) => (
+                                                                <button
+                                                                    key={opt.label}
+                                                                    type="button"
+                                                                    onClick={() => handleUpdateFeatured(opt.value)}
+                                                                    style={{
+                                                                        padding: '6px 14px',
+                                                                        borderRadius: '8px',
+                                                                        fontSize: '10px',
+                                                                        fontWeight: 900,
+                                                                        transition: 'all 0.2s ease',
+                                                                        border: '1px solid',
+                                                                        cursor: 'pointer',
+                                                                        background: resource.isFavorite === opt.value
+                                                                            ? 'rgba(245, 158, 11, 0.2)'
+                                                                            : 'rgba(255, 255, 255, 0.03)',
+                                                                        borderColor: resource.isFavorite === opt.value
+                                                                            ? 'rgba(245, 158, 11, 0.4)'
+                                                                            : 'rgba(255, 255, 255, 0.05)',
+                                                                        color: resource.isFavorite === opt.value
+                                                                            ? '#fff'
+                                                                            : 'rgba(255, 255, 255, 0.4)'
+                                                                    }}
+                                                                >
+                                                                    {opt.label}
+                                                                </button>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             </div>
@@ -610,15 +753,16 @@ export default function ResourceDetailClient({ initialResource }: ResourceDetail
 
                                 {resource.attributions && resource.attributions.length > 0 && (
                                     <div>
-                                        <h3 style={{ fontSize: 'var(--text-base)', color: 'var(--text-secondary)', marginBottom: 'var(--space-3)' }}>Attribution</h3>
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
-                                            {deduplicateAttributions(resource.attributions || []).map((c) => {
+                                        <h3 style={{ fontSize: 'var(--text-xs)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', marginBottom: 'var(--space-3)' }}>Creators & Attribution</h3>
+                                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-2)' }}>
+                                            {deduplicateAttributions(resource.attributions || []).map((c, idx) => {
                                                 const isGeneric = isGenericYouTubeName(c.name) && resource.url && isYouTubeUrl(resource.url);
                                                 const name = isGeneric ? 'YouTube' : c.name;
-                                                return { ...c, name };
-                                            }).map((attribution, idx) => (
-                                                <CreatorChip key={idx} attribution={attribution} />
-                                            ))}
+                                                const attribution = { ...c, name };
+                                                return (
+                                                    <CreatorChip key={idx} attribution={attribution} size="sm" />
+                                                );
+                                            })}
                                         </div>
                                     </div>
                                 )}

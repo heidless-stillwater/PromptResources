@@ -7,7 +7,7 @@ import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import { useAuth } from '@/contexts/AuthContext';
 import { db } from '@/lib/firebase';
-import { collection, getDocs, doc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { collection, getDocs, doc, updateDoc, deleteDoc, setDoc } from 'firebase/firestore';
 import { UserProfile, Resource } from '@/lib/types';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
@@ -32,7 +32,15 @@ function AdminContent() {
     const queryClient = useQueryClient();
     const searchParams = useSearchParams();
     const defaultTab = (searchParams.get('tab') as any) || 'overview';
-    const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'resources' | 'suggestions' | 'categories'>(defaultTab);
+    const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'resources' | 'creators' | 'suggestions' | 'categories'>(defaultTab);
+    
+    // Creator Explorer State
+    const [isCreatingStub, setIsCreatingStub] = useState(false);
+    const [newStub, setNewStub] = useState({ name: '', slug: '', type: 'individual', bio: '' });
+    const [creatorsSearch, setCreatorsSearch] = useState('');
+    const [creatorSortBy, setCreatorSortBy] = useState<'name' | 'authored' | 'total' | 'newest'>('total');
+    const [creatorFilterType, setCreatorFilterType] = useState<string>('all');
+    const [creatorFilterStatus, setCreatorFilterStatus] = useState<'all' | 'stub' | 'native'>('all');
 
     useEffect(() => {
         if (!authLoading && (!user || !isAdmin)) {
@@ -131,7 +139,64 @@ function AdminContent() {
         }
     }, [searchParams]);
 
-    if (authLoading || usersLoading || resourcesLoading || !isAdmin) {
+    // Fetch Creators
+    const { data: creators = [], isLoading: creatorsLoading } = useQuery({
+        queryKey: ['admin', 'creators'],
+        queryFn: async () => {
+            const usersSnap = await getDocs(collection(db, 'users'));
+            const list = usersSnap.docs.map((d) => ({
+                ...d.data(),
+                uid: d.id,
+            })) as UserProfile[];
+            return list.filter(u => u.isPublicProfile || u.isStub);
+        },
+        enabled: !!user && isAdmin,
+    });
+
+    const createStubMutation = useMutation({
+        mutationFn: async (stubData: { name: string, slug: string, type: string, bio: string }) => {
+            const { nanoid } = await import('nanoid');
+            const id = 'stub_' + nanoid();
+            await setDoc(doc(db, 'users', id), {
+                uid: id,
+                displayName: stubData.name,
+                email: 'fake@directory.stub',
+                role: 'member',
+                subscriptionType: 'free',
+                slug: stubData.slug || id,
+                profileType: stubData.type,
+                bio: stubData.bio,
+                isStub: true,
+                isPublicProfile: true,
+                resourceCount: 0,
+                createdAt: new Date(),
+                updatedAt: new Date()
+            });
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['admin', 'creators'] });
+            setIsCreatingStub(false);
+            setNewStub({ name: '', slug: '', type: 'individual', bio: '' });
+        }
+    });
+
+    const syncCreatorMutation = useMutation({
+        mutationFn: async (userId: string) => {
+            const idToken = await user?.getIdToken();
+            const res = await fetch('/api/admin/creators/sync', {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${idToken}`
+                },
+                body: JSON.stringify({ userId }),
+            });
+            return res.json();
+        },
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin', 'creators'] })
+    });
+
+    if (authLoading || usersLoading || resourcesLoading || creatorsLoading || !isAdmin) {
         return (
             <div className="page-wrapper">
                 <Navbar />
@@ -164,7 +229,7 @@ function AdminContent() {
 
                     {/* Tabs */}
                     <div className="tabs">
-                        {(['overview', 'users', 'resources', 'suggestions', 'categories'] as const).map((tab) => (
+                        {(['overview', 'users', 'resources', 'creators', 'suggestions', 'categories'] as const).map((tab) => (
                             <button
                                 key={tab}
                                 className={`tab ${activeTab === tab ? 'active' : ''}`}
@@ -175,6 +240,7 @@ function AdminContent() {
                                 {tab === 'overview' && '📊 '}
                                 {tab === 'users' && '👥 '}
                                 {tab === 'resources' && '📚 '}
+                                {tab === 'creators' && '🎨 '}
                                 {tab === 'suggestions' && '💡 '}
                                 {tab === 'categories' && '🏷️ '}
                                 {tab.charAt(0).toUpperCase() + tab.slice(1)}
@@ -475,6 +541,184 @@ function AdminContent() {
                             </div>
                         </div>
                     )}
+
+                    {/* Creators Tab */}
+                    {activeTab === 'creators' && (
+                        <div className="animate-fade-in">
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-6)' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-4)' }}>
+                                    <h3 style={{ margin: 0 }}>🎨 Creator Registry Explorer</h3>
+                                    <div className="badge badge-secondary">{creators.length} items</div>
+                                </div>
+                                <button className="btn btn-primary btn-sm" onClick={() => setIsCreatingStub(!isCreatingStub)}>
+                                    {isCreatingStub ? 'Cancel' : '➕ Add External Stub'}
+                                </button>
+                            </div>
+
+                            {/* Advanced Filter Bar */}
+                            <div className="filter-bar" style={{ marginBottom: 'var(--space-4)', display: 'flex', flexWrap: 'wrap', gap: 'var(--space-2)' }}>
+                                <div className="search-input-wrapper" style={{ flex: 2, minWidth: '250px' }}>
+                                    <span className="search-icon">🔍</span>
+                                    <input 
+                                        type="text" 
+                                        placeholder="Search creators by name or slug..." 
+                                        value={creatorsSearch}
+                                        onChange={(e) => setCreatorsSearch(e.target.value)}
+                                    />
+                                </div>
+                                <select className="form-select" style={{ flex: 1, fontSize: '0.8rem' }} value={creatorFilterType} onChange={(e) => setCreatorFilterType(e.target.value)}>
+                                    <option value="all">All Types</option>
+                                    <option value="individual">Individual</option>
+                                    <option value="channel">Channel</option>
+                                    <option value="organization">Organization</option>
+                                </select>
+                                <select className="form-select" style={{ flex: 1, fontSize: '0.8rem' }} value={creatorFilterStatus} onChange={(e) => setCreatorFilterStatus(e.target.value as any)}>
+                                    <option value="all">All Status</option>
+                                    <option value="stub">Stubs Only</option>
+                                    <option value="native">Native Only</option>
+                                </select>
+                                <select className="form-select" style={{ flex: 1, fontSize: '0.8rem' }} value={creatorSortBy} onChange={(e) => setCreatorSortBy(e.target.value as any)}>
+                                    <option value="total">Resources (Dec)</option>
+                                    <option value="authored">Authored (Dec)</option>
+                                    <option value="name">Alphabetical</option>
+                                    <option value="newest">Newest First</option>
+                                </select>
+                            </div>
+
+                            {isCreatingStub && (
+                                <div className="glass-card" style={{ marginBottom: 'var(--space-6)', border: '1px solid var(--accent-primary)', animation: 'slideDown 0.3s ease' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 'var(--space-4)' }}>
+                                        <h4 style={{ margin: 0 }}>Register External Creator Stub</h4>
+                                        <button className="btn btn-ghost btn-sm" onClick={() => setIsCreatingStub(false)}>✕</button>
+                                    </div>
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 'var(--space-4)' }}>
+                                        <div className="form-group">
+                                            <input 
+                                                type="text" 
+                                                className="form-input" 
+                                                placeholder="Display Name (e.g. Kevin Stratvert)" 
+                                                value={newStub.name}
+                                                onChange={(e) => {
+                                                    const name = e.target.value;
+                                                    setNewStub(s => ({...s, name, slug: name.toLowerCase().replace(/[^a-z0-9]/g, '-')}));
+                                                }}
+                                            />
+                                        </div>
+                                        <div className="form-group">
+                                            <input 
+                                                type="text" 
+                                                className="form-input" 
+                                                placeholder="Custom Slug" 
+                                                value={newStub.slug}
+                                                onChange={(e) => setNewStub(s => ({...s, slug: e.target.value}))}
+                                            />
+                                        </div>
+                                        <div className="form-group">
+                                            <select 
+                                                className="form-select" 
+                                                value={newStub.type}
+                                                onChange={(e) => setNewStub(s => ({...s, type: e.target.value}))}
+                                            >
+                                                <option value="individual">Individual</option>
+                                                <option value="channel">Channel</option>
+                                                <option value="organization">Organization</option>
+                                            </select>
+                                        </div>
+                                        <div style={{ gridColumn: 'span 3', display: 'flex', justifyContent: 'flex-end', gap: 'var(--space-2)' }}>
+                                            <button className="btn btn-ghost btn-sm" onClick={() => setIsCreatingStub(false)}>Cancel</button>
+                                            <button 
+                                                className="btn btn-primary btn-sm"
+                                                onClick={() => createStubMutation.mutate(newStub)}
+                                                disabled={!newStub.name || createStubMutation.isPending}
+                                            >
+                                                {createStubMutation.isPending ? 'Saving...' : 'Confirm Registration'}
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            <div className="table-wrapper">
+                                <table className="table">
+                                    <thead>
+                                        <tr>
+                                            <th onClick={() => setCreatorSortBy('name')} style={{ cursor: 'pointer' }}>
+                                                Creator {creatorSortBy === 'name' ? '↓' : ''}
+                                            </th>
+                                            <th>Type</th>
+                                            <th onClick={() => setCreatorSortBy('total')} style={{ cursor: 'pointer' }}>
+                                                Total {creatorSortBy === 'total' ? '↓' : ''}
+                                            </th>
+                                            <th onClick={() => setCreatorSortBy('authored')} style={{ cursor: 'pointer' }}>
+                                                Authored {creatorSortBy === 'authored' ? '↓' : ''}
+                                            </th>
+                                            <th>Curated</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {creators
+                                            .filter(c => {
+                                                const matchesSearch = c.displayName.toLowerCase().includes(creatorsSearch.toLowerCase()) || 
+                                                                     (c.slug && c.slug.toLowerCase().includes(creatorsSearch.toLowerCase()));
+                                                const matchesType = creatorFilterType === 'all' || (c.profileType || 'individual') === creatorFilterType;
+                                                const matchesStatus = creatorFilterStatus === 'all' || (creatorFilterStatus === 'stub' ? c.isStub : !c.isStub);
+                                                return matchesSearch && matchesType && matchesStatus;
+                                            })
+                                            .sort((a, b) => {
+                                                if (creatorSortBy === 'name') return a.displayName.localeCompare(b.displayName);
+                                                if (creatorSortBy === 'authored') return (b.authoredCount || 0) - (a.authoredCount || 0);
+                                                if (creatorSortBy === 'newest') return new Date(b.createdAt as any).getTime() - new Date(a.createdAt as any).getTime();
+                                                return (b.resourceCount || 0) - (a.resourceCount || 0);
+                                            })
+                                            .map((c) => (
+                                            <tr key={c.uid}>
+                                                <td>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                        <div className="avatar" style={{ width: 24, height: 24, fontSize: '10px' }}>
+                                                            {(c.displayName?.[0] || 'C').toUpperCase()}
+                                                        </div>
+                                                        <div>
+                                                            <div style={{ fontWeight: 600, fontSize: '0.85rem' }}>{c.displayName}</div>
+                                                            <div style={{ fontSize: '9px', color: 'var(--text-muted)' }}>{c.slug}</div>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                <td>
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                                        <span className="badge badge-secondary" style={{ fontSize: '9px', width: 'fit-content' }}>{c.profileType || 'individual'}</span>
+                                                        {c.isStub && <span style={{ fontSize: '8px', color: 'var(--accent-primary)', fontWeight: 700 }}>EXTERNAL</span>}
+                                                    </div>
+                                                </td>
+                                                <td style={{ fontWeight: 700 }}>{c.resourceCount || 0}</td>
+                                                <td>✍️ {c.authoredCount || 0}</td>
+                                                <td style={{ color: 'var(--text-muted)' }}>📂 {c.curatedCount || 0}</td>
+                                                <td>
+                                                    <div style={{ display: 'flex', gap: '4px' }}>
+                                                        <button 
+                                                            className="btn btn-ghost btn-sm" 
+                                                            onClick={() => syncCreatorMutation.mutate(c.uid)}
+                                                            disabled={syncCreatorMutation.isPending && syncCreatorMutation.variables === c.uid}
+                                                            title="Re-calculate statistics"
+                                                        >
+                                                            {syncCreatorMutation.isPending && syncCreatorMutation.variables === c.uid ? (
+                                                                <div className="spinner-inline" style={{ width: '12px', height: '12px' }} />
+                                                            ) : '🔄'}
+                                                        </button>
+                                                        <Link href={`/creators/${c.slug || c.uid}`} target="_blank" className="btn btn-ghost btn-sm" title="View Public Profile">
+                                                            🔗
+                                                        </Link>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Categories Tab */}
 
                     {/* Categories Tab */}
                     {activeTab === 'categories' && (

@@ -13,6 +13,7 @@ import {
     UserPlus,
     UserCheck,
     Trophy,
+    Star,
     ChevronLeft,
     ChevronRight,
     ChevronDown,
@@ -59,7 +60,12 @@ import {
     Tag,
     Play,
     Award,
-    RefreshCw
+    RefreshCw,
+    TrendingUp,
+    TrendingDown,
+    Folder,
+    Edit,
+    Trash
 } from "lucide-react"
 
 // Twitter/X icon (removed from lucide-react v1)
@@ -118,6 +124,7 @@ export const Icons = {
     follow: UserPlus,
     following: UserCheck,
     trophy: Trophy,
+    star: Star,
     chevronLeft: ChevronLeft,
     chevronRight: ChevronRight,
     chevronDown: ChevronDown,
@@ -158,5 +165,11 @@ export const Icons = {
     feed: LayoutList,
     rows: Rows,
     exemplar: Award,
-    refresh: RefreshCw
+    refresh: RefreshCw,
+    trendingUp: TrendingUp,
+    trendingDown: TrendingDown,
+    folder: Folder,
+    edit: Edit,
+    trash: Trash,
+    layoutGrid: LayoutGrid
 }

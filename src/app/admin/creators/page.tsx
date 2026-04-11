@@ -17,10 +17,10 @@ import { Icons } from '@/components/ui/Icons';
 export default function CreatorsAdminPage() {
     return (
         <Suspense fallback={
-            <div className="page-wrapper">
+            <div className="min-h-screen bg-[#0f0f15]">
                 <Navbar />
-                <div className="loading-page">
-                    <div className="spinner" />
+                <div className="flex flex-col items-center justify-center min-h-[60vh]">
+                    <Icons.spinner className="animate-spin text-indigo-500" size={40} />
                 </div>
             </div>
         }>
@@ -39,10 +39,13 @@ function CreatorsAdminContent() {
     const [newStub, setNewStub] = useState({ name: '', slug: '', type: 'individual', bio: '' });
     const [searchQuery, setSearchQuery] = useState('');
     const [isSyncingAll, setIsSyncingAll] = useState(false);
+    const [syncProgress, setSyncProgress] = useState({ current: 0, total: 0 });
+    const [syncedUids, setSyncedUids] = useState<Set<string>>(new Set());
     const [syncStatus, setSyncStatus] = useState<{ message: string; type: 'success' | 'error' | 'none' }>({ message: '', type: 'none' });
     const [sortBy, setSortBy] = useState<'name' | 'authored' | 'total' | 'newest'>('total');
     const [filterType, setFilterType] = useState<string>('all');
     const [filterStatus, setFilterStatus] = useState<'all' | 'stub' | 'native'>('all');
+    const [showSyncConfirm, setShowSyncConfirm] = useState(false);
 
     useEffect(() => {
         if (!authLoading && (!user || !isAdmin)) {
@@ -60,7 +63,6 @@ function CreatorsAdminContent() {
                 uid: d.id,
             })) as UserProfile[];
             
-            // Filter to only public profiles and stubs
             return list.filter(u => u.isPublicProfile || u.isStub).sort((a, b) => (b.resourceCount || 0) - (a.resourceCount || 0));
         },
         enabled: !!user && isAdmin,
@@ -143,7 +145,14 @@ function CreatorsAdminContent() {
         },
         onSuccess: (_, userId) => {
             queryClient.invalidateQueries({ queryKey: ['admin', 'creators'] });
-            setSyncStatus({ message: `Successfully synced statistics for ${userId}`, type: 'success' });
+            setSyncedUids(prev => new Set(prev).add(userId));
+            setTimeout(() => {
+                setSyncedUids(prev => {
+                    const next = new Set(prev);
+                    next.delete(userId);
+                    return next;
+                });
+            }, 5000);
         },
         onError: (error: any) => {
             setSyncStatus({ message: `Sync failed: ${error.message}`, type: 'error' });
@@ -169,14 +178,17 @@ function CreatorsAdminContent() {
                 };
                 return getTime(b.createdAt) - getTime(a.createdAt);
             }
-            return (b.resourceCount || 0) - (a.resourceCount || 0); // default 'total'
+            return (b.resourceCount || 0) - (a.resourceCount || 0);
         });
 
     const handleSyncAll = async () => {
-        if (!confirm(`Sync stats for all ${creators.length} creators? This might take a moment.`)) return;
+        setShowSyncConfirm(false);
         setIsSyncingAll(true);
+        setSyncProgress({ current: 0, total: creators.length });
         try {
-            for (const c of creators) {
+            for (let i = 0; i < creators.length; i++) {
+                const c = creators[i];
+                setSyncProgress(prev => ({ ...prev, current: i + 1 }));
                 await syncCreatorMutation.mutateAsync(c.uid);
             }
             setSyncStatus({ message: `Successfully updated all ${creators.length} creators!`, type: 'success' });
@@ -184,264 +196,313 @@ function CreatorsAdminContent() {
             setSyncStatus({ message: 'Sync process was interrupted or failed for one or more creators.', type: 'error' });
         } finally {
             setIsSyncingAll(false);
+            setSyncProgress({ current: 0, total: 0 });
         }
     };
 
     if (authLoading || isLoading || !isAdmin) {
         return (
-            <div className="page-wrapper">
+            <div className="min-h-screen bg-[#0f0f15]">
                 <Navbar />
-                <div className="loading-page">
-                    <div className="spinner" />
+                <div className="flex flex-col items-center justify-center min-h-[60vh]">
+                    <Icons.spinner className="animate-spin text-indigo-500" size={40} />
                 </div>
             </div>
         );
     }
 
     return (
-        <div className="page-wrapper">
+        <div className="min-h-screen bg-[#0f0f15] text-white">
             <Navbar />
-            <div className="main-content">
-                <div className="container">
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: 'var(--space-6) 0' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-4)' }}>
-                            <Link href="/admin" className="btn btn-ghost" style={{ padding: '0 var(--space-2)' }}>← Back to Admin</Link>
-                            <h1 style={{ margin: 0 }}>🎨 Creator Management</h1>
+            <main className="container mx-auto px-4 py-12">
+                {/* ── HEADER ── */}
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-12">
+                    <div>
+                        <div className="flex items-center gap-2 mb-2 text-indigo-400 font-bold uppercase tracking-widest text-[10px]">
+                            <Icons.settings size={12} /> Registry Control Center
                         </div>
-                        <div style={{ display: 'flex', gap: 'var(--space-3)' }}>
-                            <button 
-                                className="btn btn-secondary" 
-                                onClick={handleSyncAll} 
-                                disabled={isSyncingAll || creators.length === 0}
-                            >
-                                {isSyncingAll ? '⏳ Syncing...' : '🔄 Sync All Stats'}
-                            </button>
-                            <button className="btn btn-primary" onClick={() => setIsCreatingStub(!isCreatingStub)}>
-                                {isCreatingStub ? 'Cancel' : '➕ Add External Stub'}
-                            </button>
-                        </div>
+                        <h1 className="text-4xl font-extrabold tracking-tight">Creator Management</h1>
+                        <p className="text-white/40 font-medium mt-1">Registry and contributor statistics curation bench</p>
                     </div>
-
-                    {/* Summary Widgets */}
-                    <div className="stats-grid" style={{ marginBottom: 'var(--space-6)', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))' }}>
-                        <div className="glass-card stat-card" style={{ padding: 'var(--space-4)' }}>
-                            <div className="stat-value" style={{ fontSize: '1.5rem' }}>{creators.length}</div>
-                            <div className="stat-label">Total Creators</div>
-                        </div>
-                        <div className="glass-card stat-card" style={{ padding: 'var(--space-4)' }}>
-                            <div className="stat-value" style={{ fontSize: '1.5rem', color: 'var(--accent-primary)' }}>
-                                {creators.filter(c => c.isStub).length}
-                            </div>
-                            <div className="stat-label">External Stubs</div>
-                        </div>
-                        <div className="glass-card stat-card" style={{ padding: 'var(--space-4)' }}>
-                            <div className="stat-value" style={{ fontSize: '1.5rem', color: 'var(--success)' }}>
-                                {creators.filter(c => c.isVerified).length}
-                            </div>
-                            <div className="stat-label">Verified</div>
-                        </div>
-                        <div className="glass-card stat-card" style={{ padding: 'var(--space-4)' }}>
-                            <div className="stat-value" style={{ fontSize: '1.5rem', color: 'var(--warning)' }}>
-                                {creators.filter(c => c.isFeatured).length}
-                            </div>
-                            <div className="stat-label">Featured</div>
-                        </div>
+                    <div className="flex gap-3">
+                        <button 
+                            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all relative overflow-hidden group ${
+                                isSyncingAll ? 'bg-indigo-600/20 text-indigo-400' : 'bg-white/5 hover:bg-white/10 text-white/70 border border-white/10'
+                            }`}
+                            onClick={() => !isSyncingAll && setShowSyncConfirm(true)} 
+                            disabled={isSyncingAll || creators.length === 0}
+                        >
+                            {isSyncingAll && (
+                                <div 
+                                    className="absolute inset-y-0 left-0 bg-indigo-600/20 transition-all duration-300" 
+                                    style={{ width: `${(syncProgress.current / syncProgress.total) * 100}%` }} 
+                                />
+                            )}
+                            <span className="relative z-10 flex items-center gap-2">
+                                {isSyncingAll ? (
+                                    <>⏳ Syncing ({syncProgress.current}/{syncProgress.total})</>
+                                ) : (
+                                    <><Icons.refresh size={16} /> Sync All Stats</>
+                                )}
+                            </span>
+                        </button>
+                        <button 
+                            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all ${
+                                isCreatingStub ? 'bg-rose-500 text-white' : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-600/20'
+                            }`}
+                            onClick={() => setIsCreatingStub(!isCreatingStub)}
+                        >
+                            {isCreatingStub ? <Icons.close size={16} /> : <Icons.plus size={16} />}
+                            {isCreatingStub ? 'Cancel' : 'Add External Stub'}
+                        </button>
                     </div>
+                </div>
 
-                    <div className="filter-bar" style={{ marginBottom: 'var(--space-4)', display: 'flex', flexWrap: 'wrap', gap: 'var(--space-3)' }}>
-                        <div className="search-input-wrapper" style={{ flex: 2, minWidth: '300px' }}>
-                            <span className="search-icon">🔍</span>
-                            <input 
-                                type="text" 
-                                placeholder="Search by name, slug or platform..." 
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
+                {/* ── FAST PROGRESS ── */}
+                {isSyncingAll && (
+                    <div className="bg-indigo-600/5 border border-indigo-500/10 rounded-2xl p-6 mb-8 animate-fade-in shadow-xl backdrop-blur-sm">
+                        <div className="flex justify-between items-center mb-3">
+                            <span className="text-[10px] font-black uppercase tracking-widest text-indigo-400">Syncing Metadata Engine</span>
+                            <span className="text-lg font-black">{Math.round((syncProgress.current / syncProgress.total) * 100)}%</span>
+                        </div>
+                        <div className="w-full h-1.5 bg-white/5 rounded-full overflow-hidden">
+                            <div 
+                                className="h-full bg-gradient-to-r from-indigo-600 to-indigo-400 transition-all duration-500" 
+                                style={{ width: `${(syncProgress.current / syncProgress.total) * 100}%` }} 
                             />
                         </div>
-                        
-                        <select className="form-select" style={{ flex: 1, minWidth: '140px' }} value={filterType} onChange={(e) => setFilterType(e.target.value)}>
-                            <option value="all">All Types</option>
-                            <option value="individual">Individual</option>
-                            <option value="channel">Channel</option>
-                            <option value="organization">Organization</option>
-                        </select>
-
-                        <select className="form-select" style={{ flex: 1, minWidth: '140px' }} value={filterStatus} onChange={(e) => setFilterStatus(e.target.value as any)}>
-                            <option value="all">All Status</option>
-                            <option value="stub">Stubs Only</option>
-                            <option value="native">Native Users</option>
-                        </select>
-
-                        <select className="form-select" style={{ flex: 1, minWidth: '140px' }} value={sortBy} onChange={(e) => setSortBy(e.target.value as any)}>
-                            <option value="total">Sort by Resources</option>
-                            <option value="authored">Sort by Authored</option>
-                            <option value="name">Sort by Name</option>
-                            <option value="newest">Sort by Newest</option>
-                        </select>
                     </div>
+                )}
 
-                    {isCreatingStub && (
-                        <div className="glass-card animate-fade-in" style={{ marginBottom: 'var(--space-6)' }}>
-                            <h3>Create External Creator Stub</h3>
-                            <p style={{ color: 'var(--text-muted)', marginBottom: 'var(--space-4)', fontSize: '0.9rem' }}>
-                                A stub account allows external YouTubers or writers to appear in the directory. If they sign up later, this profile can be linked.
-                            </p>
-                            <form 
-                                onSubmit={(e) => {
-                                    e.preventDefault();
-                                    createStubMutation.mutate(newStub);
-                                }}
-                                style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 'var(--space-4)' }}
-                            >
-                                <div className="form-group">
-                                    <label>Display Name</label>
-                                    <input 
-                                        type="text" 
-                                        className="form-input" 
-                                        value={newStub.name} 
-                                        onChange={(e) => {
-                                            const name = e.target.value;
-                                            setNewStub(s => ({...s, name, slug: slugify(name)}));
-                                        }} 
-                                        required 
-                                        placeholder="e.g. Kevin Stratvert"
-                                    />
-                                </div>
-                                <div className="form-group">
-                                    <label>Custom Slug (Optional)</label>
-                                    <input 
-                                        type="text" 
-                                        className="form-input" 
-                                        value={newStub.slug} 
-                                        onChange={(e) => setNewStub(s => ({...s, slug: e.target.value}))} 
-                                        placeholder="e.g. kevin-stratvert"
-                                    />
-                                </div>
-                                <div className="form-group">
-                                    <label>Type</label>
-                                    <select 
-                                        className="form-select" 
-                                        value={newStub.type}
-                                        onChange={(e) => setNewStub(s => ({...s, type: e.target.value}))} 
-                                    >
-                                        <option value="individual">Individual</option>
-                                        <option value="channel">Channel</option>
-                                        <option value="organization">Organization</option>
-                                    </select>
-                                </div>
-                                <div className="form-group" style={{ gridColumn: 'span 3' }}>
-                                    <label>Short Bio</label>
-                                    <textarea 
-                                        rows={2}
-                                        value={newStub.bio}
-                                        onChange={(e) => setNewStub(s => ({...s, bio: e.target.value}))}
-                                        placeholder="Brief description of the creator..."
-                                        style={{ width: '100%' }}
-                                    />
-                                </div>
-                                <div style={{ gridColumn: 'span 3', display: 'flex', justifyContent: 'flex-end' }}>
-                                    <button type="submit" className="btn btn-primary">
-                                        Save Stub
-                                    </button>
-                                </div>
-                            </form>
+                {/* ── STATS OVERVIEW ── */}
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+                    {[
+                        { label: 'Total Registry', value: creators.length, color: 'text-white' },
+                        { label: 'External Stubs', value: creators.filter(c => c.isStub).length, color: 'text-indigo-400' },
+                        { label: 'Verified Partners', value: creators.filter(c => c.isVerified).length, color: 'text-emerald-400' },
+                        { label: 'Featured Pioneer', value: creators.filter(c => c.isFeatured).length, color: 'text-amber-400' }
+                    ].map((stat, i) => (
+                        <div key={i} className="bg-white/[0.03] border border-white/5 p-6 rounded-2xl">
+                            <div className={`text-2xl font-black mb-1 ${stat.color}`}>{stat.value}</div>
+                            <div className="text-[10px] uppercase font-bold tracking-widest text-white/20">{stat.label}</div>
                         </div>
-                    )}
+                    ))}
+                </div>
 
-                    <div className="table-wrapper animate-fade-in">
-                        <table className="table" id="creators-table">
+                {/* ── FILTERING ── */}
+                <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-4 mb-8 flex flex-wrap gap-4 items-center">
+                    <div className="relative flex-1 min-w-[280px]">
+                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-white/30">🔍</span>
+                        <input 
+                            type="text" 
+                            placeholder="Find by name, slug or platform..." 
+                            className="w-full bg-white/5 border border-white/10 rounded-xl py-2.5 pl-11 pr-4 text-sm focus:border-indigo-500/50 outline-none transition-all"
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                        />
+                    </div>
+                    
+                    <select className="bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm font-bold text-white/70 outline-none focus:border-indigo-500/50 cursor-pointer" value={filterType} onChange={(e) => setFilterType(e.target.value)}>
+                        <option value="all" className="bg-[#1a1a24]">All Profile Types</option>
+                        <option value="individual" className="bg-[#1a1a24]">Individual</option>
+                        <option value="channel" className="bg-[#1a1a24]">Channel</option>
+                        <option value="organization" className="bg-[#1a1a24]">Organization</option>
+                    </select>
+
+                    <select className="bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm font-bold text-white/70 outline-none focus:border-indigo-500/50 cursor-pointer" value={filterStatus} onChange={(e) => setFilterStatus(e.target.value as any)}>
+                        <option value="all" className="bg-[#1a1a24]">Any Identity Source</option>
+                        <option value="stub" className="bg-[#1a1a24]">External Stubs</option>
+                        <option value="native" className="bg-[#1a1a24]">Public Profiles</option>
+                    </select>
+
+                    <select className="bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm font-bold text-white/70 outline-none focus:border-indigo-500/50 cursor-pointer" value={sortBy} onChange={(e) => setSortBy(e.target.value as any)}>
+                        <option value="total" className="bg-[#1a1a24]">Impact (Resources)</option>
+                        <option value="authored" className="bg-[#1a1a24]">Authorship Count</option>
+                        <option value="name" className="bg-[#1a1a24]">Alphabetical Order</option>
+                        <option value="newest" className="bg-[#1a1a24]">Recently Onboarded</option>
+                    </select>
+                </div>
+
+                {/* ── STUB CREATION ── */}
+                {isCreatingStub && (
+                    <div className="bg-indigo-600/10 border border-indigo-500/20 rounded-2xl p-8 mb-8 animate-fade-in shadow-xl shadow-indigo-600/5">
+                        <div className="flex items-center gap-3 mb-6">
+                            <div className="w-10 h-10 bg-indigo-600 text-white rounded-xl flex items-center justify-center">
+                                <Icons.plus size={20} />
+                            </div>
+                            <div>
+                                <h3 className="text-xl font-bold">Deploy Identity Stub</h3>
+                                <p className="text-indigo-400/60 text-sm">Create a discovered creator profile for the community registry.</p>
+                            </div>
+                        </div>
+                        <form 
+                            onSubmit={(e) => {
+                                e.preventDefault();
+                                createStubMutation.mutate(newStub);
+                            }}
+                            className="grid grid-cols-1 md:grid-cols-3 gap-6"
+                        >
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black uppercase text-white/40 tracking-widest pl-1">Legal / Display Name</label>
+                                <input 
+                                    type="text" 
+                                    className="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-3 text-sm focus:border-indigo-500 outline-none transition-all placeholder:text-white/20" 
+                                    value={newStub.name} 
+                                    onChange={(e) => {
+                                        const name = e.target.value;
+                                        setNewStub(s => ({...s, name, slug: slugify(name)}));
+                                    }} 
+                                    required 
+                                    placeholder="e.g. Kevin Stratvert"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black uppercase text-white/40 tracking-widest pl-1">Unique Profile Slug</label>
+                                <input 
+                                    type="text" 
+                                    className="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-3 text-sm focus:border-indigo-500 outline-none transition-all placeholder:text-white/20" 
+                                    value={newStub.slug} 
+                                    onChange={(e) => setNewStub(s => ({...s, slug: e.target.value}))} 
+                                    placeholder="e.g. kevin-stratvert"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black uppercase text-white/40 tracking-widest pl-1">Profile Category</label>
+                                <select 
+                                    className="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-3 text-sm focus:border-indigo-500 outline-none transition-all cursor-pointer" 
+                                    value={newStub.type}
+                                    onChange={(e) => setNewStub(s => ({...s, type: e.target.value}))} 
+                                >
+                                    <option value="individual" className="bg-[#1a1a24]">Individual</option>
+                                    <option value="channel" className="bg-[#1a1a24]">Channel</option>
+                                    <option value="organization" className="bg-[#1a1a24]">Organization</option>
+                                </select>
+                            </div>
+                            <div className="space-y-2 md:col-span-3">
+                                <label className="text-[10px] font-black uppercase text-white/40 tracking-widest pl-1">Professional Bio</label>
+                                <textarea 
+                                    rows={2}
+                                    className="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-3 text-sm focus:border-indigo-500 outline-none transition-all placeholder:text-white/20"
+                                    value={newStub.bio}
+                                    onChange={(e) => setNewStub(s => ({...s, bio: e.target.value}))}
+                                    placeholder="Draft a concise summary of the creator's mission and expertise..."
+                                />
+                            </div>
+                            <div className="md:col-span-3 flex justify-end gap-3">
+                                <button type="button" onClick={() => setIsCreatingStub(false)} className="px-6 py-2.5 rounded-xl font-bold bg-white/5 hover:bg-white/10 transition-all text-sm">Dismiss</button>
+                                <button type="submit" className="px-8 py-2.5 rounded-xl font-bold bg-indigo-600 hover:bg-indigo-500 transition-all text-sm shadow-lg shadow-indigo-600/20">Create Identity</button>
+                            </div>
+                        </form>
+                    </div>
+                )}
+
+                {/* ── TABLE ── */}
+                <div className="bg-white/[0.03] border border-white/5 rounded-2xl overflow-hidden shadow-2xl">
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse">
                             <thead>
-                                <tr>
-                                    <th>Creator</th>
-                                    <th>Type / Profile</th>
-                                    <th>Resources</th>
-                                    <th>Featured</th>
-                                    <th>Verified</th>
-                                    <th>Actions</th>
+                                <tr className="bg-white/5 text-[10px] font-black uppercase tracking-widest text-white/30">
+                                    <th className="px-6 py-4">Registry Identity</th>
+                                    <th className="px-6 py-4">Source / Class</th>
+                                    <th className="px-6 py-4">Impact Stats</th>
+                                    <th className="px-6 py-4">Hall of Fame</th>
+                                    <th className="px-6 py-4">Verification</th>
+                                    <th className="px-6 py-4 text-right">Admin Tools</th>
                                 </tr>
                             </thead>
-                            <tbody>
+                            <tbody className="divide-y divide-white/5">
                                 {filteredCreators.map((c) => (
-                                    <tr key={c.uid}>
-                                        <td>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
+                                    <tr key={c.uid} className="hover:bg-white/[0.02] transition-colors group">
+                                        <td className="px-6 py-5">
+                                            <div className="flex items-center gap-4">
                                                 {c.photoURL ? (
-                                                     <img src={c.photoURL} alt={c.displayName} style={{ width: 32, height: 32, borderRadius: '50%', objectFit: 'cover' }} />
+                                                     <img src={c.photoURL} alt={c.displayName} className="w-10 h-10 rounded-xl object-cover ring-2 ring-white/10" />
                                                 ) : (
-                                                    <div className="avatar" style={{ width: 32, height: 32, fontSize: 'var(--text-xs)' }}>
+                                                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-600 to-purple-700 flex items-center justify-center text-xs font-black">
                                                         {(c.displayName?.[0] || 'C').toUpperCase()}
                                                     </div>
                                                 )}
                                                 <div>
-                                                    <div style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                                    <div className="font-bold text-white group-hover:text-indigo-400 transition-colors flex items-center gap-2">
                                                         {c.displayName}
-                                                        {c.isVerified && <span style={{ color: 'var(--accent-primary)', fontSize: '0.8rem' }}>☑️</span>}
+                                                        {syncedUids.has(c.uid) && (
+                                                            <span className="text-[8px] bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded animate-pulse">UP TO DATE</span>
+                                                        )}
                                                     </div>
-                                                    <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
-                                                        slug: {c.slug || c.uid.slice(0,8)}
+                                                    <div className="text-[10px] font-medium text-white/30 uppercase tracking-tighter">
+                                                        /{c.slug || c.uid.slice(0,8)}
                                                     </div>
                                                 </div>
                                             </div>
                                         </td>
-                                        <td>
-                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                                                <span className={`badge badge-secondary`} style={{ width: 'fit-content', fontSize: '10px' }}>
+                                        <td className="px-6 py-5">
+                                            <div className="flex flex-col gap-1.5">
+                                                <span className="px-2 py-0.5 rounded-md bg-white/5 border border-white/5 text-[9px] font-black uppercase text-white/50 w-fit">
                                                     {c.profileType || 'individual'}
                                                 </span>
-                                                {c.isStub && <span className="badge badge-accent" style={{ width: 'fit-content', fontSize: '9px', padding: '0 4px', background: 'rgba(99,102,241,0.05)' }}>External Stub</span>}
+                                                {c.isStub && <span className="text-[8px] font-black text-indigo-400/60 uppercase">Cloud Contributor</span>}
                                             </div>
                                         </td>
-                                        <td>
-                                            <div style={{ display: 'flex', flexDirection: 'column' }}>
-                                                <div style={{ fontWeight: 700, fontSize: '1rem', color: 'var(--text-primary)' }}>
-                                                    {c.resourceCount || 0}
-                                                </div>
-                                                <div style={{ display: 'flex', gap: '8px', fontSize: '10px', color: 'var(--text-muted)' }}>
-                                                    <span>✍️ {c.authoredCount || 0}</span>
-                                                    <span>📂 {c.curatedCount || 0}</span>
+                                        <td className="px-6 py-5">
+                                            <div className="flex flex-col gap-1">
+                                                <div className="text-lg font-black leading-none">{c.resourceCount || 0}</div>
+                                                <div className="flex gap-3 text-[9px] font-black text-white/30">
+                                                    <span className="flex items-center gap-1"><Icons.wand size={8} className="text-indigo-400" /> {c.authoredCount || 0}</span>
+                                                    <span className="flex items-center gap-1"><Icons.grid size={8} className="text-emerald-400" /> {c.curatedCount || 0}</span>
                                                 </div>
                                             </div>
                                         </td>
-                                        <td>
+                                        <td className="px-6 py-5">
                                             <button 
-                                                className={`btn btn-sm ${c.isFeatured ? 'btn-primary' : 'btn-ghost'}`}
-                                                style={{ padding: '2px 8px', fontSize: '10px' }}
+                                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-tight transition-all border ${
+                                                    c.isFeatured 
+                                                        ? 'bg-amber-500/10 border-amber-500/30 text-amber-500' 
+                                                        : 'bg-white/5 border-white/10 text-white/30 hover:bg-white/10 hover:text-white/60'
+                                                }`}
                                                 onClick={() => toggleFeaturedMutation.mutate({ uid: c.uid, current: !!c.isFeatured })}
                                             >
-                                                {c.isFeatured ? '⭐ Featured' : '☆ Feature'}
+                                                {c.isFeatured ? <Icons.sparkles size={12} /> : <Icons.plus size={12} />}
+                                                {c.isFeatured ? 'Featured Pioneer' : 'Elevate Card'}
                                             </button>
                                         </td>
-                                        <td>
+                                        <td className="px-6 py-5">
                                             <button 
-                                                className={`btn btn-sm ${c.isVerified ? 'btn-primary' : 'btn-ghost'}`}
-                                                style={{ padding: '2px 8px', fontSize: '10px' }}
+                                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-tight transition-all border ${
+                                                    c.isVerified 
+                                                        ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-500' 
+                                                        : 'bg-white/5 border-white/10 text-white/30 hover:bg-white/10 hover:text-white/60'
+                                                }`}
                                                 onClick={() => toggleVerifiedMutation.mutate({ uid: c.uid, current: !!c.isVerified })}
                                             >
-                                                {c.isVerified ? '✅ Verified' : '☐ Verify'}
+                                                {c.isVerified ? <Icons.check size={12} strokeWidth={4} /> : <Icons.close size={12} />}
+                                                {c.isVerified ? 'Verified Active' : 'Issue Trust Check'}
                                             </button>
                                         </td>
-                                        <td>
-                                            <div style={{ display: 'flex', gap: '4px' }}>
+                                        <td className="px-6 py-5">
+                                            <div className="flex justify-end gap-2">
                                                 <button 
-                                                    className="btn btn-ghost btn-sm" 
-                                                    title="Edit Profile"
+                                                    className="p-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-white/40 hover:text-white transition-all flex items-center gap-2 group/btn"
                                                     onClick={() => setEditingCreator(c)}
                                                 >
-                                                    <Icons.settings size={16} />
-                                                    <span style={{ fontSize: '10px' }}>Profile</span>
+                                                    <Icons.settings size={16} className="group-hover/btn:rotate-45 transition-transform" />
+                                                    <span className="text-[10px] font-bold uppercase tracking-widest hidden lg:block">Curation</span>
                                                 </button>
                                                 <button 
-                                                    className="btn btn-ghost btn-sm" 
-                                                    title="Sync Stats"
-                                                    disabled={syncCreatorMutation.isPending}
+                                                    className={`p-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl transition-all flex items-center gap-2 group/btn ${
+                                                        syncCreatorMutation.isPending && syncCreatorMutation.variables === c.uid ? 'text-indigo-400' : 'text-white/40 hover:text-white'
+                                                    }`}
+                                                    disabled={syncCreatorMutation.isPending && syncCreatorMutation.variables === c.uid}
                                                     onClick={() => syncCreatorMutation.mutate(c.uid)}
-                                                    style={{ display: 'flex', alignItems: 'center', gap: '4px' }}
                                                 >
-                                                    <Icons.refresh size={16} className={syncCreatorMutation.isPending ? 'animate-spin' : ''} />
-                                                    <span style={{ fontSize: '10px' }}>Sync</span>
+                                                    {syncCreatorMutation.isPending && syncCreatorMutation.variables === c.uid ? (
+                                                        <Icons.spinner className="animate-spin" size={16} />
+                                                    ) : (
+                                                        <Icons.refresh size={16} />
+                                                    )}
+                                                    <span className="text-[10px] font-bold uppercase tracking-widest hidden lg:block">Sync</span>
                                                 </button>
-                                                <Link href={`/creators/${c.slug || c.uid}`} target="_blank" className="btn btn-ghost btn-sm">
-                                                    <Icons.external size={14} />
+                                                <Link href={`/creators/${c.slug || c.uid}`} target="_blank" className="p-2.5 bg-white/5 hover:bg-indigo-600/20 border border-white/10 hover:border-indigo-500/30 rounded-xl text-white/40 hover:text-indigo-400 transition-all">
+                                                    <Icons.external size={16} />
                                                 </Link>
                                             </div>
                                         </td>
@@ -450,154 +511,129 @@ function CreatorsAdminContent() {
                             </tbody>
                         </table>
                     </div>
-                    {creators.length === 0 && (
-                        <div style={{ textAlign: 'center', padding: 'var(--space-8)', color: 'var(--text-muted)' }}>
-                            No public creators or stubs found.
-                        </div>
-                    )}
                 </div>
-            </div>
+
+                {creators.length === 0 && (
+                    <div className="py-20 text-center opacity-40">
+                        <Icons.users size={48} className="mx-auto mb-4" />
+                        <p className="font-bold text-lg">No identities discovered in the registry cloud.</p>
+                    </div>
+                )}
+            </main>
             <Footer />
 
-            {/* Sync Feedback Modal */}
-            {syncStatus.type !== 'none' && (
-                <div className="modal-overlay animate-fade-in" style={{ zIndex: 1000 }}>
-                    <div className="glass-card modal-content" style={{ maxWidth: '450px', width: '90%', textAlign: 'center' }}>
-                        <div style={{ fontSize: '3rem', marginBottom: 'var(--space-4)' }}>
-                            {syncStatus.type === 'success' ? '✅' : '❌'}
+            {/* Bulk Sync Modal */}
+            {showSyncConfirm && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/60 backdrop-blur-md animate-fade-in">
+                    <div className="bg-[#1a1a24] border border-white/10 rounded-[2.5rem] p-10 max-w-lg w-full text-center shadow-3xl">
+                        <div className="w-20 h-20 bg-indigo-600/20 text-indigo-400 rounded-full flex items-center justify-center mx-auto mb-8 animate-pulse">
+                            <Icons.refresh size={40} />
                         </div>
-                        <h3 style={{ marginBottom: 'var(--space-2)' }}>
-                            {syncStatus.type === 'success' ? 'Sync Complete' : 'Sync Error'}
+                        <h2 className="text-3xl font-black mb-4 tracking-tight">Sync Global Curation?</h2>
+                        <p className="text-white/40 mb-10 leading-relaxed font-semibold">
+                            Triggering a full background reconciliation for <span className="text-white">{creators.length} identities</span>. 
+                            Aggregated metrics will be refreshed across the platform.
+                        </p>
+                        <div className="flex gap-4">
+                            <button className="flex-1 px-8 py-4 rounded-2xl font-black text-sm bg-white/5 hover:bg-white/10 transition-all border border-white/10" onClick={() => setShowSyncConfirm(false)}>Abort Process</button>
+                            <button className="flex-1 px-8 py-4 rounded-2xl font-black text-sm bg-indigo-600 hover:bg-indigo-500 transition-all shadow-xl shadow-indigo-600/30" onClick={handleSyncAll}>Initial Sync Engaged</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Status Modal */}
+            {syncStatus.type !== 'none' && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/60 backdrop-blur-md animate-fade-in">
+                    <div className="bg-[#1a1a24] border border-white/10 rounded-[2.5rem] p-10 max-w-lg w-full text-center shadow-3xl">
+                        <div className={`text-6xl mb-6 ${syncStatus.type === 'success' ? 'text-emerald-500' : 'text-rose-500'}`}>
+                            {syncStatus.type === 'success' ? <Icons.check className="mx-auto" size={80} /> : <Icons.close className="mx-auto" size={80} />}
+                        </div>
+                        <h3 className="text-3xl font-black mb-4 tracking-tight">
+                            {syncStatus.type === 'success' ? 'Propagation Success' : 'Engine Interrupted'}
                         </h3>
-                        <p style={{ color: 'var(--text-muted)', marginBottom: 'var(--space-6)' }}>
+                        <p className="text-white/40 mb-10 leading-relaxed font-semibold">
                             {syncStatus.message}
                         </p>
                         <button 
-                            className={`btn ${syncStatus.type === 'success' ? 'btn-primary' : 'btn-secondary'} w-full`}
+                            className="w-full px-8 py-4 rounded-2xl font-black text-sm bg-white/5 hover:bg-white/10 transition-all border border-white/10"
                             onClick={() => setSyncStatus({ message: '', type: 'none' })}
                         >
-                            Got it
+                            Acknowledge Replay
                         </button>
                     </div>
                 </div>
             )}
 
-            {/* Edit Profile Modal (Premium Glassmorphism + Scroll Recovery) */}
+            {/* Edit Profile Modal */}
             {editingCreator && (
-                <div className="modal-overlay animate-fade-in" style={{ 
-                    zIndex: 1100, 
-                    backdropFilter: 'blur(8px)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    padding: 'var(--space-4)'
-                }}>
-                    <div className="glass-card modal-content" style={{ 
-                        maxWidth: '700px', 
-                        width: '100%',
-                        maxHeight: 'min(900px, 90vh)',
-                        overflowY: 'auto',
-                        padding: 'var(--space-8)',
-                        background: 'rgba(20, 20, 30, 0.9)',
-                        border: '1px solid rgba(255, 255, 255, 0.1)',
-                        boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
-                        position: 'relative'
-                    }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-8)' }}>
-                            <div>
-                                <h2 style={{ margin: 0, fontSize: '1.75rem', fontWeight: 700, letterSpacing: '-0.02em' }}>Edit Registry Profile</h2>
-                                <p className="text-muted text-sm" style={{ marginTop: '4px' }}>Curate {editingCreator.displayName}'s public presence</p>
+                <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/80 backdrop-blur-xl animate-fade-in p-4 overflow-y-auto">
+                    <div className="bg-[#12121a] border border-white/10 rounded-[2.5rem] w-full max-w-3xl overflow-hidden shadow-edge relative my-auto">
+                        <div className="p-8 md:p-12">
+                            <div className="flex justify-between items-start mb-12">
+                                <div>
+                                    <div className="flex items-center gap-2 mb-2 text-indigo-400 font-black uppercase tracking-widest text-[10px]">
+                                        <Icons.settings size={14} /> Profile Authority
+                                    </div>
+                                    <h2 className="text-4xl font-extrabold tracking-tight">Curate Identity</h2>
+                                    <p className="text-white/30 text-sm font-medium mt-1">Refining meta presence for {editingCreator.displayName}</p>
+                                </div>
+                                <button className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center hover:bg-white/10 transition-all border border-white/10" onClick={() => setEditingCreator(null)}>
+                                    <Icons.close size={20} />
+                                </button>
                             </div>
-                            <button className="btn btn-ghost" onClick={() => setEditingCreator(null)} style={{ borderRadius: '50%' }}>✕</button>
-                        </div>
 
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-6)', marginBottom: 'var(--space-8)' }}>
-                            <div className="form-group">
-                                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)' }}>
-                                    <Icons.user size={12} /> DISPLAY NAME
-                                </label>
-                                <input 
-                                    type="text" 
-                                    className="form-input"
-                                    style={{ background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.05)' }}
-                                    value={editingCreator.displayName} 
-                                    onChange={(e) => setEditingCreator({...editingCreator, displayName: e.target.value})}
-                                />
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-10">
+                                <div className="space-y-3">
+                                    <label className="text-[10px] font-black uppercase text-white/30 tracking-[0.2em] pl-1">Registry Display Name</label>
+                                    <input 
+                                        type="text" 
+                                        className="w-full bg-black/30 border border-white/10 rounded-2xl px-5 py-4 text-sm font-bold focus:border-indigo-500 outline-none transition-all placeholder:text-white/20"
+                                        value={editingCreator?.displayName || ''} 
+                                        onChange={(e) => editingCreator && setEditingCreator({...editingCreator, displayName: e.target.value})}
+                                    />
+                                </div>
+                                <div className="space-y-3">
+                                    <label className="text-[10px] font-black uppercase text-white/30 tracking-[0.2em] pl-1">Unique Resource Slug</label>
+                                    <input 
+                                        type="text" 
+                                        className="w-full bg-black/30 border border-white/10 rounded-2xl px-5 py-4 text-sm font-bold focus:border-indigo-500 outline-none transition-all placeholder:text-white/20"
+                                        value={editingCreator?.slug || ''} 
+                                        onChange={(e) => editingCreator && setEditingCreator({...editingCreator, slug: e.target.value})}
+                                    />
+                                </div>
+                                <div className="md:col-span-2 space-y-3">
+                                    <label className="text-[10px] font-black uppercase text-white/30 tracking-[0.2em] pl-1">Contribution Biography</label>
+                                    <textarea 
+                                        rows={4}
+                                        className="w-full bg-black/30 border border-white/10 rounded-2xl px-5 py-4 text-sm font-bold focus:border-indigo-500 outline-none transition-all placeholder:text-white/20 min-h-[140px] leading-relaxed"
+                                        value={editingCreator?.bio || ''}
+                                        onChange={(e) => editingCreator && setEditingCreator({...editingCreator, bio: e.target.value})}
+                                        placeholder="Craft a professional narrative for this creator..."
+                                    />
+                                </div>
                             </div>
-                            <div className="form-group">
-                                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)' }}>
-                                    <Icons.tag size={12} /> PROFILE SLUG
-                                </label>
-                                <input 
-                                    type="text" 
-                                    className="form-input"
-                                    style={{ background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.05)' }}
-                                    value={editingCreator.slug || ''} 
-                                    onChange={(e) => setEditingCreator({...editingCreator, slug: e.target.value})}
-                                />
-                            </div>
-                            <div className="form-group" style={{ gridColumn: 'span 2' }}>
-                                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)' }}>
-                                    <Icons.text size={12} /> BIOGRAPHY
-                                </label>
-                                <textarea 
-                                    rows={4}
-                                    className="form-input"
-                                    style={{ background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.05)', minHeight: '120px' }}
-                                    value={editingCreator.bio || ''}
-                                    onChange={(e) => setEditingCreator({...editingCreator, bio: e.target.value})}
-                                    placeholder="Write a compelling biography for this creator..."
-                                />
-                            </div>
-                        </div>
 
-                        <div style={{ marginBottom: 'var(--space-8)' }}>
-                            <h4 style={{ 
-                                marginBottom: 'var(--space-6)', 
-                                fontSize: '0.85rem', 
-                                fontWeight: 800, 
-                                letterSpacing: '0.1em', 
-                                textTransform: 'uppercase', 
-                                color: 'var(--accent-primary)',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '8px'
-                            }}>
-                                <Icons.globe size={14} /> Global Social Hub
-                            </h4>
-                            
-                            <div style={{ 
-                                display: 'flex', 
-                                flexDirection: 'column', 
-                                gap: 'var(--space-4)', 
-                                padding: 'var(--space-6)',
-                                background: 'rgba(0, 0, 0, 0.2)',
-                                borderRadius: 'var(--radius-lg)',
-                                border: '1px solid rgba(255, 255, 255, 0.03)'
-                            }}>
-                                {/* Social Field Helper */}
-                                {['youtube', 'twitter', 'website'].map(platform => (
-                                    <div key={platform} style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-4)' }}>
-                                        <div style={{ 
-                                            width: '40px', 
-                                            height: '40px', 
-                                            borderRadius: '10px', 
-                                            background: 'rgba(255,255,255,0.05)', 
-                                            display: 'flex', 
-                                            alignItems: 'center', 
-                                            justifyContent: 'center',
-                                            color: platform === 'youtube' ? '#FF0000' : platform === 'twitter' ? '#1DA1F2' : 'var(--text-muted)'
-                                        }}>
-                                            {platform === 'youtube' ? <Icons.play size={20} /> : platform === 'twitter' ? <Icons.twitter size={20} /> : <Icons.globe size={20} />}
-                                        </div>
-                                        <div style={{ flex: 1 }}>
+                            <div className="mb-12">
+                                <h4 className="flex items-center gap-2 text-[10px] font-black uppercase text-indigo-400 tracking-[0.3em] mb-6">
+                                    <Icons.globe size={14} /> Social Connectivity Graph
+                                </h4>
+                                
+                                <div className="space-y-4 bg-black/20 rounded-[2rem] p-6 border border-white/5">
+                                    {['youtube', 'twitter', 'website'].map(platform => (
+                                        <div key={platform} className="flex items-center gap-5 group/row">
+                                            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all shadow-lg ${
+                                                platform === 'youtube' ? 'bg-rose-600/10 text-rose-500' : platform === 'twitter' ? 'bg-indigo-400/10 text-indigo-400' : 'bg-white/5 text-white/30'
+                                            }`}>
+                                                {platform === 'youtube' ? <Icons.play size={24} /> : platform === 'twitter' ? <Icons.twitter size={24} /> : <Icons.globe size={24} />}
+                                            </div>
                                             <input 
                                                 type="text" 
-                                                placeholder={platform === 'youtube' ? 'YouTube Channel ID / URL' : platform === 'twitter' ? '@handle' : 'https://personal-site.com'} 
-                                                className="form-input"
-                                                style={{ background: 'transparent', borderTop: 'none', borderLeft: 'none', borderRight: 'none', borderRadius: 0, paddingLeft: 0 }}
-                                                value={editingCreator.socials?.find(s => s.platform === platform)?.url || ''}
+                                                placeholder={platform === 'youtube' ? 'Channel Endpoint / ID' : platform === 'twitter' ? '@Identity' : 'https://verified.domain'} 
+                                                className="flex-1 bg-transparent border-b border-white/5 py-3 text-sm font-bold focus:border-indigo-500/50 outline-none transition-all placeholder:text-white/10 group-hover/row:border-white/10"
+                                                value={editingCreator?.socials?.find(s => s.platform === platform)?.url || ''}
                                                 onChange={(e) => {
+                                                    if (!editingCreator) return;
                                                     const val = e.target.value;
                                                     const current = [...(editingCreator.socials || [])];
                                                     const idx = current.findIndex(s => s.platform === platform);
@@ -607,21 +643,20 @@ function CreatorsAdminContent() {
                                                 }}
                                             />
                                         </div>
-                                    </div>
-                                ))}
+                                    ))}
+                                </div>
                             </div>
-                        </div>
 
-                        <div style={{ display: 'flex', gap: 'var(--space-4)', justifyContent: 'flex-end', borderTop: '1px solid rgba(255, 255, 255, 0.05)', paddingTop: 'var(--space-6)' }}>
-                            <button className="btn btn-ghost" onClick={() => setEditingCreator(null)}>Cancel</button>
-                            <button 
-                                className="btn btn-primary" 
-                                style={{ padding: 'var(--space-3) var(--space-6)', fontWeight: 600 }}
-                                onClick={() => updateProfileMutation.mutate(editingCreator)}
-                                disabled={updateProfileMutation.isPending}
-                            >
-                                {updateProfileMutation.isPending ? <Icons.spinner className="animate-spin" /> : <><Icons.check size={18} /> Update Registry Profile</>}
-                            </button>
+                            <div className="flex gap-4 border-t border-white/5 pt-10">
+                                <button className="flex-1 py-4 rounded-2xl font-black text-sm bg-white/5 hover:bg-white/10 transition-all border border-white/10" onClick={() => setEditingCreator(null)}>Abort Edits</button>
+                                <button 
+                                    className="flex-[2] py-4 rounded-2xl font-black text-sm bg-indigo-600 hover:bg-indigo-500 transition-all shadow-xl shadow-indigo-600/30 flex items-center justify-center gap-3 disabled:opacity-50"
+                                    onClick={() => editingCreator && updateProfileMutation.mutate(editingCreator)}
+                                    disabled={updateProfileMutation.isPending}
+                                >
+                                    {updateProfileMutation.isPending ? <Icons.spinner className="animate-spin" /> : <><Icons.check size={18} strokeWidth={4} /> Publish Registry Updates</>}
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>

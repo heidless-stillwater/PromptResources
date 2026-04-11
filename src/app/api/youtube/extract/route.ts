@@ -1,12 +1,25 @@
-
 import { NextRequest, NextResponse } from 'next/server';
+import { checkFeatureUsage, incrementFeatureUsage } from '@/lib/usage';
 
 export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
     const videoId = searchParams.get('videoId');
+    const uid = searchParams.get('uid');
 
     if (!videoId) {
         return NextResponse.json({ success: false, error: 'Missing videoId' }, { status: 400 });
+    }
+
+    // 1. Gating Check
+    if (uid) {
+        const { allowed, usageCount, limit } = await checkFeatureUsage(uid, 'extraction');
+        if (!allowed) {
+            return NextResponse.json({ 
+                success: false, 
+                error: `Usage limit reached (${usageCount}/${limit}). Upgrade to Pro for unlimited Magic AI extraction.`,
+                code: 'LIMIT_REACHED'
+            }, { status: 403 });
+        }
     }
 
     try {
@@ -82,6 +95,11 @@ export async function GET(request: NextRequest) {
                 });
             }
         });
+
+        // 2. Increment usage if successful
+        if (uid) {
+            await incrementFeatureUsage(uid, 'extraction');
+        }
 
         return NextResponse.json({
             success: true,

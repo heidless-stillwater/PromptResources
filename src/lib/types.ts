@@ -47,6 +47,7 @@ export interface UserProfile {
     resourceCount?: number;
     authoredCount?: number;
     curatedCount?: number;
+    rank?: number;
     
     // Suite Entitlements
     subscription?: {
@@ -84,12 +85,12 @@ export interface Resource {
     createdAt: Date;
     updatedAt: Date;
     status: ResourceStatus;
-    isFavorite?: boolean;
-    rank?: number;
+    isFavorite?: boolean | null;
+    rank?: number | null;
     prompts?: string[];
     searchKeywords?: string[]; // Lowercase tokens for indexed search
-    notes?: string;        // Publicly visible notes/instructions
-    adminNotes?: string;   // Internal administrative-only notes
+    notes?: string | null;        // Publicly visible notes/instructions
+    adminNotes?: string | null;   // Internal administrative-only notes
     averageRating?: number;
     reviewCount?: number;
 }
@@ -112,10 +113,14 @@ export interface Review extends Comment {
 export interface Category {
     id: string;
     name: string;
-    description: string;
-    icon: string;
+    slug: string;
+    description?: string;
+    icon?: string;
+    count?: number;
+    freeCount?: number;
     parentCategory?: string;
-    createdAt: Date;
+    createdAt: Date | string;
+    updatedAt?: Date | string;
 }
 
 export interface UserResourceData {

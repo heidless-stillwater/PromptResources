@@ -18,10 +18,13 @@ export async function GET(request: NextRequest) {
         const search = searchParams.get('search');
         const addedBy = searchParams.get('addedBy');
         const isFavorite = searchParams.get('isFavorite') === 'true';
+        const priorityRank = searchParams.get('priorityRank') || '';
         const sortBy = searchParams.get('sortBy') || 'updatedAt';
         const sortOrder = (searchParams.get('sortOrder') as 'asc' | 'desc') || 'desc';
         const page = parseInt(searchParams.get('page') || '1');
-        const pageSize = Math.min(parseInt(searchParams.get('pageSize') || '20'), 100);
+        const pageSize = Math.min(parseInt(searchParams.get('pageSize') || '96'), 100);
+        const registryActive = searchParams.get('registryActive') !== 'false';
+        const creators = (registryActive && searchParams.get('creators')) ? searchParams.get('creators')!.split(',').filter(Boolean) : null;
 
         const decodedToken = await getAuthUser(request);
         const userUid = decodedToken?.uid;
@@ -35,12 +38,14 @@ export async function GET(request: NextRequest) {
             search,
             addedBy,
             isFavorite,
+            priorityRank,
             sortBy,
             sortOrder,
             page,
             pageSize,
             userUid,
             userIsAdmin,
+            creators,
         });
 
         return NextResponse.json({
@@ -97,6 +102,7 @@ export async function POST(request: NextRequest) {
             ...body,
             attributions: finalAttributions,
             attributedUserIds,
+            attributionNames: finalAttributions.map((a: any) => a.name).filter(Boolean),
             addedBy: decodedToken.uid,
             youtubeVideoId: body.url ? extractYouTubeId(body.url) : null,
             thumbnailUrl: body.thumbnailUrl || null,

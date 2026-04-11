@@ -24,117 +24,143 @@ export default function Navbar() {
     const roles: UserRole[] = ['su', 'admin', 'member'];
 
     return (
-        <nav className="navbar" id="main-navbar">
-            <div className="container navbar-inner">
-                <Link href="/" className="navbar-logo" id="nav-logo">
-                    <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
-                        <rect width="28" height="28" rx="8" fill="url(#logo-gradient)" />
-                        <path d="M8 10h12M8 14h8M8 18h10" stroke="white" strokeWidth="2" strokeLinecap="round" />
-                        <defs>
-                            <linearGradient id="logo-gradient" x1="0" y1="0" x2="28" y2="28">
-                                <stop stopColor="#6366f1" />
-                                <stop offset="1" stopColor="#a855f7" />
-                            </linearGradient>
-                        </defs>
-                    </svg>
-                    PromptResources
+        <nav className="fixed top-0 left-0 right-0 z-50 px-6 h-[72px] flex items-center border-b border-white/5 backdrop-blur-xl bg-[#0a0a0f]/80" id="main-navbar">
+            <div className="max-w-7xl mx-auto w-full flex items-center justify-between">
+                <Link href="/" className="flex items-center gap-4 group cursor-pointer" id="nav-logo">
+                    <div className="relative">
+                        <div className="absolute -inset-1 bg-gradient-to-r from-primary to-purple-600 rounded-xl blur opacity-25 group-hover:opacity-100 transition duration-500"></div>
+                        <div className="relative bg-black rounded-lg p-2 border border-white/10 group-hover:border-primary/50 transition-colors">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-primary group-hover:animate-pulse">
+                                <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-0.5-5" />
+                                <path d="M12 11h4" />
+                                <path d="M12 15h4" />
+                                <path d="M8 7v10" />
+                            </svg>
+                        </div>
+                    </div>
+                    <div>
+                        <h1 className="text-lg font-black tracking-tighter text-white group-hover:text-primary transition-colors uppercase leading-none">Stillwater Resources</h1>
+                        <p className="text-[10px] font-black text-white/30 uppercase tracking-[0.2em] mt-1.5">Ecosystem Node</p>
+                    </div>
                 </Link>
 
-                <ul className="navbar-nav">
-                    <li><Link href="/resources" className="navbar-link" id="nav-resources">📚 Resources</Link></li>
-                    <li><Link href="/categories" className="navbar-link" id="nav-categories">🏷️ Categories</Link></li>
-                    <li><Link href="/creators" className="navbar-link" id="nav-creators">👥 Creators</Link></li>
-                    <li><Link href="/pricing" className="navbar-link" id="nav-pricing">💎 Pricing</Link></li>
-                    {user && <li><Link href="/dashboard" className="navbar-link" id="nav-dashboard">📊 Dashboard</Link></li>}
-                    {isAdmin && <li><Link href="/admin" className="navbar-link" id="nav-admin">⚙️ Admin</Link></li>}
-                </ul>
+                <div className="hidden lg:flex items-center gap-1.5 p-1 bg-white/[0.03] border border-white/5 rounded-2xl">
+                    <Link href="http://localhost:3001/dashboard" className="px-4 py-2 text-[10px] font-black uppercase tracking-widest text-primary hover:text-white hover:bg-primary/20 rounded-xl transition-all" id="nav-studio-external">Studio Hub</Link>
+                    <div className="w-px h-4 bg-white/5 mx-1" />
+                    <Link href="/resources" className="px-4 py-2 text-[10px] font-black uppercase tracking-widest text-white/60 hover:text-white hover:bg-white/5 rounded-xl transition-all" id="nav-resources">Resources</Link>
+                    <Link href="/categories" className="px-4 py-2 text-[10px] font-black uppercase tracking-widest text-white/60 hover:text-white hover:bg-white/5 rounded-xl transition-all" id="nav-categories">Categories</Link>
+                    <Link href="/creators" className="px-4 py-2 text-[10px] font-black uppercase tracking-widest text-white/60 hover:text-white hover:bg-white/5 rounded-xl transition-all" id="nav-creators">Creators</Link>
+                    <Link href="/pricing" className="px-4 py-2 text-[10px] font-black uppercase tracking-widest text-white/60 hover:bg-white/5 border border-transparent rounded-xl hover:bg-primary/10 transition-all" id="nav-pricing">💎 Pricing</Link>
+                </div>
 
-                <div className="navbar-actions">
+                <div className="flex items-center gap-4">
+                    {user && (
+                        <div className="hidden md:flex flex-col items-end mr-2">
+                             <div className="text-[10px] font-black text-white leading-none uppercase tracking-tighter">{profile?.displayName || 'User'}</div>
+                             <div className="text-[8px] font-bold text-primary/70 uppercase tracking-[0.2em] mt-1">
+                                {profile?.subscription?.status === 'active' ? (profile.subscription.bundleId || 'PRO Suite') : 'Basic Access'}
+                             </div>
+                        </div>
+                    )}
 
+                    {user && (
+                        <Link 
+                            href="/resources/new" 
+                            className="hidden sm:flex items-center gap-2 px-4 py-2 bg-primary/10 hover:bg-primary/20 border border-primary/20 rounded-xl text-[10px] font-black uppercase tracking-widest text-primary transition-all mr-2"
+                            id="header-suggest-btn"
+                        >
+                            ➕ Suggest
+                        </Link>
+                    )}
 
                     {user ? (
-                        <div className="user-menu" ref={menuRef}>
+                        <div className="relative" ref={menuRef}>
                             <button
-                                className="user-menu-trigger"
+                                className="flex items-center gap-3 p-1 bg-white/5 border border-white/10 rounded-full hover:bg-white/10 transition-all group"
                                 onClick={() => setMenuOpen(!menuOpen)}
                                 id="user-menu-trigger"
                             >
-                                <div className="avatar">
+                                <div className="w-9 h-9 rounded-full border border-white/10 overflow-hidden bg-white/5 flex items-center justify-center">
                                     {profile?.photoURL ? (
-                                        <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+                                        <div className="relative w-full h-full">
                                             <Image
                                                 src={profile.photoURL}
-                                                alt={profile.displayName}
+                                                alt={profile.displayName || ''}
                                                 fill
-                                                sizes="32px"
-                                                style={{ objectFit: 'cover', borderRadius: '50%' }}
+                                                sizes="36px"
+                                                className="object-cover"
                                             />
                                         </div>
                                     ) : (
-                                        (profile?.displayName?.[0] || user.email?.[0] || 'U').toUpperCase()
+                                        <span className="text-xs font-black text-primary">{(profile?.displayName?.[0] || user.email?.[0] || 'U').toUpperCase()}</span>
                                     )}
                                 </div>
-                                <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
-                                    <path d="M6 8L2 4h8L6 8z" />
-                                </svg>
                             </button>
 
                             {menuOpen && (
-                                <div className="user-menu-dropdown" id="user-menu-dropdown">
-                                    <div className="user-menu-info">
-                                        <div className="user-menu-name">{profile?.displayName || 'User'}</div>
-                                        <div className="user-menu-email">{user.email}</div>
-                                        <span className={`badge badge-primary user-menu-role`}>
-                                            {activeRole?.toUpperCase() || 'MEMBER'}
-                                        </span>
-                                    </div>
-                                    <Link href="/dashboard" className="user-menu-item" onClick={() => setMenuOpen(false)} id="menu-dashboard">
-                                        📊 Dashboard
-                                    </Link>
-                                    <Link href="/dashboard/saved" className="user-menu-item" onClick={() => setMenuOpen(false)} id="menu-saved">
-                                        ⭐ Saved Resources
-                                    </Link>
-                                    <Link href="/dashboard/settings" className="user-menu-item" onClick={() => setMenuOpen(false)} id="menu-settings">
-                                        ⚙️ Settings
-                                    </Link>
-                                    <div className="user-menu-divider" />
-                                    
-                                    {canSwitchRoles && (
-                                        <div className="menu-role-section">
-                                            <div className="menu-section-title">👤 Change Role View</div>
-                                            <div className="role-options">
-                                                {roles.map((role) => (
-                                                    <button
-                                                        key={role}
-                                                        className={`role-option-btn ${activeRole === role ? 'active' : ''}`}
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            switchRole(role);
-                                                        }}
-                                                        id={`role-switch-${role}`}
-                                                    >
-                                                        {role === 'su' ? '⭐ SU' : role === 'admin' ? '🛡️ Admin' : '👤 User'}
-                                                    </button>
-                                                ))}
-                                            </div>
+                                <div className="absolute right-0 mt-4 w-72 glass-panel bg-[#12121e]/98 border-white/10 p-5 shadow-2xl animate-fade-in-up" id="user-menu-dropdown">
+                                    <div className="flex items-center gap-4 pb-4 border-b border-white/5 mb-4">
+                                        <div className="w-12 h-12 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center text-xl">
+                                            {profile?.displayName?.[0]?.toUpperCase() || '👤'}
                                         </div>
-                                    )}
+                                        <div>
+                                            <div className="text-sm font-black text-white leading-none">{profile?.displayName || 'User'}</div>
+                                            <div className="text-[10px] text-white/40 font-bold mt-1 truncate max-w-[160px]">{user.email}</div>
+                                        </div>
+                                    </div>
 
-                                    <div className="user-menu-divider" />
-                                    <button
-                                        className="user-menu-item"
-                                        onClick={() => { signOut(); setMenuOpen(false); }}
-                                        id="menu-signout"
-                                    >
-                                        🚪 Sign Out
-                                    </button>
+                                    <div className="space-y-1">
+                                        <Link href="/dashboard" className="flex items-center gap-3 px-4 py-3 text-[10px] font-black uppercase tracking-widest text-white/60 hover:text-white hover:bg-white/5 rounded-xl transition-all" onClick={() => setMenuOpen(false)}>
+                                            📊 My Dashboard
+                                        </Link>
+                                        <Link href="/dashboard/saved" className="flex items-center gap-3 px-4 py-3 text-[10px] font-black uppercase tracking-widest text-white/60 hover:text-white hover:bg-white/5 rounded-xl transition-all" onClick={() => setMenuOpen(false)}>
+                                            ⭐ Saved Resources
+                                        </Link>
+                                        <Link href="/dashboard/settings" className="flex items-center gap-3 px-4 py-3 text-[10px] font-black uppercase tracking-widest text-white/60 hover:text-white hover:bg-white/5 rounded-xl transition-all" onClick={() => setMenuOpen(false)}>
+                                            ⚙️ Profile Settings
+                                        </Link>
+                                        {isAdmin && (
+                                            <Link href="/admin" className="flex items-center gap-3 px-4 py-3 text-[10px] font-black uppercase tracking-widest text-red-400/80 hover:text-red-400 hover:bg-red-400/5 rounded-xl transition-all" onClick={() => setMenuOpen(false)}>
+                                                🛡️ Administrative Console
+                                            </Link>
+                                        )}
+                                    </div>
+
+                                    <div className="mt-4 pt-4 border-t border-white/5 space-y-4">
+                                        {canSwitchRoles && (
+                                            <div className="bg-black/20 p-3 rounded-2xl border border-white/5">
+                                                <div className="text-[8px] font-black text-white/30 uppercase tracking-[0.2em] mb-2 px-1">View Authority</div>
+                                                <div className="flex gap-1">
+                                                    {roles.map((role) => (
+                                                        <button
+                                                            key={role}
+                                                            className={`flex-1 py-2 text-[9px] font-black uppercase tracking-widest rounded-lg transition-all ${activeRole === role ? 'bg-primary text-white' : 'text-white/40 hover:bg-white/5'}`}
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                switchRole(role);
+                                                            }}
+                                                        >
+                                                            {role}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        <button
+                                            className="w-full flex items-center justify-center gap-3 px-4 py-3 text-[10px] font-black uppercase tracking-widest text-white/40 hover:text-white transition-all"
+                                            onClick={() => { signOut(); setMenuOpen(false); }}
+                                        >
+                                            🚪 Sign Out Platform
+                                        </button>
+                                    </div>
                                 </div>
                             )}
                         </div>
                     ) : (
-                        <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
-                            <Link href="/auth/login" className="btn btn-ghost" id="nav-login">Sign In</Link>
-                            <Link href="/auth/register" className="btn btn-primary" id="nav-register">Get Started</Link>
+                        <div className="flex items-center gap-3">
+                            <Link href="/auth/login" className="px-5 py-2 text-[10px] font-black uppercase tracking-widest text-white/60 hover:text-white transition-all" id="nav-login">Sign In</Link>
+                            <Link href="/auth/register" className="bg-brand-gradient px-6 py-2.5 rounded-full text-[10px] font-black text-white uppercase tracking-[0.2em] shadow-[0_10px_20px_rgba(99,102,241,0.2)] hover:scale-105 transition-all" id="nav-register">Get Started</Link>
                         </div>
                     )}
                 </div>

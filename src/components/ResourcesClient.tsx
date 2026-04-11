@@ -21,7 +21,7 @@ import { SkeletonGrid } from '@/components/ui/Skeleton';
 
 interface ResourcesClientProps {
     initialResources: Resource[];
-    initialCategories: string[];
+    initialCategories: { id: string; name: string; slug: string }[];
     totalResources: number;
     hasMoreInitial: boolean;
 }
@@ -73,29 +73,95 @@ export default function ResourcesClient({
     const [typeFilter, setTypeFilter] = useState(searchParams.get('type') || '');
     const [categoryFilter, setCategoryFilter] = useState(searchParams.get('category') || '');
     const [featuredOnly, setFeaturedOnly] = useState(searchParams.get('isFavorite') === 'true');
+    const [priorityRank, setPriorityRank] = useState(searchParams.get('priorityRank') || '');
     const [sortBy, setSortBy] = useState(searchParams.get('sortBy') || 'updatedAt');
     const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>((searchParams.get('sortOrder') as any) || 'desc');
     const [currentPage, setCurrentPage] = useState(parseInt(searchParams.get('page') || '1'));
+    const [pageSize, setPageSize] = useState(parseInt(searchParams.get('pageSize') || '24'));
+    const [selectedCreators, setSelectedCreators] = useState<string[]>(
+        searchParams.get('creators') ? searchParams.get('creators')!.split(',').filter(Boolean) : []
+    );
+    const [registryActive, setRegistryActive] = useState(searchParams.get('registryActive') !== 'false');
+    const [viewMode, setViewMode] = useState<'grid' | 'list' | 'small'>('grid');
 
-    // Debounce search
-    useEffect(() => {
-        const timer = setTimeout(() => {
-            if (search !== (searchParams.get('search') || '')) {
-                applyFilters();
-            }
-        }, 500);
-        return () => clearTimeout(timer);
-    }, [search]);
-
-    // Sync state from server props when they change (initial load or navigation)
-    useEffect(() => {
-        // Only use initialResources if we're an admin, otherwise we want to rely on the background fetch which scopes to user
-        if (isAdmin) {
-            setResources(initialResources);
-        } else {
-            setResources([]);
+    // Unified filter sync to URL — now a stable function called by interactions
+    // This prevents circular dependency loops with searchParams
+    const syncFilters = useCallback((newFilters: any) => {
+        const params = new URLSearchParams(searchParams.toString());
+        
+        // Map UI state keys to URL param keys
+        if (newFilters.search !== undefined) {
+            if (newFilters.search) params.set('search', newFilters.search);
+            else params.delete('search');
         }
+        if (newFilters.platformFilter !== undefined) {
+            if (newFilters.platformFilter) params.set('platform', newFilters.platformFilter);
+            else params.delete('platform');
+        }
+        if (newFilters.pricingFilter !== undefined) {
+            if (newFilters.pricingFilter) params.set('pricing', newFilters.pricingFilter);
+            else params.delete('pricing');
+        }
+        if (newFilters.typeFilter !== undefined) {
+            if (newFilters.typeFilter) params.set('type', newFilters.typeFilter);
+            else params.delete('type');
+        }
+        if (newFilters.categoryFilter !== undefined) {
+            if (newFilters.categoryFilter) params.set('category', newFilters.categoryFilter);
+            else params.delete('category');
+        }
+        if (newFilters.featuredOnly !== undefined) {
+            if (newFilters.featuredOnly) params.set('isFavorite', 'true');
+            else params.delete('isFavorite');
+        }
+        if (newFilters.priorityRank !== undefined) {
+            if (newFilters.priorityRank) params.set('priorityRank', newFilters.priorityRank);
+            else params.delete('priorityRank');
+        }
+        if (newFilters.sortBy !== undefined) {
+            if (newFilters.sortBy) params.set('sortBy', newFilters.sortBy);
+            else params.delete('sortBy');
+        }
+        if (newFilters.sortOrder !== undefined) {
+            if (newFilters.sortOrder) params.set('sortOrder', newFilters.sortOrder);
+            else params.delete('sortOrder');
+        }
+        if (newFilters.selectedCreators !== undefined) {
+            if (newFilters.selectedCreators.length > 0) params.set('creators', newFilters.selectedCreators.join(','));
+            else params.delete('creators');
+        }
+        if (newFilters.registryActive !== undefined) {
+            if (newFilters.registryActive === false) params.set('registryActive', 'false');
+            else params.delete('registryActive');
+        }
+
+        // Filter changes ALWAYS reset to page 1
+        params.delete('page');
+
+        setLoading(true);
+        router.push(`/resources?${params.toString()}`);
+    }, [router, searchParams]);
+
+    // Sync state from server props when they change (initial load or navigation).
+    // Derive currentPage and pageSize directly from the URL — the single source of truth.
+    useEffect(() => {
+        setResources(initialResources);
         setCurrentPage(parseInt(searchParams.get('page') || '1'));
+        setPageSize(parseInt(searchParams.get('pageSize') || '96'));
+        
+        // Sync local filter states with URL
+        setSearch(searchParams.get('search') || '');
+        setPlatformFilter(searchParams.get('platform') || '');
+        setPricingFilter(searchParams.get('pricing') || '');
+        setTypeFilter(searchParams.get('type') || '');
+        setCategoryFilter(searchParams.get('category') || '');
+        setFeaturedOnly(searchParams.get('isFavorite') === 'true');
+        setPriorityRank(searchParams.get('priorityRank') || '');
+        setSortBy(searchParams.get('sortBy') || 'updatedAt');
+        setSortOrder((searchParams.get('sortOrder') as any) || 'desc');
+        setSelectedCreators(searchParams.get('creators') ? searchParams.get('creators')!.split(',').filter(Boolean) : []);
+        setRegistryActive(searchParams.get('registryActive') !== 'false');
+        
         setLoading(false);
 
         // Handle post-deletion focus restoration from detail page
@@ -132,54 +198,71 @@ export default function ResourcesClient({
         enabled: !!user,
     });
 
-    // Apply filters via URL navigation (Server-side filtering strategy)
-    const applyFilters = useCallback(() => {
-        const params = new URLSearchParams();
-        if (search) params.set('search', search);
-        if (platformFilter) params.set('platform', platformFilter);
-        if (pricingFilter) params.set('pricing', pricingFilter);
-        if (typeFilter) params.set('type', typeFilter);
-        if (categoryFilter) params.set('category', categoryFilter);
-        if (featuredOnly) params.set('isFavorite', 'true');
-        if (sortBy) params.set('sortBy', sortBy);
-        if (sortOrder) params.set('sortOrder', sortOrder);
-        
-        // Reset to page 1 on filter change
-        setCurrentPage(1);
+    // Fetch creators registry for the Context Console
+    const { data: creators = [], isLoading: loadingCreators } = useQuery({
+        queryKey: ['creators-registry'],
+        queryFn: async () => {
+            const response = await fetch('/api/resources/creators');
+            const result = await response.json();
+            return result.data || [];
+        }
+    });
 
-        setLoading(true);
-        router.push(`/resources?${params.toString()}`);
-        setLoading(false);
-    }, [router, search, platformFilter, pricingFilter, typeFilter, categoryFilter, featuredOnly, sortBy, sortOrder]);
-
-    const handlePageChange = (newPage: number) => {
-        const params = new URLSearchParams(searchParams.toString());
-        params.set('page', newPage.toString());
-        
-        setLoading(true);
-        router.push(`/resources?${params.toString()}`);
-    };
-
-    // Debt: In a real "snappy" UI, we'd debounce the search input
-    // For now, let's trigger applyFilters on "Enter" or Blur for search, and on change for select
-    
     const handleSearchKeyDown = (e: React.KeyboardEvent) => {
         if (e.key === 'Enter') {
-            applyFilters();
+            const params = new URLSearchParams(searchParams.toString());
+            if (search) params.set('search', search); else params.delete('search');
+            router.push(`/resources?${params.toString()}`);
+        } else if (e.key === 'Escape') {
+            setSearch('');
+            const params = new URLSearchParams(searchParams.toString());
+            params.delete('search');
+            router.push(`/resources?${params.toString()}`);
         }
     };
+
+    const hasActiveFilters = !!(search || platformFilter || pricingFilter || typeFilter || categoryFilter || featuredOnly || priorityRank);
+
+    const clearAllFilters = () => {
+        setSearch('');
+        setPlatformFilter('');
+        setPricingFilter('');
+        setTypeFilter('');
+        setCategoryFilter('');
+        setFeaturedOnly(false);
+        setPriorityRank('');
+        setSelectedCreators([]);
+        router.push('/resources');
+    };
+
+    const handlePageChange = (newPage: number, newPageSize?: number) => {
+        // Direct URL push is the ONLY mechanism for page navigation.
+        // This prevents the syncFilters effect from ever overwriting page state.
+        const params = new URLSearchParams(searchParams.toString());
+        if (newPageSize) {
+            params.set('pageSize', newPageSize.toString());
+            // Changing density resets to page 1
+            params.delete('page');
+        } else {
+            if (newPage <= 1) {
+                params.delete('page');
+            } else {
+                params.set('page', newPage.toString());
+            }
+        }
+        setLoading(true);
+        router.push(`/resources?${params.toString()}`);
+    };
+
+
 
     // Background fetch to ensure latest data (especially after redirects from creation)
     const backgroundFetch = useCallback(async () => {
         if (!user) return;
         try {
             const token = await user.getIdToken();
+            // Background fetch uses the same params as the URL
             const params = new URLSearchParams(searchParams.toString());
-            
-            // Scope to current user unless they are admin managing everything
-            if (!isAdmin) {
-                params.set('addedBy', user.uid);
-            }
 
             const response = await fetch(`/api/resources?${params.toString()}`, {
                 headers: { 'Authorization': `Bearer ${token}` }
@@ -328,73 +411,154 @@ export default function ResourcesClient({
     };
 
     return (
-        <div className="page-wrapper">
+        <div className="page-wrapper dashboard-theme">
             <Navbar />
 
             <div className="main-content">
                 <div className="container">
-                    <div style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        marginBottom: 'var(--space-6)',
-                    }}>
-                        <div>
+                    {/* Premium Header - Sync'd with Taxonomy Registry */}
+                    <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 mb-12" id="listing-action-hub">
+                        <div className="hero-section text-left">
                             {searchParams.get('suggested') === 'true' && (
-                                <div className="badge badge-success" style={{ padding: 'var(--space-2) var(--space-4)', width: '100%', marginBottom: 'var(--space-4)', fontSize: 'var(--text-sm)', display: 'block', textAlign: 'center' }}>
-                                    ✨ Your suggestion has been submitted for review! Thank you for contributing.
+                                <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 mb-6 py-3 px-4 rounded-xl text-xs font-black uppercase tracking-widest shadow-[0_0_20px_rgba(16,185,129,0.1)]">
+                                    ✨ Contribution received! Under review.
                                 </div>
                             )}
-                            <h1 style={{ marginBottom: 'var(--space-2)' }}>📚 Resources</h1>
-                            <p style={{ color: 'var(--text-muted)' }}>
-                                {totalResources} resource{totalResources !== 1 ? 's' : ''} found
+                            <div className="flex items-center gap-3 mb-4">
+                                <div className="p-3 bg-indigo-500/10 rounded-2xl border border-indigo-500/20">
+                                    <Icons.database className="w-8 h-8 text-indigo-400" />
+                                </div>
+                                <h1 className="text-4xl md:text-5xl font-black tracking-tighter bg-gradient-to-r from-white via-white/40 to-white/40 bg-clip-text text-transparent leading-tight">
+                                    Master <span className="text-indigo-400">Library</span>
+                                </h1>
+                            </div>
+                            <p className="text-white/40 max-w-xl text-lg font-medium leading-relaxed">
+                                Explore <span className="text-indigo-400 font-bold">{totalResources}</span> curated architectural prompts and structural assets.
+                                Refine your workspace using the workbench controls below.
                             </p>
                         </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-4)' }}>
-                            <div className="search-input-wrapper">
-                                <span className="search-icon">🔍</span>
-                                <input
-                                    type="text"
-                                    placeholder="Search resources..."
-                                    value={search}
-                                    onChange={(e) => setSearch(e.target.value)}
-                                    onKeyDown={handleSearchKeyDown}
-                                    onBlur={applyFilters}
-                                    id="resource-search"
-                                />
-                            </div>
+
+                        <div className="flex gap-3">
                             {isAdmin && (
-                                <button className="btn btn-secondary btn-sm" onClick={() => setDedupOpen(true)} id="dedup-btn">
-                                    🔍 Dedup
+                                <button 
+                                    className="px-6 py-3.5 bg-white/5 border border-white/10 hover:bg-white/10 text-white rounded-2xl text-[11px] font-black uppercase tracking-widest flex items-center gap-2 transition-all"
+                                    onClick={() => setDedupOpen(true)} 
+                                >
+                                    <Icons.search size={14} />
+                                    Check Duplicates
                                 </button>
                             )}
                             {user && (
-                                <Link href="/resources/new" className="btn btn-primary" id="add-resource-btn">
-                                    ➕ Add Resource
+                                <Link 
+                                    href="/resources/new" 
+                                    className="px-8 py-3.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl text-[11px] font-black uppercase tracking-widest flex items-center gap-2 transition-all shadow-lg shadow-indigo-600/20"
+                                >
+                                    <Icons.plus size={16} />
+                                    Add Resource
                                 </Link>
                             )}
                         </div>
                     </div>
 
-                    {/* Filters */}
-                    <FilterBar
-                        platformFilter={platformFilter}
-                        setPlatformFilter={setPlatformFilter}
-                        pricingFilter={pricingFilter}
-                        setPricingFilter={setPricingFilter}
-                        typeFilter={typeFilter}
-                        setTypeFilter={setTypeFilter}
-                        categoryFilter={categoryFilter}
-                        setCategoryFilter={setCategoryFilter}
-                        featuredOnly={featuredOnly}
-                        setFeaturedOnly={setFeaturedOnly}
-                        sortBy={sortBy}
-                        setSortBy={setSortBy}
-                        sortOrder={sortOrder}
-                        setSortOrder={setSortOrder}
-                        onApply={applyFilters}
-                        initialCategories={initialCategories}
-                    />
+                    {/* Integrated Control Belt (Search + Filters + View Modes) */}
+                    <div className="sticky top-[72px] z-[40] -mx-4 px-4 pt-4 pb-[5px] bg-[#0a0a0f]/80 backdrop-blur-xl border-b border-white/5 shadow-[0_10px_30px_rgba(0,0,0,0.3)] mb-[5px]">
+                        <div className="flex flex-col gap-3">
+                            <div className="flex flex-wrap items-center gap-4 w-full justify-between p-2 bg-white/[0.02] border border-white/5 rounded-3xl mb-1">
+                                <div className="relative flex-1 min-w-[300px] group">
+                                    <Icons.search className={`absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 transition-colors ${search ? 'text-indigo-400' : 'text-white/20'}`} />
+                                    <input
+                                        type="text"
+                                        placeholder="Search architecture or structural URL..."
+                                        className="w-full h-11 pl-12 pr-12 bg-black/40 border border-white/5 rounded-2xl text-white text-sm outline-none focus:border-indigo-500/50 transition-all font-medium tracking-tight"
+                                        value={search}
+                                        onChange={(e) => setSearch(e.target.value)}
+                                        onKeyDown={handleSearchKeyDown}
+                                        id="resource-search"
+                                    />
+                                    {search && (
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setSearch('');
+                                                const params = new URLSearchParams(searchParams.toString());
+                                                params.delete('search');
+                                                router.push(`/resources?${params.toString()}`);
+                                            }}
+                                            className="absolute right-4 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/80 transition-colors p-1"
+                                        >
+                                            <Icons.close size={14} />
+                                        </button>
+                                    )}
+                                </div>
+
+                                <div className="flex items-center gap-3">
+                                    {hasActiveFilters && (
+                                        <button
+                                            type="button"
+                                            onClick={clearAllFilters}
+                                            className="h-10 px-4 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 rounded-xl text-xs font-black uppercase tracking-widest text-rose-400 transition-all flex items-center gap-2"
+                                        >
+                                            <Icons.close size={12} /> <span className="font-black uppercase tracking-widest">Clear Filters</span>
+                                        </button>
+                                    )}
+                                    
+                                    <div className="h-6 w-px bg-white/5"></div>
+
+                                    {/* View Mode Switcher */}
+                                    <div className="flex bg-black/40 p-1 rounded-xl border border-white/5">
+                                        <button 
+                                            onClick={() => setViewMode('grid')}
+                                            className={`p-1.5 rounded-lg transition-all ${viewMode === 'grid' ? 'bg-white/10 text-white shadow-inner' : 'text-white/20 hover:text-white/40'}`}
+                                            title="Gallery View"
+                                        >
+                                            <Icons.grid size={18} />
+                                        </button>
+                                        <button 
+                                            onClick={() => setViewMode('small')}
+                                            className={`p-1.5 rounded-lg transition-all ${viewMode === 'small' ? 'bg-white/10 text-white shadow-inner' : 'text-white/20 hover:text-white/40'}`}
+                                            title="Compact Grid"
+                                        >
+                                            <Icons.feed size={18} />
+                                        </button>
+                                        <button 
+                                            onClick={() => setViewMode('list')}
+                                            className={`p-1.5 rounded-lg transition-all ${viewMode === 'list' ? 'bg-white/10 text-white shadow-inner' : 'text-white/20 hover:text-white/40'}`}
+                                            title="Detailed List View"
+                                        >
+                                            <Icons.list size={18} />
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Filters Bar */}
+                            <FilterBar
+                                platformFilter={platformFilter}
+                                setPlatformFilter={(val: string) => syncFilters({ platformFilter: val })}
+                                pricingFilter={pricingFilter}
+                                setPricingFilter={(val: string) => syncFilters({ pricingFilter: val })}
+                                typeFilter={typeFilter}
+                                setTypeFilter={(val: string) => syncFilters({ typeFilter: val })}
+                                categoryFilter={categoryFilter}
+                                setCategoryFilter={(val: string) => syncFilters({ categoryFilter: val })}
+                                featuredOnly={featuredOnly}
+                                setFeaturedOnly={(val: boolean) => syncFilters({ featuredOnly: val })}
+                                priorityRank={priorityRank}
+                                setPriorityRank={(val: string) => syncFilters({ priorityRank: val })}
+                                sortBy={sortBy}
+                                setSortBy={(val: string) => syncFilters({ sortBy: val })}
+                                sortOrder={sortOrder}
+                                setSortOrder={(val: 'asc' | 'desc') => syncFilters({ sortOrder: val })}
+                                initialCategories={initialCategories}
+                                selectedCreators={selectedCreators}
+                                setSelectedCreators={(val: string[]) => syncFilters({ selectedCreators: val })}
+                                registryActive={registryActive}
+                                setRegistryActive={(val: boolean) => syncFilters({ registryActive: val })}
+                                creators={creators}
+                                loadingCreators={loadingCreators}
+                            />
+                        </div>
+                    </div>
 
                     {/* Resource Grid */}
                     {loading ? (
@@ -410,24 +574,35 @@ export default function ResourcesClient({
                             <p className="text-foreground-muted mb-8 max-w-xs mx-auto">
                                 Try adjusting your filters or search terms to discover new architectural templates.
                             </p>
-                            <Button 
-                                variant="secondary" 
-                                className="font-bold"
-                                onClick={() => {
-                                    setSearch('');
-                                    setPlatformFilter('');
-                                    setPricingFilter('');
-                                    setTypeFilter('');
-                                    setCategoryFilter('');
-                                    setFeaturedOnly(false);
-                                    applyFilters();
-                                }}
-                            >
-                                Clear All Filters
-                            </Button>
+                            <div className="flex gap-4">
+                                <Button 
+                                    variant="secondary" 
+                                    className="font-bold border-white/5"
+                                    onClick={() => {
+                                        setSearch('');
+                                        setPlatformFilter('');
+                                        setPricingFilter('');
+                                        setTypeFilter('');
+                                        setCategoryFilter('');
+                                        setFeaturedOnly(false);
+                                        setPriorityRank('');
+                                    }}
+                                >
+                                    Clear All Filters
+                                </Button>
+                                {user && (
+                                    <Link href="/resources/new" className="btn btn-primary font-bold">
+                                        ➕ Suggest a Resource
+                                    </Link>
+                                )}
+                            </div>
                         </Card>
                     ) : (
-                        <div className="resource-grid">
+                        <div className={`
+                            ${viewMode === 'grid' ? 'resource-grid' : 
+                              viewMode === 'small' ? 'grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4' :
+                              'flex flex-col gap-6'}
+                        `}>
                             {resources.map((resource) => (
                                 <ResourceCard
                                     key={resource.id}
@@ -436,40 +611,101 @@ export default function ResourcesClient({
                                     onToggleSave={handleToggleSave}
                                     onDelete={handleDeleteResource}
                                     onToggleFavorite={handleToggleFavorite}
+                                    viewMode={viewMode}
                                 />
                             ))}
                         </div>
                     )}
 
                     {/* Pagination */}
-                    {totalResources > 24 && !loading && (
+                    {totalResources > 0 && !loading && (
                         <div style={{ 
                             display: 'flex', 
                             justifyContent: 'center', 
                             alignItems: 'center', 
-                            gap: 'var(--space-4)', 
+                            flexWrap: 'wrap',
+                            gap: 'var(--space-6)', 
                             marginTop: 'var(--space-12)',
                             marginBottom: 'var(--space-8)'
                         }}>
-                            <button 
-                                className="btn btn-secondary" 
-                                onClick={() => handlePageChange(currentPage - 1)}
-                                disabled={currentPage === 1}
-                            >
-                                ◀ Previous
-                            </button>
-                            
-                            <div style={{ color: 'var(--text-secondary)', fontWeight: 'bold' }}>
-                                Page {currentPage} of {Math.ceil(totalResources / 24)}
+                            {/* Current Index Indicator */}
+                            <div className="flex items-center text-xs font-black text-white/30 uppercase tracking-widest bg-white/5 border border-white/5 px-4 py-2 rounded-xl">
+                                Showing {(currentPage - 1) * pageSize + 1} - {Math.min(currentPage * pageSize, totalResources)} of {totalResources}
                             </div>
 
-                            <button 
-                                className="btn btn-secondary" 
-                                onClick={() => handlePageChange(currentPage + 1)}
-                                disabled={!hasMoreInitial}
-                            >
-                                Next ▶
-                            </button>
+                            {/* Grid Density Controller */}
+                            <div className="flex items-center gap-2 bg-white/5 border border-white/10 px-3 py-1.5 rounded-xl">
+                                <span className="text-xs font-bold text-white/50 uppercase tracking-widest">Show</span>
+                                <select 
+                                    className="form-select text-sm py-1 pl-2 pr-8 h-8 rounded-lg outline-none bg-transparent border-none text-white font-bold"
+                                    value={pageSize}
+                                    onChange={(e) => handlePageChange(1, Number(e.target.value))}
+                                >
+                                    <option value={24} className="bg-[#12121a]">24</option>
+                                    <option value={48} className="bg-[#12121a]">48</option>
+                                    <option value={96} className="bg-[#12121a]">96</option>
+                                </select>
+                            </div>
+
+                            <div className="hidden sm:block h-6 w-px bg-white/10"></div>
+                                  {/* Navigation Controller */}
+                            <div className="flex items-center gap-2">
+                                <button 
+                                    className="w-10 h-10 flex items-center justify-center rounded-xl bg-white/5 border border-white/10 text-white/40 hover:text-white hover:bg-white/10 disabled:opacity-20 disabled:cursor-not-allowed transition-all"
+                                    onClick={() => handlePageChange(currentPage - 1)}
+                                    disabled={currentPage === 1}
+                                    title="Previous Page"
+                                >
+                                    ◀
+                                </button>
+                                
+                                <div className="flex items-center gap-1.5 px-1">
+                                    {(() => {
+                                        const totalPages = Math.ceil(totalResources / pageSize);
+                                        const pages = [];
+                                        const range = 2; // Number of pages to show around current
+                                        
+                                        for (let i = 1; i <= totalPages; i++) {
+                                            if (
+                                                i === 1 || 
+                                                i === totalPages || 
+                                                (i >= currentPage - range && i <= currentPage + range)
+                                            ) {
+                                                pages.push(
+                                                    <button
+                                                        key={i}
+                                                        onClick={() => handlePageChange(i)}
+                                                        className={`w-10 h-10 flex items-center justify-center rounded-xl text-xs font-black transition-all ${
+                                                            currentPage === i 
+                                                            ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30 border border-indigo-500' 
+                                                            : 'bg-white/5 border border-white/5 text-white/40 hover:text-white hover:border-white/20'
+                                                        }`}
+                                                    >
+                                                        {i}
+                                                    </button>
+                                                );
+                                            } else if (
+                                                (i === currentPage - range - 1 && i > 1) ||
+                                                (i === currentPage + range + 1 && i < totalPages)
+                                            ) {
+                                                pages.push(
+                                                    <span key={`sep-${i}`} className="w-6 text-center text-white/20 font-bold">...</span>
+                                                );
+                                            }
+                                        }
+                                        return pages;
+                                    })()}
+                                </div>
+
+                                <button 
+                                    className="w-10 h-10 flex items-center justify-center rounded-xl bg-white/5 border border-white/10 text-white/40 hover:text-white hover:bg-white/10 disabled:opacity-20 disabled:cursor-not-allowed transition-all"
+                                    onClick={() => handlePageChange(currentPage + 1)}
+                                    disabled={currentPage >= Math.ceil(totalResources / pageSize)}
+                                    title="Next Page"
+                                >
+                                    ▶
+                                </button>
+                            </div>
                         </div>
                     )}
                 </div>
@@ -479,6 +715,17 @@ export default function ResourcesClient({
 
             {/* Dedup Modal */}
             <DedupModal isOpen={dedupOpen} onClose={() => setDedupOpen(false)} />
+
+            {/* Mobile FAB */}
+            {user && (
+                <Link 
+                    href="/resources/new" 
+                    className="md:hidden fixed bottom-6 right-6 w-14 h-14 bg-primary rounded-full flex items-center justify-center shadow-2xl z-40 border border-white/20"
+                    id="mobile-add-fab"
+                >
+                    <span className="text-2xl text-white">➕</span>
+                </Link>
+            )}
 
             <ConfirmationModal
                 isOpen={confirmModal.isOpen}

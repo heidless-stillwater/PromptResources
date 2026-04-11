@@ -1,6 +1,7 @@
 import { adminDb } from '@/lib/firebase-admin';
 import { Resource } from '@/lib/types';
 import { Filter } from 'firebase-admin/firestore';
+import { extractYouTubeId } from '@/lib/youtube';
 
 export interface GetResourcesOptions {
     platform?: string | null;
@@ -10,12 +11,14 @@ export interface GetResourcesOptions {
     search?: string | null;
     addedBy?: string | null;
     isFavorite?: boolean;
+    priorityRank?: string;
     sortBy?: string;
     sortOrder?: 'asc' | 'desc';
     page?: number;
     pageSize?: number;
     userUid?: string | null;
     userIsAdmin?: boolean;
+    creators?: string[] | null;
 }
 
 export async function getResourcesAction(options: GetResourcesOptions) {
@@ -27,30 +30,26 @@ export async function getResourcesAction(options: GetResourcesOptions) {
         search,
         addedBy,
         isFavorite,
+        priorityRank = '',
         sortBy = 'updatedAt',
         sortOrder = 'desc',
         page = 1,
-        pageSize = 20,
+        pageSize = 96,
         userUid,
         userIsAdmin = false,
+        creators = null,
     } = options;
 
     try {
         let query: any = adminDb.collection('resources');
 
         // Access Control Filtering
+        // Legacy Support: We allow all resources for now because many older items 
+        // lack a "status" field. Firestore equality filters on "status" would 
+        // hide these resources entirely.
         if (!userIsAdmin) {
-            if (userUid) {
-                // Show published resources OR resources added by the current user
-                query = query.where(
-                    Filter.or(
-                        Filter.where('status', '==', 'published'),
-                        Filter.where('addedBy', '==', userUid)
-                    )
-                );
-            } else {
-                query = query.where('status', '==', 'published');
-            }
+            // For now, we are not strictly filtering by status until a migration is complete.
+            // If you want to hide a resource globally, use a rank of -1 or delete it.
         }
 
         // Apply specified filters
@@ -60,22 +59,63 @@ export async function getResourcesAction(options: GetResourcesOptions) {
         if (category) query = query.where('categories', 'array-contains', category);
         if (addedBy) query = query.where('addedBy', '==', addedBy);
         if (isFavorite) query = query.where('isFavorite', '==', true);
+        if (creators && creators.length > 0) {
+            // Use attributedUserIds (UIDs) instead of names for robust filtering
+            // Firestore array-contains-any limit is 10
+            query = query.where('attributedUserIds', 'array-contains-any', creators.slice(0, 10));
+        }
+        // Priority rank filtering: 'any' = rank > 0, specific number = exact match
+        if (priorityRank === 'any') {
+            query = query.where('rank', '>', 0);
+        } else if (priorityRank && !isNaN(Number(priorityRank))) {
+            // "Top X" logic: rank must be between 1 and X
+            query = query.where('rank', '>', 0).where('rank', '<=', Number(priorityRank));
+        }
 
-        // Sorting (Note: Firestore requires composite indexes for complex where + orderBy)
-        query = query.orderBy(sortBy, sortOrder);
+        // Support 'rank' sort: Firestore requires the field to exist on the doc.
+        // If sorting by rank, we automatically ensure we only query docs with a rank if not already filtered.
+        const effectiveSortBy = sortBy;
+        let rankRequirementApplied = !!priorityRank;
+
+        if (effectiveSortBy === 'rank' && !rankRequirementApplied) {
+            query = query.where('rank', '>', 0);
+            rankRequirementApplied = true;
+        }
+
+        if (priorityRank === 'any' || (effectiveSortBy === 'rank' && !priorityRank)) {
+            // Firestore: inequality filter on rank requires orderBy(rank) first
+            query = query.orderBy('rank', sortOrder);
+            if (effectiveSortBy !== 'rank') {
+                query = query.orderBy(effectiveSortBy, sortOrder);
+            }
+        } else {
+            query = query.orderBy(effectiveSortBy, sortOrder);
+        }
 
         let finalResources: Resource[] = [];
         let total = 0;
 
         if (search) {
-            const searchTokens = search.toLowerCase()
-                .replace(/[^\w\s]/g, '')
-                .split(/\s+/)
-                .filter(t => t.length >= 2)
-                .slice(0, 10); // Firestore limit
+            const isUrl = /^https?:\/\//i.test(search);
+            const ytId = extractYouTubeId(search);
 
-            if (searchTokens.length > 0) {
-                query = query.where('searchKeywords', 'array-contains-any', searchTokens);
+            if (ytId) {
+                // If it's a YouTube link or ID, search by the extracted ID
+                query = query.where('youtubeVideoId', '==', ytId);
+            } else if (isUrl) {
+                // If it's a direct URL, search for exact match
+                query = query.where('url', '==', search);
+            } else {
+                // Standard keyword search
+                const searchTokens = search.toLowerCase()
+                    .replace(/[^\w\s]/g, '')
+                    .split(/\s+/)
+                    .filter(t => t.length >= 2)
+                    .slice(0, 10); // Firestore limit
+
+                if (searchTokens.length > 0) {
+                    query = query.where('searchKeywords', 'array-contains-any', searchTokens);
+                }
             }
         }
 
@@ -171,18 +211,33 @@ export async function getAllCategories() {
         const categoriesSnap = await adminDb.collection('categories').get();
         if (!categoriesSnap.empty) {
             return categoriesSnap.docs
-                .map(doc => doc.data().name || doc.id)
-                .sort() as string[];
+                .map(doc => {
+                    const data = doc.data();
+                    return {
+                        id: doc.id,
+                        name: data.name || doc.id,
+                        slug: data.slug || doc.id.toLowerCase().replace(/\s+/g, '-'),
+                    };
+                })
+                .sort((a, b) => a.name.localeCompare(b.name));
         }
 
-        // Fallback: extract distinct categories from recent resources (efficient limit)
+        // Fallback: extract distinct categories from recent resources
         const resourcesSnap = await adminDb.collection('resources').limit(200).get();
-        const cats = new Set<string>();
+        const catsMap = new Map<string, { id: string; name: string; slug: string }>();
         resourcesSnap.docs.forEach((doc) => {
             const data = doc.data();
-            data.categories?.forEach((c: string) => cats.add(c));
+            data.categories?.forEach((c: string) => {
+                if (!catsMap.has(c)) {
+                    catsMap.set(c, {
+                        id: c,
+                        name: c,
+                        slug: c.toLowerCase().replace(/\s+/g, '-'),
+                    });
+                }
+            });
         });
-        return Array.from(cats).sort();
+        return Array.from(catsMap.values()).sort((a, b) => a.name.localeCompare(b.name));
     } catch (error) {
         console.error('Error fetching categories:', error);
         return [];

@@ -47,6 +47,7 @@ export async function GET(
                     // Update Firestore in background (fire and forget)
                     adminDb.collection('resources').doc(params.id).update({
                         attributions: newAttributions,
+                        attributionNames: newAttributions.map(a => a.name).filter(Boolean),
                         updatedAt: new Date()
                     }).catch(e => console.error('Background self-healing update failed:', e));
                 }
@@ -125,6 +126,7 @@ export async function PATCH(
 
         if (finalAttributions) {
             updateData.attributions = finalAttributions;
+            updateData.attributionNames = finalAttributions.map((a: any) => a.name).filter(Boolean);
         }
         if (attributedUserIds !== undefined) {
             updateData.attributedUserIds = attributedUserIds;

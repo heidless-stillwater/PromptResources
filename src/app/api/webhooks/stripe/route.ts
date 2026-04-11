@@ -54,6 +54,7 @@ export async function POST(req: NextRequest) {
                 // 3. Update Firestore (Dual-Sync across Ecosystem)
                 const activeSuitesArray = Array.from(activeSuites);
                 const updatePayload = {
+                    stripeCustomerId: session.customer as string,
                     subscriptionType: 'pro',
                     subscription: {
                         bundleId,

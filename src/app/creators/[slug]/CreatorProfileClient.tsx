@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { UserProfile, Resource, CreatorSocial } from '@/lib/types';
 import { CreatorStats } from '@/lib/creators-server';
@@ -23,7 +23,7 @@ const socialIcon = (platform: CreatorSocial['platform']) => {
     switch (platform) {
         case 'youtube': return <Icons.play size={14} />;
         case 'twitter': return <Icons.twitter size={14} />;
-        case 'github': return <Icons.database size={14} />; // Or generic code icon
+        case 'github': return <Icons.database size={14} />;
         case 'linkedin': return <Icons.user size={14} />;
         case 'website': return <Icons.globe size={14} />;
         default: return <Icons.external size={14} />;
@@ -31,30 +31,41 @@ const socialIcon = (platform: CreatorSocial['platform']) => {
 };
 
 const profileTypeBadge = (type?: string) => {
-    const map: Record<string, { label: string; color: string }> = {
-        individual: { label: 'Creator', color: '#6C63FF' },
-        channel: { label: 'Channel', color: '#FF4D6D' },
-        organization: { label: 'Organization', color: '#0CB8B6' },
+    const map: Record<string, { label: string; bgColor: string; textColor: string; borderColor: string }> = {
+        individual: { label: 'Creator', bgColor: 'bg-indigo-500/10', textColor: 'text-indigo-400', borderColor: 'border-indigo-500/20' },
+        channel: { label: 'Channel', bgColor: 'bg-rose-500/10', textColor: 'text-rose-400', borderColor: 'border-rose-500/20' },
+        organization: { label: 'Organization', bgColor: 'bg-teal-500/10', textColor: 'text-teal-400', borderColor: 'border-teal-500/20' },
     };
     return map[type || 'individual'] || map.individual;
 };
 
 export default function CreatorProfileClient({ creator, initialResources, stats }: Props) {
-    const [activeTab, setActiveTab] = useState<'authored' | 'curated'>('curated');
+    const authoredResources = initialResources.filter(r =>
+        r.attributions?.some(a => a.userId === creator.uid && a.role !== 'curator')
+    );
+    const curatedResources = initialResources.filter(r =>
+        r.addedBy === creator.uid || r.attributions?.some(a => a.userId === creator.uid && a.role === 'curator')
+    );
+
+    const defaultTab: 'authored' | 'curated' =
+        curatedResources.length > 0 ? 'curated' :
+        authoredResources.length > 0 ? 'authored' :
+        'curated';
+
+    const [activeTab, setActiveTab] = useState<'authored' | 'curated'>(defaultTab);
     const [currentPage, setCurrentPage] = useState(1);
     const [pageSize, setPageSize] = useState<number | 'all'>(50);
     const [isEditingHeader, setIsEditingHeader] = useState(false);
     const [currentBanner, setCurrentBanner] = useState(creator.bannerUrl);
     const [isAuthorized, setIsAuthorized] = useState(false);
     const [isUpdating, setIsUpdating] = useState(false);
+    const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
 
     const badge = profileTypeBadge(creator.profileType);
 
-    // Check if current user is the profile owner or an admin
-    React.useEffect(() => {
+    useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, async (user) => {
             if (user) {
-                // Simplified: check if UID matches or if user has admin role (optional)
                 const isOwner = user.uid === creator.uid;
                 setIsAuthorized(isOwner);
             } else {
@@ -82,22 +93,52 @@ export default function CreatorProfileClient({ creator, initialResources, stats 
         }
     };
 
-    // Filter resources based on active tab
-    const filteredResources = initialResources.filter(resource => {
-        if (activeTab === 'authored') {
-            return resource.attributions?.some(a => a.userId === creator.uid && a.role !== 'curator');
-        } else {
-            return resource.addedBy === creator.uid || resource.attributions?.some(a => a.userId === creator.uid && a.role === 'curator');
-        }
-    });
+    const filteredResources = activeTab === 'authored' ? authoredResources : curatedResources;
 
-    // Pagination logic
+    const handleCopyLink = () => {
+        navigator.clipboard.writeText(window.location.href);
+        alert(`Direct link to ${creator.displayName}'s profile copied!`);
+    };
+
+    const handleSocialShare = async () => {
+        if (navigator.share) {
+            try {
+                await navigator.share({
+                    title: `${creator.displayName} | Creator Profile`,
+                    text: `Discover the AI resources and collections from ${creator.displayName} on PromptResources.`,
+                    url: window.location.href,
+                });
+            } catch (err) {
+                console.log('User cancelled share');
+            }
+        } else {
+            handleCopyLink();
+        }
+    };
+
+    const handleExport = () => {
+        const exportData = {
+            profile: creator,
+            stats: stats,
+            contributions: {
+                authored: authoredResources,
+                curated: curatedResources
+            },
+            exportedAt: new Date().toISOString()
+        };
+        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(exportData, null, 2));
+        const downloadAnchorNode = document.createElement('a');
+        downloadAnchorNode.setAttribute("href", dataStr);
+        downloadAnchorNode.setAttribute("download", `creator_profile_${creator.slug || creator.uid}.json`);
+        document.body.appendChild(downloadAnchorNode);
+        downloadAnchorNode.click();
+        downloadAnchorNode.remove();
+    };
+
     const totalItems = filteredResources.length;
     const isAll = pageSize === 'all';
     const effectivePageSize = isAll ? totalItems : pageSize;
     const totalPages = isAll ? 1 : Math.ceil(totalItems / effectivePageSize);
-    
-    // Ensure current page is valid after tab/pageSize change
     const safeCurrentPage = Math.min(currentPage, totalPages || 1);
     
     const paginatedResources = isAll 
@@ -112,357 +153,312 @@ export default function CreatorProfileClient({ creator, initialResources, stats 
         .slice(0, 2);
 
     return (
-        <div className="page-wrapper dashboard-theme">
+        <div className="min-h-screen bg-[#0a0a0f] text-white selection:bg-indigo-500/30">
             <Navbar />
             
-            <main className="main-content">
-                <div className="container">
-                    <div className="creator-profile-root">
-                        
-                        {/* ── CINEMATIC HERO SECTION ── */}
-                        <section className="creator-hero-ultra animate-fade-in" style={{
-                            padding: 'var(--space-12) 0',
-                            marginBottom: 'var(--space-8)',
-                            position: 'relative',
-                            backgroundImage: currentBanner
-                                ? `linear-gradient(to bottom, rgba(15, 12, 41, 0.7), rgba(15, 12, 41, 0.9)), url(${currentBanner})`
-                                : 'none',
-                            backgroundSize: 'cover',
-                            backgroundPosition: 'center',
-                            borderRadius: 'var(--radius-2xl)',
-                            overflow: 'hidden'
-                        }}>
-                            {/* Ambient Glow (Fallback if no banner) */}
-                            {!currentBanner && (
-                                <div style={{
-                                    position: 'absolute',
-                                    top: '50%',
-                                    left: '50%',
-                                    transform: 'translate(-50%, -50%)',
-                                    width: '100%',
-                                    height: '100%',
-                                    background: 'radial-gradient(circle at center, rgba(108, 99, 255, 0.1) 0%, rgba(15, 12, 41, 0.4) 70%)',
-                                    pointerEvents: 'none',
-                                    zIndex: 0
-                                }} />
-                            )}
+            <main className="container mx-auto px-4 py-12">
+                {/* ── CINEMATIC HERO SECTION ── */}
+                <section 
+                    className="relative rounded-[2.5rem] overflow-hidden mb-12 animate-fade-in group shadow-2xl border border-white/5"
+                    style={{
+                        backgroundImage: currentBanner
+                            ? `linear-gradient(to bottom, rgba(10, 10, 15, 0.2), rgba(10, 10, 15, 0.95)), url(${currentBanner})`
+                            : 'none',
+                        backgroundSize: 'cover',
+                        backgroundPosition: 'center',
+                        minHeight: '480px'
+                    }}
+                >
+                    {!currentBanner && (
+                        <div className="absolute inset-0 bg-gradient-to-br from-indigo-950/40 via-black/80 to-black pointer-events-none" />
+                    )}
 
-                            {isAuthorized && (
-                                <button 
-                                    className="btn btn-xs btn-glass"
-                                    style={{ position: 'absolute', top: '20px', right: '20px', zIndex: 10 }}
-                                    onClick={() => setIsEditingHeader(true)}
-                                    disabled={isUpdating}
-                                >
-                                    <Icons.image size={12} style={{ marginRight: '6px' }} />
-                                    {isUpdating ? 'Updating...' : 'Change Cover'}
-                                </button>
-                            )}
+                    {/* Ambient Glows */}
+                    <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-indigo-600/10 blur-[120px] rounded-full -translate-y-1/2 translate-x-1/2 pointer-events-none" />
+                    <div className="absolute bottom-0 left-0 w-[300px] h-[300px] bg-purple-600/10 blur-[100px] rounded-full translate-y-1/2 -translate-x-1/2 pointer-events-none" />
 
-                            <div className="creator-hero-inner" style={{ position: 'relative', zIndex: 2 }}>
-                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: 'var(--space-6)' }}>
-                                    
-                                    {/* Elevated Avatar */}
-                                    <div style={{ position: 'relative' }}>
-                                        <div style={{ 
-                                            width: '128px', 
-                                            height: '128px', 
-                                            borderRadius: '32px', 
-                                            padding: '4px',
-                                            background: 'linear-gradient(135deg, rgba(255,255,255,0.2) 0%, rgba(255,255,255,0.05) 100%)',
-                                            boxShadow: '0 20px 40px rgba(0,0,0,0.5)',
-                                            transform: 'rotate(-2deg)'
-                                        }}>
-                                            {creator.photoURL ? (
-                                                <img 
-                                                    src={creator.photoURL} 
-                                                    alt={creator.displayName} 
-                                                    style={{ width: '100%', height: '100%', borderRadius: '28px', objectFit: 'cover' }} 
-                                                />
-                                            ) : (
-                                                <div style={{ 
-                                                    width: '100%', 
-                                                    height: '100%', 
-                                                    borderRadius: '28px', 
-                                                    background: 'linear-gradient(135deg, #6C63FF 0%, #3F3D56 100%)', 
-                                                    display: 'flex', 
-                                                    alignItems: 'center', 
-                                                    justifyContent: 'center', 
-                                                    fontSize: '2.5rem', 
-                                                    fontWeight: 800, 
-                                                    color: 'white'
-                                                }}>
-                                                    {initials}
-                                                </div>
-                                            )}
-                                        </div>
-                                        {creator.isVerified && (
-                                            <div style={{ 
-                                                position: 'absolute', 
-                                                bottom: '-8px', 
-                                                right: '-8px', 
-                                                background: 'var(--success)', 
-                                                color: 'white', 
-                                                borderRadius: '50%', 
-                                                width: '32px', 
-                                                height: '32px', 
-                                                display: 'flex', 
-                                                alignItems: 'center', 
-                                                justifyContent: 'center',
-                                                border: '4px solid #0f0f15',
-                                                boxShadow: '0 4px 10px rgba(0,0,0,0.3)'
-                                            }} title="Verified Creator">
-                                                <Icons.check size={16} strokeWidth={4} />
-                                            </div>
-                                        )}
-                                    </div>
+                    {isAuthorized && (
+                        <button 
+                            className="absolute top-8 right-8 z-30 flex items-center gap-2 px-5 py-2.5 bg-white/5 backdrop-blur-2xl rounded-2xl text-xs font-bold border border-white/10 hover:bg-white/10 hover:border-white/20 transition-all opacity-0 group-hover:opacity-100 shadow-2xl"
+                            onClick={() => setIsEditingHeader(true)}
+                            disabled={isUpdating}
+                        >
+                            <Icons.image size={14} className="text-indigo-400" />
+                            {isUpdating ? 'Updating...' : 'Elevate Cover'}
+                        </button>
+                    )}
 
-                                    <div className="creator-identity">
-                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 'var(--space-3)', marginBottom: 'var(--space-2)' }}>
-                                            <h1 style={{ fontSize: '3.5rem', fontWeight: 800, margin: 0, letterSpacing: '-0.04em', color: 'var(--text-bright)' }}>
-                                                {creator.displayName}
-                                            </h1>
-                                            <span style={{ 
-                                                fontSize: '10px', 
-                                                padding: '4px 12px', 
-                                                background: badge.color + '22', 
-                                                color: badge.color, 
-                                                borderRadius: '100px', 
-                                                fontWeight: 800, 
-                                                textTransform: 'uppercase',
-                                                letterSpacing: '0.1em',
-                                                border: `1px solid ${badge.color}44`
-                                            }}>
-                                                {badge.label}
-                                            </span>
-                                        </div>
-                                        
-                                        {creator.bio && (
-                                            <div className="glass-card" style={{ 
-                                                maxWidth: '650px', 
-                                                margin: 'var(--space-4) auto', 
-                                                padding: 'var(--space-4) var(--space-8)',
-                                                background: 'rgba(255,255,255,0.03)',
-                                                borderRadius: 'var(--radius-xl)',
-                                                border: '1px solid rgba(255,255,255,0.05)',
-                                                backdropFilter: 'blur(10px)'
-                                            }}>
-                                                <p style={{ margin: 0, fontSize: '1.1rem', color: 'var(--text-muted)', lineHeight: '1.6' }}>{creator.bio}</p>
-                                            </div>
-                                        )}
+                    {/* Floating Profile Utilities */}
+                    <div className="absolute top-8 left-8 z-30 flex gap-3">
+                        {[
+                            { icon: <Icons.share size={18} />, action: handleSocialShare, color: 'hover:text-indigo-400', label: 'Share' },
+                            { icon: <Icons.copy size={18} />, action: handleCopyLink, color: 'hover:text-blue-400', label: 'Copy' },
+                            { icon: <Icons.download size={18} />, action: handleExport, color: 'hover:text-emerald-400', label: 'JSON' }
+                        ].map((tool, i) => (
+                            <button 
+                                key={i}
+                                onClick={tool.action}
+                                className={`w-12 h-12 bg-white/5 backdrop-blur-2xl border border-white/10 rounded-2xl flex items-center justify-center text-white/60 transition-all hover:bg-white/10 hover:border-white/20 active:scale-95 shadow-2xl ${tool.color} group/tool`}
+                                title={tool.label}
+                            >
+                                <div className="group-hover/tool:scale-110 transition-transform">{tool.icon}</div>
+                            </button>
+                        ))}
+                    </div>
 
-                                        {/* Social Connectivity Hub */}
-                                        {creator.socials && creator.socials.length > 0 && (
-                                            <div style={{ display: 'flex', justifyContent: 'center', gap: 'var(--space-3)', marginTop: 'var(--space-6)' }}>
-                                                {creator.socials.map((s, i) => (
-                                                    <a
-                                                        key={i}
-                                                        href={s.url}
-                                                        target="_blank"
-                                                        rel="noopener noreferrer"
-                                                        className="creator-social-pill"
-                                                        style={{ 
-                                                            display: 'flex', 
-                                                            alignItems: 'center', 
-                                                            gap: '8px',
-                                                            background: 'rgba(255,255,255,0.05)',
-                                                            padding: 'var(--space-2) var(--space-5)',
-                                                            borderRadius: '100px',
-                                                            color: 'var(--text-bright)',
-                                                            fontSize: 'var(--text-sm)',
-                                                            fontWeight: 600,
-                                                            transition: 'all 0.2s ease',
-                                                            border: '1px solid rgba(255,255,255,0.05)',
-                                                            textDecoration: 'none'
-                                                        }}
-                                                    >
-                                                        {socialIcon(s.platform)}
-                                                        <span style={{ textTransform: 'capitalize' }}>{s.label || s.platform}</span>
-                                                    </a>
-                                                ))}
+                    <div className="absolute inset-x-0 bottom-0 p-8 md:p-16 bg-gradient-to-t from-[#0a0a0f] via-[#0a0a0f]/60 to-transparent">
+                        <div className="flex flex-col md:flex-row items-center md:items-end gap-8 md:gap-14">
+                            
+                            {/* Pioneer Identity Container */}
+                            <div className="relative group/avatar">
+                                <div className="w-32 h-32 md:w-48 md:h-48 rounded-[3rem] p-[2px] bg-gradient-to-br from-white/40 via-white/5 to-transparent backdrop-blur-3xl shadow-[0_0_50px_-12px_rgba(0,0,0,0.5)] overflow-hidden transform group-hover/avatar:scale-[1.02] transition-all duration-500">
+                                    <div className="w-full h-full rounded-[2.9rem] overflow-hidden bg-[#12121e]">
+                                        {creator.photoURL ? (
+                                            <img 
+                                                src={creator.photoURL} 
+                                                alt={creator.displayName} 
+                                                className="w-full h-full object-cover" 
+                                            />
+                                        ) : (
+                                            <div className="w-full h-full bg-gradient-to-br from-indigo-600 via-purple-700 to-indigo-900 flex items-center justify-center text-5xl font-black text-white">
+                                                {initials}
                                             </div>
                                         )}
                                     </div>
                                 </div>
+                                {creator.isVerified && (
+                                    <div className="absolute -bottom-2 -right-2 w-12 h-12 bg-indigo-500 rounded-3xl flex items-center justify-center border-4 border-[#0a0a0f] shadow-2xl z-10" title="Verified Community Pioneer">
+                                        <Icons.check size={22} strokeWidth={4} className="text-white" />
+                                    </div>
+                                )}
+                                <div className="absolute inset-0 rounded-[3rem] bg-indigo-500/20 blur-2xl opacity-0 group-hover/avatar:opacity-100 transition-opacity pointer-events-none" />
                             </div>
-                        </section>
 
-                        {/* ── IMPACT STATS STRIP ── */}
-                        <div style={{ 
-                            display: 'grid', 
-                            gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', 
-                            gap: 'var(--space-4)',
-                            marginBottom: 'var(--space-12)'
-                        }}>
-                            {[
-                                { label: 'Authored Resources', value: stats.authoredCount, icon: <Icons.wand size={20} />, color: 'var(--accent-primary)' },
-                                { label: 'Curated Assets', value: stats.curatedCount, icon: <Icons.grid size={20} />, color: '#00C896' },
-                                { label: 'Categories Mastered', value: stats.categories.length, icon: <Icons.tag size={20} />, color: 'var(--accent-yellow)' },
-                                { label: 'Avg Community Rating', value: stats.averageRating > 0 ? stats.averageRating.toFixed(1) : '—', icon: <Icons.sparkles size={20} />, color: '#FF4D6D' }
-                            ].map((stat, i) => (
-                                <div key={i} className="glass-card" style={{ 
-                                    padding: 'var(--space-6)', 
-                                    textAlign: 'center',
-                                    display: 'flex',
-                                    flexDirection: 'column',
-                                    alignItems: 'center',
-                                    gap: 'var(--space-2)',
-                                    background: 'rgba(255,255,255,0.02)',
-                                    border: '1px solid rgba(255,255,255,0.05)'
-                                }}>
-                                    <div style={{ color: stat.color }}>{stat.icon}</div>
-                                    <div style={{ fontSize: '2.5rem', fontWeight: 800, color: 'var(--text-bright)', lineHeight: 1 }}>{stat.value}</div>
-                                    <div style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--text-muted)', fontWeight: 700 }}>{stat.label}</div>
-                                </div>
-                            ))}
-                        </div>
-
-                        {/* ── RESOURCE EXPLORER ── */}
-                        <section className="creator-resources-section">
-                            <div style={{ 
-                                display: 'flex', 
-                                justifyContent: 'space-between', 
-                                alignItems: 'flex-end', 
-                                marginBottom: 'var(--space-8)',
-                                borderBottom: '1px solid rgba(255,255,255,0.05)',
-                                paddingBottom: 'var(--space-4)'
-                            }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-12)' }}>
-                                    <h2 style={{ fontSize: '1.75rem', fontWeight: 800, margin: 0, color: 'var(--text-bright)' }}>Contributions</h2>
-                                    <div style={{ display: 'flex', gap: 'var(--space-6)' }}>
-                                        {['authored', 'curated'].map(tab => (
-                                            <button
-                                                key={tab}
-                                                onClick={() => { setActiveTab(tab as any); setCurrentPage(1); }}
-                                                style={{ 
-                                                    background: 'none',
-                                                    border: 'none',
-                                                    color: activeTab === tab ? 'var(--accent-primary)' : 'var(--text-muted)',
-                                                    fontSize: '1rem',
-                                                    fontWeight: 700,
-                                                    cursor: 'pointer',
-                                                    padding: 'var(--space-2) 0',
-                                                    position: 'relative',
-                                                    transition: 'all 0.2s ease'
-                                                }}
-                                            >
-                                                {tab === 'authored' ? 'Authored' : 'Curated'}
-                                                {activeTab === tab && (
-                                                    <div style={{ 
-                                                        position: 'absolute', 
-                                                        bottom: '-17px', 
-                                                        left: 0, 
-                                                        width: '100%', 
-                                                        height: '3px', 
-                                                        background: 'var(--accent-primary)',
-                                                        borderRadius: '100px'
-                                                    }} />
-                                                )}
-                                            </button>
-                                        ))}
+                            <div className="flex-1 text-center md:text-left">
+                                <div className="flex flex-col md:flex-row items-center md:items-center gap-4 md:gap-6 mb-6">
+                                    <h1 className="text-5xl md:text-7xl font-black tracking-tighter text-white drop-shadow-2xl">
+                                        {creator.displayName}
+                                    </h1>
+                                    <div className={`px-5 py-2 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] border shadow-2xl backdrop-blur-2xl ${badge.bgColor} ${badge.textColor} ${badge.borderColor} self-center`}>
+                                        {badge.label}
                                     </div>
                                 </div>
                                 
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-4)' }}>
-                                    <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', fontWeight: 600 }}>PAGE SIZE</span>
-                                    <div style={{ display: 'flex', background: 'rgba(255,255,255,0.05)', borderRadius: 'var(--radius-md)', padding: '2px' }}>
-                                        {[20, 50, 'all'].map(size => (
-                                            <button
-                                                key={size}
-                                                onClick={() => { setPageSize(size as any); setCurrentPage(1); }}
-                                                style={{ 
-                                                    background: pageSize === size ? 'rgba(255,255,255,0.1)' : 'none',
-                                                    border: 'none',
-                                                    color: pageSize === size ? 'var(--text-bright)' : 'var(--text-muted)',
-                                                    padding: '4px 12px',
-                                                    borderRadius: 'var(--radius-sm)',
-                                                    fontSize: '11px',
-                                                    fontWeight: 700,
-                                                    cursor: 'pointer'
-                                                }}
+                                {creator.bio && (
+                                    <p className="text-xl text-white/60 max-w-3xl leading-relaxed font-medium mb-8">
+                                        {creator.bio}
+                                    </p>
+                                )}
+
+                                {/* Premium Social Links */}
+                                {creator.socials && creator.socials.length > 0 && (
+                                    <div className="flex flex-wrap justify-center md:justify-start gap-3">
+                                        {creator.socials.map((s, i) => (
+                                            <a
+                                                key={i}
+                                                href={s.url}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="flex items-center gap-3 px-6 py-3 bg-white/5 hover:bg-white/10 backdrop-blur-3xl rounded-2xl border border-white/10 hover:border-white/20 transition-all text-sm font-bold text-white shadow-xl group/social active:scale-95"
                                             >
-                                                {size === 'all' ? 'ALL' : size}
-                                            </button>
+                                                <span className="text-indigo-400 group-hover/social:scale-110 transition-transform">
+                                                    {socialIcon(s.platform)}
+                                                </span>
+                                                <span className="capitalize opacity-80">{s.label || s.platform}</span>
+                                            </a>
                                         ))}
                                     </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                {/* ── IMPACT GRID ── */}
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 mb-16">
+                    {[
+                        { label: 'Authored Resources', value: stats.authoredCount, icon: <Icons.wand size={22} />, color: 'from-indigo-500/20 to-indigo-900/5', iconColor: 'text-indigo-400', border: 'border-indigo-500/20' },
+                        { label: 'Curated Assets', value: stats.curatedCount, icon: <Icons.grid size={22} />, color: 'from-emerald-500/20 to-emerald-900/5', iconColor: 'text-emerald-400', border: 'border-emerald-500/20' },
+                        { label: 'Categories Mastered', value: stats.categories.length, icon: <Icons.tag size={22} />, color: 'from-amber-500/20 to-amber-900/5', iconColor: 'text-amber-400', border: 'border-amber-500/20' },
+                        { label: 'Community Rating', value: stats.averageRating > 0 ? stats.averageRating.toFixed(1) : '—', icon: <Icons.sparkles size={22} />, color: 'from-rose-500/20 to-rose-900/5', iconColor: 'text-rose-400', border: 'border-rose-500/20' }
+                    ].map((stat, i) => (
+                        <div key={i} className={`relative bg-gradient-to-br ${stat.color} border ${stat.border} p-8 rounded-[2rem] flex flex-col items-center gap-3 hover:scale-[1.02] transition-all group overflow-hidden`}>
+                            <div className={`${stat.iconColor} group-hover:rotate-12 transition-all duration-500 z-10 opacity-60`}>{stat.icon}</div>
+                            <div className="text-4xl font-black text-white relative z-10 tracking-tight">{stat.value}</div>
+                            <div className="text-[10px] uppercase font-black tracking-[0.25em] text-white/30 text-center z-10 leading-tight">{stat.label}</div>
+                            <div className="absolute inset-0 bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity" />
+                        </div>
+                    ))}
+                </div>
+
+                {/* ── SOCIALS ACTION BAR ── */}
+                <div className="flex flex-wrap items-center justify-between gap-8 p-8 mb-20 bg-white/[0.02] border border-white/10 rounded-[2.5rem] backdrop-blur-3xl shadow-2xl relative overflow-hidden group">
+                    <div className="absolute inset-0 bg-indigo-500/5 opacity-0 group-hover:opacity-100 transition-opacity" />
+                    <div className="flex items-center gap-8 relative z-10">
+                        <div className="flex gap-3">
+                            <div className="w-14 h-14 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 shadow-inner">
+                                <Icons.share size={24} />
+                            </div>
+                            <div className="w-14 h-14 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 shadow-inner">
+                                <Icons.trophy size={24} />
+                            </div>
+                        </div>
+                        <div>
+                            <h3 className="text-xl font-black text-white leading-none mb-2 tracking-tight">Social Presence</h3>
+                            <p className="text-sm text-white/40 font-medium font-inter">Distribute this profile or anchor metadata records</p>
+                        </div>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-4 relative z-10">
+                        <button 
+                            onClick={handleSocialShare}
+                            className="flex items-center gap-3 px-8 py-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-[1.25rem] font-black transition-all active:scale-95 shadow-2xl shadow-indigo-600/30 text-sm tracking-tight"
+                        >
+                            <Icons.share size={18} />
+                            <span>Share Profile</span>
+                        </button>
+                        <button 
+                            onClick={handleCopyLink}
+                            className="flex items-center gap-3 px-8 py-4 bg-white/5 hover:bg-white/10 border border-white/10 text-white rounded-[1.25rem] font-bold transition-all active:scale-95 text-sm"
+                        >
+                            <Icons.copy size={18} />
+                            <span>Copy Link</span>
+                        </button>
+                        <button 
+                            onClick={handleExport}
+                            className="flex items-center gap-3 px-8 py-4 bg-white/5 hover:bg-white/10 border border-white/10 text-white rounded-[1.25rem] font-bold transition-all active:scale-95 text-sm"
+                        >
+                            <Icons.download size={18} />
+                            <span>Export Data</span>
+                        </button>
+                    </div>
+                </div>
+
+                {/* ── RESOURCE EXPLORER ── */}
+                <section className="mt-20">
+                    <div className="flex flex-col md:flex-row justify-between items-center gap-8 mb-12 border-b border-white/5 pb-8">
+                        <div className="flex items-center gap-14">
+                            <h2 className="text-3xl font-black text-white tracking-tighter">Contributions</h2>
+                            <div className="flex gap-10">
+                                {['authored', 'curated'].map(tab => (
+                                    <button
+                                        key={tab}
+                                        onClick={() => { setActiveTab(tab as any); setCurrentPage(1); }}
+                                        className={`relative py-3 text-sm font-black uppercase tracking-widest transition-all ${
+                                            activeTab === tab ? 'text-indigo-400' : 'text-white/30 hover:text-white/70'
+                                        }`}
+                                    >
+                                        {tab === 'authored' ? 'Authored' : 'Curated'}
+                                        {activeTab === tab && (
+                                            <div className="absolute bottom-0 left-0 right-0 h-1 bg-indigo-500 rounded-full shadow-[0_0_15px_rgba(99,102,241,1)]" />
+                                        )}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                        
+                        <div className="flex items-center gap-8">
+                            <div className="flex items-center gap-4">
+                                <span className="text-[10px] font-black uppercase text-white/30 tracking-widest leading-none">View Mode</span>
+                                <div className="flex bg-white/[0.03] p-1 rounded-xl border border-white/5">
+                                    <button 
+                                        onClick={() => setViewMode('grid')}
+                                        className={`p-1.5 rounded-lg transition-all ${viewMode === 'grid' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-white/30 hover:text-white/60'}`}
+                                        title="Gallery View"
+                                    >
+                                        <Icons.grid size={16} />
+                                    </button>
+                                    <button 
+                                        onClick={() => setViewMode('list')}
+                                        className={`p-1.5 rounded-lg transition-all ${viewMode === 'list' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-white/30 hover:text-white/60'}`}
+                                        title="List View"
+                                    >
+                                        <Icons.text size={16} />
+                                    </button>
                                 </div>
                             </div>
 
-                            {filteredResources.length === 0 ? (
-                                <div className="glass-card" style={{ padding: 'var(--space-12)', textAlign: 'center', background: 'rgba(255,255,255,0.02)' }}>
-                                    <div style={{ color: 'var(--text-muted)', marginBottom: 'var(--space-4)' }}><Icons.grid size={48} opacity={0.2} /></div>
-                                    <p style={{ margin: 0, color: 'var(--text-muted)' }}>No resources found in this collection.</p>
+                            <div className="flex items-center gap-4">
+                                <span className="text-[10px] font-black uppercase text-white/30 tracking-widest leading-none">Density</span>
+                                <div className="flex bg-white/[0.03] p-1 rounded-xl border border-white/5">
+                                    {[20, 50, 'all'].map(size => (
+                                        <button
+                                            key={size}
+                                            onClick={() => { setPageSize(size as any); setCurrentPage(1); }}
+                                            className={`px-4 py-1.5 rounded-lg text-xs font-black transition-all ${
+                                                pageSize === size ? 'bg-white/10 text-white' : 'text-white/30 hover:text-white/60'
+                                            }`}
+                                        >
+                                            {size === 'all' ? 'ALL' : size}
+                                        </button>
+                                    ))}
                                 </div>
-                            ) : (
-                                <>
-                                    <div style={{ 
-                                        display: 'grid', 
-                                        gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', 
-                                        gap: 'var(--space-6)',
-                                        marginBottom: 'var(--space-8)'
-                                    }}>
-                                        {paginatedResources.map(resource => (
-                                            <ResourceCard key={resource.id} resource={resource} />
-                                        ))}
-                                    </div>
-
-                                    {!isAll && totalPages > 1 && (
-                                        <div style={{ display: 'flex', justifyContent: 'center', marginTop: 'var(--space-12)' }}>
-                                            <div className="pagination-nav-ultra" style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-1)', background: 'rgba(255,255,255,0.03)', padding: '4px', borderRadius: '100px', border: '1px solid rgba(255,255,255,0.05)' }}>
-                                                <button 
-                                                    className="nav-btn-circle" 
-                                                    disabled={safeCurrentPage === 1}
-                                                    onClick={() => {
-                                                        setCurrentPage(prev => Math.max(1, prev - 1));
-                                                        window.scrollTo({ top: 300, behavior: 'smooth' });
-                                                    }}
-                                                    style={{ width: '40px', height: '40px', borderRadius: '50%', border: 'none', background: 'none', color: 'white', cursor: 'pointer', opacity: safeCurrentPage === 1 ? 0.3 : 1 }}
-                                                >
-                                                    <Icons.chevronLeft size={20} />
-                                                </button>
-                                                
-                                                {Array.from({ length: totalPages }, (_, i) => i + 1).map(num => (
-                                                    <button 
-                                                        key={num}
-                                                        onClick={() => {
-                                                            setCurrentPage(num);
-                                                            window.scrollTo({ top: 300, behavior: 'smooth' });
-                                                        }}
-                                                        style={{ 
-                                                            width: '40px', 
-                                                            height: '40px', 
-                                                            borderRadius: '50%', 
-                                                            border: 'none', 
-                                                            background: safeCurrentPage === num ? 'var(--accent-primary)' : 'none', 
-                                                            color: 'white', 
-                                                            cursor: 'pointer',
-                                                            fontWeight: 700,
-                                                            fontSize: '13px'
-                                                        }}
-                                                    >
-                                                        {num}
-                                                    </button>
-                                                ))}
-
-                                                <button 
-                                                    className="nav-btn-circle" 
-                                                    disabled={safeCurrentPage === totalPages}
-                                                    onClick={() => {
-                                                        setCurrentPage(prev => Math.min(totalPages, prev + 1));
-                                                        window.scrollTo({ top: 300, behavior: 'smooth' });
-                                                    }}
-                                                    style={{ width: '40px', height: '40px', borderRadius: '50%', border: 'none', background: 'none', color: 'white', cursor: 'pointer', opacity: safeCurrentPage === totalPages ? 0.3 : 1 }}
-                                                >
-                                                    <Icons.chevronRight size={20} />
-                                                </button>
-                                            </div>
-                                        </div>
-                                    )}
-                                </>
-                            )}
-                        </section>
+                            </div>
+                        </div>
                     </div>
-                </div>
+
+                    {filteredResources.length === 0 ? (
+                        <div className="bg-white/[0.02] border border-white/5 rounded-3xl p-20 text-center">
+                            <Icons.grid size={48} className="mx-auto text-white/10 mb-6" />
+                            <p className="text-white/40 font-medium">No resources found in this collection.</p>
+                        </div>
+                    ) : (
+                        <>
+                            <div className={viewMode === 'grid' ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12' : 'flex flex-col gap-6 mb-12'}>
+                                {paginatedResources.map(resource => (
+                                    <ResourceCard key={resource.id} resource={resource} viewMode={viewMode} />
+                                ))}
+                            </div>
+
+                            {!isAll && totalPages > 1 && (
+                                <div className="flex justify-center mt-16 pb-12">
+                                    <div className="flex items-center gap-2 bg-white/[0.03] border border-white/10 p-2 rounded-full backdrop-blur-md">
+                                        <button 
+                                            disabled={safeCurrentPage === 1}
+                                            onClick={() => {
+                                                setCurrentPage(prev => Math.max(1, prev - 1));
+                                                window.scrollTo({ top: 400, behavior: 'smooth' });
+                                            }}
+                                            className="w-10 h-10 rounded-full flex items-center justify-center text-white/50 hover:bg-white/10 disabled:opacity-30 disabled:hover:bg-transparent transition-all"
+                                        >
+                                            <Icons.chevronLeft size={20} />
+                                        </button>
+                                        
+                                        <div className="flex gap-1">
+                                            {Array.from({ length: totalPages }, (_, i) => i + 1).map(num => (
+                                                <button 
+                                                    key={num}
+                                                    onClick={() => {
+                                                        setCurrentPage(num);
+                                                        window.scrollTo({ top: 400, behavior: 'smooth' });
+                                                    }}
+                                                    className={`w-10 h-10 rounded-full flex items-center justify-center text-xs font-black transition-all ${
+                                                        safeCurrentPage === num 
+                                                            ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' 
+                                                            : 'text-white/40 hover:bg-white/10'
+                                                    }`}
+                                                >
+                                                    {num}
+                                                </button>
+                                            ))}
+                                        </div>
+
+                                        <button 
+                                            disabled={safeCurrentPage === totalPages}
+                                            onClick={() => {
+                                                setCurrentPage(prev => Math.min(totalPages, prev + 1));
+                                                window.scrollTo({ top: 400, behavior: 'smooth' });
+                                            }}
+                                            className="w-10 h-10 rounded-full flex items-center justify-center text-white/50 hover:bg-white/10 disabled:opacity-30 disabled:hover:bg-transparent transition-all"
+                                        >
+                                            <Icons.chevronRight size={20} />
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+                        </>
+                    )}
+                </section>
             </main>
 
             <Footer />

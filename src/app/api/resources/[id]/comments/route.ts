@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/firebase';
-import { collection, query, where, orderBy, getDocs, addDoc, serverTimestamp, doc, updateDoc, getDoc, runTransaction } from 'firebase/firestore';
-import { Comment, Review } from '@/lib/types';
+import { adminDb } from '@/lib/firebase-admin';
+import { getAuthUser } from '@/lib/auth-server';
+import { FieldValue } from 'firebase-admin/firestore';
+import { Comment } from '@/lib/types';
 
 export async function GET(
     request: NextRequest,
@@ -13,31 +14,29 @@ export async function GET(
             return NextResponse.json({ success: false, error: 'Resource ID is required' }, { status: 400 });
         }
 
-        // Check if resource exists before fetching comments to avoid 500s on parent misses
-        const resourceRef = doc(db, 'resources', resourceId);
-        const resourceSnap = await getDoc(resourceRef);
+        const resourceRef = adminDb.collection('resources').doc(resourceId);
+        const resourceSnap = await resourceRef.get();
         
-        if (!resourceSnap.exists()) {
+        if (!resourceSnap.exists) {
              return NextResponse.json({ success: true, data: [], message: 'Resource not found, returning empty comments' });
         }
 
-        const commentsRef = collection(db, 'resources', resourceId, 'comments');
-        const querySnapshot = await getDocs(query(commentsRef));
+        const querySnapshot = await resourceRef.collection('comments').get();
         
         const comments = querySnapshot.docs.map(doc => {
             const data = doc.data() as any;
             return {
                 id: doc.id,
                 ...data,
-                createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : (data.createdAt || new Date()),
-                updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate() : (data.updatedAt || new Date()),
+                createdAt: data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : (data.createdAt || new Date().toISOString()),
+                updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate().toISOString() : (data.updatedAt || new Date().toISOString()),
             };
         }) as Comment[];
 
         // Sort in memory for now
         comments.sort((a: any, b: any) => {
-            const dateA = a.createdAt instanceof Date ? a.createdAt.getTime() : new Date(a.createdAt).getTime();
-            const dateB = b.createdAt instanceof Date ? b.createdAt.getTime() : new Date(b.createdAt).getTime();
+            const dateA = new Date(a.createdAt).getTime();
+            const dateB = new Date(b.createdAt).getTime();
             return dateB - dateA;
         });
 
@@ -53,25 +52,35 @@ export async function POST(
     { params }: { params: { id: string } }
 ) {
     try {
+        const decodedToken = await getAuthUser(request);
+        if (!decodedToken) {
+            return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+        }
+
         const resourceId = params.id;
         const body = await request.json();
         const { userId, userName, userPhoto, content, rating } = body;
+
+        // Security check: Ensure the body's userId matches the authenticated token
+        if (userId !== decodedToken.uid) {
+            return NextResponse.json({ success: false, error: 'User ID mismatch' }, { status: 403 });
+        }
 
         if (!userId || !content) {
             return NextResponse.json({ success: false, error: 'Missing required fields' }, { status: 400 });
         }
 
-        const commentsRef = collection(db, 'resources', resourceId, 'comments');
-        const resourceRef = doc(db, 'resources', resourceId);
+        const resourceRef = adminDb.collection('resources').doc(resourceId);
+        const commentsRef = resourceRef.collection('comments');
 
-        // Use a transaction to update rating and add comment atomically
-        const result = await runTransaction(db, async (transaction) => {
+        // Use a transaction for atomic rating updates
+        const result = await adminDb.runTransaction(async (transaction) => {
             const resourceDoc = await transaction.get(resourceRef);
-            if (!resourceDoc.exists()) {
+            if (!resourceDoc.exists) {
                 throw new Error('Resource not found');
             }
 
-            const resourceData = resourceDoc.data();
+            const resourceData = resourceDoc.data() || {};
             const currentCount = resourceData.reviewCount || 0;
             const currentAvg = resourceData.averageRating || 0;
 
@@ -90,16 +99,17 @@ export async function POST(
                 userPhoto,
                 content,
                 rating: rating || null,
-                createdAt: serverTimestamp(),
-                updatedAt: serverTimestamp(),
+                createdAt: FieldValue.serverTimestamp(),
+                updatedAt: FieldValue.serverTimestamp(),
             };
 
-            const docRef = await addDoc(commentsRef, newComment);
+            const docRef = commentsRef.doc();
+            transaction.set(docRef, newComment);
             
             transaction.update(resourceRef, {
                 averageRating: newAvg,
                 reviewCount: newCount,
-                updatedAt: serverTimestamp()
+                updatedAt: FieldValue.serverTimestamp()
             });
 
             return { id: docRef.id, ...newComment };

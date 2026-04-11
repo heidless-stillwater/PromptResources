@@ -106,44 +106,80 @@ export async function getCreatorResources(userId: string, options: PaginationOpt
  * Fetch public creators directory
  */
 export async function getAllCreators(options?: { featured?: boolean; limit?: number; type?: string }): Promise<UserProfile[]> {
-    let query: FirebaseFirestore.Query = adminDb.collection('users');
+    // Phase 4 "All-In" Sweep: We fetch a broad pool and filter in-memory to bypass potential flag discrepancies.
+    const snapshot = await adminDb.collection('users')
+        .limit(options?.limit || 300)
+        .get();
 
-    // Only public or stub profiles
-    // We cannot do an OR natively easily across true/false on different fields,
-    // so we assume we only want `isStub == true` OR `isPublicProfile == true`
-    query = query.where('isPublicProfile', '==', true); 
+    const creators: UserProfile[] = [];
 
-    if (options?.featured) {
-        query = query.where('isFeatured', '==', true);
-    }
-    
-    if (options?.type) {
-        query = query.where('profileType', '==', options.type);
-    }
-
-    // Remove orderBy to avoid composite index requirement during dev
-    // query = query.orderBy('resourceCount', 'desc');
-
-    if (options?.limit) {
-        query = query.limit(options.limit);
-    } else {
-        query = query.limit(50);
-    }
-
-    const snapshot = await query.get();
-    
-    // Sort in-memory instead of DB to unblock UI while indexes build
-    const creators = snapshot.docs.map(doc => {
+    snapshot.docs.forEach(doc => {
         const data = doc.data();
-        return {
+        const profile = {
             ...data,
             uid: doc.id,
             createdAt: data.createdAt?.toDate?.() || new Date(data.createdAt),
             updatedAt: data.updatedAt?.toDate?.() || new Date(data.updatedAt)
         } as UserProfile;
+
+        // Visibility Safeguard: Include if they are public, a stub, or have ANY community impact
+        const isVisible = 
+            profile.isPublicProfile === true || 
+            profile.isStub === true || 
+            (profile.authoredCount || 0) > 0 || 
+            (profile.resourceCount || 0) > 0;
+
+        if (!isVisible) return;
+
+        // Apply secondary filters
+        if (options?.featured && !profile.isFeatured) return;
+        if (options?.type && profile.profileType !== options.type) return;
+
+        creators.push(profile);
     });
 
-    return creators.sort((a, b) => (b.resourceCount || 0) - (a.resourceCount || 0));
+    // Impact Fallback: If registry is empty/sparse, sweep resources for unique attribution names
+    if (creators.length < 5) {
+        const resourcesSnap = await adminDb.collection('resources')
+            .where('status', '==', 'published')
+            .limit(500)
+            .get();
+        
+        const extraCreators = new Map<string, UserProfile>();
+        resourcesSnap.docs.forEach(doc => {
+            const data = doc.data();
+            const names = data.attributionNames || [];
+            names.forEach((name: string) => {
+                if (!creators.find(c => c.displayName === name) && !extraCreators.has(name)) {
+                    extraCreators.set(name, {
+                        uid: `temp_${name}`,
+                        displayName: name,
+                        slug: slugify(name),
+                        resourceCount: 1,
+                        authoredCount: 1,
+                        isPublicProfile: true,
+                        createdAt: data.createdAt?.toDate?.() || new Date(),
+                        updatedAt: data.updatedAt?.toDate?.() || new Date(),
+                    } as UserProfile);
+                } else if (extraCreators.has(name)) {
+                    const existing = extraCreators.get(name)!;
+                    existing.resourceCount = (existing.resourceCount || 0) + 1;
+                    existing.authoredCount = (existing.authoredCount || 0) + 1;
+                    // Keep most recent update
+                    const resUpdate = data.updatedAt?.toDate?.() || new Date();
+                    if (resUpdate > existing.updatedAt) existing.updatedAt = resUpdate;
+                }
+            });
+        });
+        creators.push(...Array.from(extraCreators.values()));
+    }
+
+    // Sort by impact (Authored > Total > Name)
+    return creators.sort((a, b) => {
+        const aVal = (a.authoredCount || 0) * 10 + (a.resourceCount || 0);
+        const bVal = (b.authoredCount || 0) * 10 + (b.resourceCount || 0);
+        return bVal - aVal;
+    });
 }
 
 // Simple in-memory cache for creator stats to reduce Firestore reads
@@ -284,14 +320,21 @@ export async function resolveAttributions(attributions: Attribution[]): Promise<
 export async function syncCreatorStats(userId: string): Promise<void> {
     try {
         const stats = await getCreatorStats(userId);
-        await adminDb.collection('users').doc(userId).update({
+        const updates: any = {
             resourceCount: stats.totalResources,
             authoredCount: stats.authoredCount,
             curatedCount: stats.curatedCount,
             categories: stats.categories,
             platforms: stats.platforms,
             updatedAt: new Date()
-        });
+        };
+
+        // If they have authored resources, ensure they are visible in the registry
+        if (stats.authoredCount > 0) {
+            updates.isPublicProfile = true;
+        }
+
+        await adminDb.collection('users').doc(userId).update(updates);
         console.log(`Synced stats for creator ${userId}: Authored: ${stats.authoredCount}, Curated: ${stats.curatedCount}`);
     } catch (e) {
         console.error(`Failed to sync stats for creator ${userId}:`, e);

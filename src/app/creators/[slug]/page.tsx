@@ -1,4 +1,5 @@
 import { Metadata } from 'next';
+export const dynamic = 'force-dynamic';
 import { notFound } from 'next/navigation';
 import { getUserBySlug, getCreatorResources, getCreatorStats } from '@/lib/creators-server';
 import CreatorProfileClient from './CreatorProfileClient';

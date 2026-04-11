@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { checkFeatureUsage, incrementFeatureUsage } from '@/lib/usage';
 
 export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
     const url = searchParams.get('url');
+    const uid = searchParams.get('uid');
 
     if (!url) {
         return NextResponse.json({ success: false, error: 'Missing url parameter' }, { status: 400 });
@@ -13,6 +15,18 @@ export async function GET(request: NextRequest) {
         new URL(url);
     } catch {
         return NextResponse.json({ success: false, error: 'Invalid URL' }, { status: 400 });
+    }
+
+    // 1. Gating Check
+    if (uid) {
+        const { allowed, usageCount, limit } = await checkFeatureUsage(uid, 'extraction');
+        if (!allowed) {
+            return NextResponse.json({ 
+                success: false, 
+                error: `Usage limit reached (${usageCount}/${limit}). Upgrade to Pro for unlimited Magic AI extraction.`,
+                code: 'LIMIT_REACHED'
+            }, { status: 403 });
+        }
     }
 
     try {
@@ -59,7 +73,6 @@ export async function GET(request: NextRequest) {
                 .replace(/\s+/g, ' ')     // collapse whitespace
                 .trim();
 
-            // Skip empty hrefs, javascript:, mailto:, tel:, and anchors
             if (!linkUrl ||
                 linkUrl.startsWith('javascript:') ||
                 linkUrl.startsWith('mailto:') ||
@@ -68,7 +81,6 @@ export async function GET(request: NextRequest) {
                 continue;
             }
 
-            // Resolve relative URLs
             try {
                 const resolved = new URL(linkUrl, url);
                 linkUrl = resolved.href;
@@ -76,13 +88,10 @@ export async function GET(request: NextRequest) {
                 continue;
             }
 
-            // Skip duplicates
             if (seenUrls.has(linkUrl)) continue;
 
-            // Generate title
             let title = linkText;
             if (!title || title.length < 2) {
-                // Try to get title from URL path
                 try {
                     const urlObj = new URL(linkUrl);
                     const path = urlObj.pathname.split('/').filter(Boolean).pop();
@@ -94,13 +103,17 @@ export async function GET(request: NextRequest) {
                 }
             }
 
-            // Limit title length
             if (title.length > 80) {
                 title = title.substring(0, 77) + '...';
             }
 
             extractedLinks.push({ url: linkUrl, title });
             seenUrls.add(linkUrl);
+        }
+
+        // 2. Increment usage if successful
+        if (uid) {
+            await incrementFeatureUsage(uid, 'extraction');
         }
 
         return NextResponse.json({
@@ -115,7 +128,7 @@ export async function GET(request: NextRequest) {
     } catch (error) {
         console.error('Error fetching page:', error);
         return NextResponse.json(
-            { success: false, error: 'Failed to fetch the page. Please check the URL and try again.' },
+            { success: false, error: 'Failed to fetch the page' },
             { status: 500 }
         );
     }

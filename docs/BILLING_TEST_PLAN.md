@@ -91,7 +91,8 @@
 |---|------|-----------------|
 | 7.1 | Visit `localhost:3002/dashboard/settings` as **subscribed** user | "💎 Subscription" card shows bundle name, ✅ ACTIVE badge, and coloured suite pills |
 | 7.2 | Suite pills shown | Should include all suites e.g. `📚 resources`, `🎨 studio`, `📋 registry`, `✨ prompttool` |
-| 7.3 | Click "Manage Plan" | Navigates to `/pricing` |
+| 7.3 | Click "Manage Plan" | Triggers "Syncing..." state and then redirects to the external **Stripe Customer Portal** ✅ |
+| 7.4 | Inside Customer Portal | User can update payment methods, download invoices, and view history |
 | 7.4 | Visit settings as a **free user** | Shows "FREE" badge + "Upgrade Plan" button linking to `/pricing` |
 
 ---
@@ -119,6 +120,33 @@
 
 ---
 
+---
+
+## 💳 Section 10 — Stripe Customer Portal
+
+**Goal:** Subscribed users can self-manage billing without leaving the flow.
+
+| # | Step | Expected Result |
+|---|------|-----------------|
+| 10.1 | Visit `localhost:3002/dashboard` as **pro user** | Click "Manage Billing →" in the premium card |
+| 10.2 | Observe button state | Changes to "Syncing..." spinning state immediately |
+| 10.3 | Observe redirect | Navigates to `billing.stripe.com` for that customer ✅ |
+| 10.4 | Logout/Login as user without `stripeCustomerId` | Click "Manage Billing" |
+| 10.5 | Result | Shows alert: "No active subscription found. Please subscribe first." |
+
+---
+
+## 🚫 Section 11 — Magic AI Usage Gating
+
+**Goal:** Free users are restricted to 3 extractions per day.
+
+| # | Step | Expected Result |
+|---|------|-----------------|
+| 11.1 | Login as **Free User** → visit any resource with a YouTube video | Click "📝 Edit Note" → Click "📺" (YouTube Extract) |
+| 11.2 | Repeat 3 times (successful extractions) | Each extraction succeeds and increments usage |
+| 11.3 | Attempt 4th extraction | Alert: "Daily Magic AI limit reached. Upgrade to Pro for unlimited usage." → Redirect to `/pricing` ✅ |
+| 11.4 | Login as **Pro User** | Attempt 10+ extractions | Unlimited success — no limits enforced ✅ |
+
 ## ✅ Overall Pass Criteria
 
 All test cases above must pass. Key indicators of full system health:
@@ -128,4 +156,6 @@ All test cases above must pass. Key indicators of full system health:
 - [ ] Dashboard auto-updates without page refresh after checkout
 - [ ] Each app gate correctly responds to entitlement state
 - [ ] Cross-app `returnUrl` routing works for all three originating apps
+- [ ] Stripe Portal opens correctly for customers with IDs
+- [ ] 3-per-day extraction limit is strictly enforced for Free users
 - [ ] `studio` and `prompttool` are treated as equivalent keys for PromptTool access

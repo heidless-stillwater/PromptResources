@@ -9,6 +9,10 @@
   --font-outfit: var(--font-outfit-next);
 }
 
+html {
+  scroll-padding-top: 80px;
+}
+
 * {
   box-sizing: border-box;
   margin: 0;
@@ -321,6 +325,12 @@ select {
   color: var(--text-primary);
   font-family: var(--font-inter);
   transition: var(--transition-base);
+}
+
+select option {
+  background-color: #0a0a0f;
+  color: #ffffff;
+  padding: 8px;
 }
 
 input:focus,
@@ -3162,4 +3172,25 @@ select:focus {
   border-top: 1px solid rgba(255, 255, 255, 0.05) !important;
   padding-top: var(--space-6) !important;
   margin-top: var(--space-6) !important;
+}
+
+/* Layout Fix: Offset for Fixed Navbar */
+.main-content {
+  padding-top: 80px; /* 72px navbar + 8px buffer */
+  padding-bottom: 80px;
+  min-height: calc(100vh - 72px);
+}
+
+.page-wrapper.dashboard-theme .main-content {
+  padding-top: 100px; /* Extra breathing room for admin pages */
+  padding-bottom: 156px; /* Extra space at bottom to clear sticky admin actions */
+}
+
+/* Custom Utilities */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
