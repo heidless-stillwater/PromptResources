@@ -428,7 +428,7 @@ export default function ResourcesClient({
                                 <div className="p-3 bg-indigo-500/10 rounded-2xl border border-indigo-500/20">
                                     <Icons.database className="w-8 h-8 text-indigo-400" />
                                 </div>
-                                <h1 className="text-4xl md:text-5xl font-black tracking-tighter bg-gradient-to-r from-white via-white/40 to-white/40 bg-clip-text text-transparent leading-tight">
+                                <h1 className="text-4xl md:text-7xl font-black tracking-[-0.05em] bg-gradient-to-br from-white via-white/90 to-white/30 bg-clip-text text-transparent leading-[0.9]">
                                     Master <span className="text-indigo-400">Library</span>
                                 </h1>
                             </div>

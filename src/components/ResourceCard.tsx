@@ -35,14 +35,31 @@ export default function ResourceCard({ resource, savedIds = new Set(), onToggleS
         router.push(`/resources/${resource.id}`);
     };
 
-    const typeIcons = {
+    const typeIcons: Record<string, string> = {
         article: '📄',
         tool: '🔧',
         course: '🎓',
         book: '📚',
         video: '📺',
         newsletter: '📧',
+        tutorial: '💡',
         other: '📖'
+    };
+
+    const platformIcons: Record<string, string> = {
+        gemini: '♊',
+        nanobanana: '🍌',
+        chatgpt: '🤖',
+        claude: '🎨',
+        midjourney: '🌌',
+        general: '🌐',
+        other: '🏷️'
+    };
+
+    const pricingIcons: Record<string, string> = {
+        free: '🆓',
+        paid: '💰',
+        freemium: '🔓'
     };
 
     if (viewMode === 'small') {
@@ -66,8 +83,9 @@ export default function ResourceCard({ resource, savedIds = new Set(), onToggleS
                             {typeIcons[resource.type as keyof typeof typeIcons] || typeIcons.other}
                         </div>
                     )}
-                    <div className="absolute top-2 left-2">
-                         <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded bg-black/60 text-white/80 border border-white/5 backdrop-blur-sm`}>
+                    <div className="absolute top-2 left-2 flex gap-1">
+                         <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded bg-black/60 text-white/80 border border-white/5 backdrop-blur-sm flex items-center gap-1`}>
+                            <span>{pricingIcons[resource.pricing] || '💰'}</span>
                             {resource.pricing}
                         </span>
                     </div>
@@ -77,7 +95,8 @@ export default function ResourceCard({ resource, savedIds = new Set(), onToggleS
                         {resource.title}
                     </h3>
                     <div className="mt-auto flex items-center justify-between gap-2 pt-4 border-t border-white/5">
-                    <span className="text-[10px] font-black uppercase tracking-widest text-white/20 truncate">
+                    <span className="text-[10px] font-black uppercase tracking-widest text-white/20 truncate flex items-center gap-1">
+                        <span>{platformIcons[resource.platform] || '🌐'}</span>
                         {resource.platform}
                     </span>
      <Rating value={resource.averageRating || 0} size="sm" showLabel={false} />
@@ -209,7 +228,14 @@ export default function ResourceCard({ resource, savedIds = new Set(), onToggleS
 
                     <div className="flex items-center gap-3 mb-3">
                         <Rating value={resource.averageRating || 0} size="sm" showLabel={false} />
-                        <span className="text-[10px] uppercase font-black tracking-widest text-white/20">{resource.platform}</span>
+                        <span className="text-[10px] uppercase font-black tracking-widest text-white/20 flex items-center gap-1.5">
+                            <span className="text-sm">{platformIcons[resource.platform] || '🌐'}</span>
+                            {resource.platform}
+                        </span>
+                        <span className="text-[10px] uppercase font-black tracking-widest text-white/20 flex items-center gap-1.5">
+                            <span className="text-sm">{pricingIcons[resource.pricing] || '💰'}</span>
+                            {resource.pricing}
+                        </span>
                         {resource.rank && <span className="text-[10px] font-black text-amber-500">🏆 #{resource.rank}</span>}
                     </div>
 
@@ -272,9 +298,14 @@ export default function ResourceCard({ resource, savedIds = new Set(), onToggleS
                     </div>
                 )}
                 
-                <div className="absolute top-3 left-3 z-[5]">
-                    <span className={`badge badge-${resource.pricing} text-[9px]`}>
+                <div className="absolute top-3 left-3 z-[5] flex flex-col gap-2">
+                    <span className={`badge badge-${resource.pricing} text-[9px] flex items-center gap-1.5`}>
+                        <span>{pricingIcons[resource.pricing] || '💰'}</span>
                         {resource.pricing}
+                    </span>
+                    <span className="px-2 py-0.5 bg-black/60 backdrop-blur-md border border-white/10 rounded-full text-[9px] font-black uppercase tracking-widest text-white/80 flex items-center gap-1.5">
+                        <span>{platformIcons[resource.platform] || '🌐'}</span>
+                        {resource.platform}
                     </span>
                 </div>
 
@@ -364,7 +395,7 @@ export default function ResourceCard({ resource, savedIds = new Set(), onToggleS
                 </div>
                 <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-widest text-white/20">
                     <div className="flex items-center gap-2">
-                        <span>Curated by</span>
+                        <span className="text-white/20">Curated by</span>
                         {resource.creator?.photoURL && (
                             <NextImage 
                                 src={resource.creator.photoURL} 
