@@ -97,11 +97,16 @@ export default function NewResourcePage() {
 
     const handleCreateCategory = async (e: React.FormEvent) => {
         e.preventDefault();
+        if (!user) return;
         setNewCatLoading(true);
         try {
+            const token = await user.getIdToken();
             const res = await fetch('/api/categories', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
                 body: JSON.stringify(newCatData)
             });
             const data = await res.json();

@@ -122,6 +122,18 @@ service cloud.firestore {
       allow write: if false; // Managed via API
     }
 
+    // Master Library - Curated architectural prompts and assets
+    match /resources/{resourceId} {
+      allow read, list: if true; // Publicly searchable
+      allow write: if isAdmin(); // Curators only via API/Admin
+    }
+
+    // Master Taxonomy - Standardized categories and topics
+    match /categories/{categoryId} {
+      allow read, list: if true; // Publicly accessible for navigation
+      allow write: if isAdmin(); // Managed by curated authority
+    }
+
     // Nanobanana Asset Library
     match /thumbnailAssets/{assetId} {
       allow read, list: if true;
