@@ -1106,7 +1106,7 @@ export default function EditResourcePage() {
                         <div className="space-y-3">
                             <label className="text-xs font-black text-white/40 uppercase tracking-widest">Symbol / Emoji</label>
                             <div className="flex flex-wrap gap-2 mb-2 p-3 bg-black/20 rounded-xl border border-white/5">
-                                {['📂', '🤖', '🧠', '🔮', '⚡', '🏗️', '📐', '🧩', '🔗', '📝', '🖼️', '🎬', '🎵', '🎨', '🎯', '✅', '📘', '📋', '🔄', '💎'].map(sym => (
+                                {['📂', '🤖', '🧠', '🔮', '⚡', '🏗️', '📐', '🧩', '🔗', '📝', '🖼️', '🎬', '🎵', '🎨', '🎯', '✅', '📘', '📋', '🔄', '💎', '🚀', '💻', '🌐', '📱', '📖', '📚', '✍️', '🔬', '🧪', '🔭', '🧮', '📊', '📈', '📉', '🎮', '🎲', '🏆', '🛠️', '⚒️', '⚙️', '💡', '🔦', '🌍', '🪐', '☀️', '⭐', '🔥'].map(sym => (
                                     <button
                                         key={sym}
                                         type="button"
