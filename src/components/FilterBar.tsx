@@ -132,7 +132,7 @@ const FilterBar: React.FC<FilterBarProps> = ({
         setCategoryFilter(shell.filters.category);
         setFeaturedOnly(shell.filters.featuredOnly);
         setPriorityRank(shell.filters.priorityRank);
-        setRegistryActive(shell.filters.registryActive ?? true);
+        setRegistryActive(false);
         setSelectedCreators(shell.filters.selectedCreators);
     };
 
@@ -168,7 +168,7 @@ const FilterBar: React.FC<FilterBarProps> = ({
                             onChange={e => setPriorityRank(e.target.value)} 
                             className={selectStyle}
                         >
-                            <option value="" className="bg-[#0a0a0f] text-white">Full Registry</option>
+                            <option value="" className="bg-[#0a0a0f] text-white">Rankings</option>
                             <option value="any" className="bg-[#0a0a0f] text-white">Ranked Only</option>
                             {[1,2,3,4,5,10,25,50,100].map(r => (
                                 <option key={r} value={r.toString()} className="bg-[#0a0a0f] text-white">Top {r}</option>

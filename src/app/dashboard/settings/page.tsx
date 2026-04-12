@@ -11,6 +11,7 @@ import { storage } from '@/lib/firebase';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import ManageSubscriptionButton from '@/components/ManageSubscriptionButton';
+import { Icons } from '@/components/ui/Icons';
 
 export default function SettingsPage() {
     const { user, profile, loading: authLoading } = useAuth();
@@ -134,291 +135,334 @@ export default function SettingsPage() {
     const uploading = uploadMutation.isPending;
 
     return (
-        <div className="page-wrapper">
+        <div className="page-wrapper dashboard-theme min-h-screen bg-[#0a0a0f] text-white selection:bg-indigo-500/30">
             <Navbar />
-            <div className="main-content">
-                <div className="container" style={{ maxWidth: '800px' }}>
-                    <div style={{ marginBottom: 'var(--space-8)' }}>
-                        <h1 style={{ marginBottom: 'var(--space-2)' }}>⚙️ Settings</h1>
-                        <p style={{ color: 'var(--text-muted)' }}>Manage your account and preferences</p>
-                    </div>
-
-                    {message.text && (
-                        <div style={{
-                            padding: 'var(--space-4)',
-                            borderRadius: 'var(--radius-md)',
-                            marginBottom: 'var(--space-6)',
-                            background: message.type === 'success' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(244, 63, 94, 0.1)',
-                            border: `1px solid ${message.type === 'success' ? 'rgba(16, 185, 129, 0.2)' : 'rgba(244, 63, 94, 0.2)'}`,
-                            color: message.type === 'success' ? 'var(--success-400)' : 'var(--danger-400)',
-                        }}>
-                            {message.text}
+            
+            {/* ── CINEMATIC HERO COVER ── */}
+            <div className="relative w-full h-auto overflow-hidden flex flex-col">
+                {/* Background Layer (Blurred Telemetry) */}
+                <div className="absolute inset-0 z-0">
+                    {bannerUrl ? (
+                        <div className="relative w-full h-full">
+                            <img src={bannerUrl} alt="" className="w-full h-full object-cover opacity-30 scale-110 blur-3xl" />
+                            <div className="absolute inset-0 bg-gradient-to-b from-[#0a0a0f]/0 via-[#0a0a0f]/60 to-[#0a0a0f]" />
+                            <div className="absolute inset-0 bg-gradient-to-r from-[#0a0a0f] via-transparent to-[#0a0a0f]" />
+                        </div>
+                    ) : (
+                        <div className="w-full h-full bg-[#0a0a0f]">
+                            <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/10 via-transparent to-purple-500/10 opacity-50" />
                         </div>
                     )}
+                </div>
 
-                    <div className="glass-card" style={{ marginBottom: 'var(--space-6)' }}>
-                        <h3 style={{
-                            fontSize: 'var(--text-lg)',
-                            marginBottom: 'var(--space-6)',
-                            paddingBottom: 'var(--space-3)',
-                            borderBottom: '1px solid var(--border-subtle)',
-                        }}>
-                            👤 Profile Information
-                        </h3>
-
-                        <form onSubmit={handleUpdateProfile}>
-                            <div className="form-group">
-                                <label className="form-label">Email Address</label>
-                                <input
-                                    type="email"
-                                    className="form-input"
-                                    value={user.email || ''}
-                                    disabled
-                                    style={{ opacity: 0.6, cursor: 'not-allowed' }}
-                                />
-                                <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginTop: 'var(--space-1)' }}>
-                                    Email cannot be changed
+                <div className="container relative z-10 flex flex-col gap-8 pt-8 pb-32">
+                    {/* Header Pathing */}
+                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                        <div className="flex items-center gap-4">
+                            <div className="p-3 bg-white/5 border border-white/10 rounded-2xl">
+                                <Icons.settings size={20} className="text-indigo-400" />
+                            </div>
+                            <div className="flex flex-col">
+                                <div className="text-[10px] font-black text-white/20 uppercase tracking-[0.3em] mb-1">
+                                    Registry Intelligence / Workspace
+                                </div>
+                                <div className="flex items-center gap-2 text-xs font-bold text-white/60">
+                                    <span className="text-white uppercase">Account Configuration</span>
+                                    <span className="opacity-20">/</span>
+                                    <span className="text-indigo-400/60 font-black">User Preferences</span>
                                 </div>
                             </div>
+                        </div>
+                        
+                        <div className="flex items-center gap-4">
+                            {saving && (
+                                <div className="flex items-center gap-2 px-4 py-2 bg-indigo-500/10 border border-indigo-500/20 rounded-xl">
+                                    <div className="w-2 h-2 bg-indigo-500 rounded-full animate-pulse" />
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-indigo-400">Syncing Registry...</span>
+                                </div>
+                            )}
+                            <button 
+                                onClick={handleUpdateProfile}
+                                className="px-8 py-3 bg-indigo-600 border border-indigo-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all hover:bg-indigo-500 shadow-lg shadow-indigo-600/20 active:scale-95"
+                            >
+                                <Icons.copy size={14} className="inline mr-2" /> Save Global Changes
+                            </button>
+                        </div>
+                    </div>
 
-                            <div className="form-group">
-                                <label className="form-label">Display Name</label>
+                    {/* Identity Glass Card (Profile Overview) */}
+                    <div className="glass-card p-8 shadow-2xl relative overflow-hidden group">
+                        <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-indigo-500/5 rounded-full blur-[100px] -mr-48 -mt-48 group-hover:bg-indigo-500/10 transition-all duration-1000" />
+                        
+                        <div className="relative z-10 flex flex-col md:flex-row gap-10">
+                            {/* Visual Identity (Avatar Management) */}
+                            <div className="relative flex-shrink-0">
+                                <div className="w-32 h-32 md:w-48 md:h-48 rounded-[2.5rem] p-[2px] bg-gradient-to-br from-white/40 via-white/5 to-transparent backdrop-blur-3xl shadow-2xl overflow-hidden hover:scale-105 transition-transform duration-500 cursor-pointer"
+                                     onClick={() => document.getElementById('avatar-upload')?.click()}>
+                                    <div className="w-full h-full rounded-[2.4rem] overflow-hidden bg-[#0a0a0f] relative group/avatar">
+                                        {photoURL && !imgError ? (
+                                            <img src={photoURL} alt={displayName} className="w-full h-full object-cover transition-opacity duration-300 group-hover/avatar:opacity-40" />
+                                        ) : (
+                                            <div className="w-full h-full bg-gradient-to-br from-indigo-600 to-purple-700 flex items-center justify-center text-5xl font-black text-white group-hover/avatar:opacity-40 transition-opacity">
+                                                {(displayName?.[0] || 'U').toUpperCase()}
+                                            </div>
+                                        )}
+                                        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover/avatar:opacity-100 transition-opacity">
+                                            <Icons.image size={32} className="text-white" />
+                                        </div>
+                                    </div>
+                                </div>
                                 <input
-                                    type="text"
-                                    className="form-input"
-                                    value={displayName}
-                                    onChange={(e) => setDisplayName(e.target.value)}
-                                    placeholder="Your Name"
+                                    type="file"
+                                    accept="image/*"
+                                    onChange={handleFileUpload}
+                                    style={{ display: 'none' }}
+                                    id="avatar-upload"
                                 />
+                                {uploading && (
+                                    <div className="absolute inset-0 bg-black/60 backdrop-blur-sm rounded-[2.5rem] flex items-center justify-center z-20">
+                                        <div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+                                    </div>
+                                )}
                             </div>
 
-                            <div className="form-group">
-                                <label className="form-label">Avatar URL</label>
-                                <div style={{ display: 'flex', gap: 'var(--space-4)', alignItems: 'center' }}>
-                                    <div className="avatar" style={{
-                                        width: '64px',
-                                        height: '64px',
-                                        fontSize: '1.5rem',
-                                        flexShrink: 0
-                                    }}>
-                                        {photoURL && !imgError ? (
-                                            <div style={{ position: 'relative', width: '100%', height: '100%' }}>
-                                                <Image
-                                                    src={photoURL}
-                                                    alt="Avatar Preview"
-                                                    fill
-                                                    sizes="64px"
-                                                    style={{ objectFit: 'cover', borderRadius: '50%' }}
-                                                    onError={() => setImgError(true)}
-                                                />
-                                            </div>
-                                        ) : (
-                                            (displayName?.[0] || 'U').toUpperCase()
-                                        )}
-                                    </div>
-                                    <div style={{ flex: 1 }}>
-                                        <input
-                                            type="text"
-                                            className="form-input"
-                                            value={photoURL}
-                                            onChange={(e) => {
-                                                setPhotoURL(e.target.value);
-                                                setImgError(false);
-                                            }}
-                                            placeholder="https://example.com/avatar.jpg"
-                                        />
-                                        <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginTop: 'var(--space-1)' }}>
-                                            Link to an image (URL) or upload a file
+                            {/* Essential Config */}
+                            <div className="flex-1 flex flex-col py-2">
+                                <div className="flex items-center gap-3 mb-4">
+                                    <span className="px-3 py-1 bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 rounded-lg text-[9px] font-black uppercase tracking-widest">
+                                        {profileType.toUpperCase()} IDENTITY
+                                    </span>
+                                    <span className="text-white/20 text-[9px] font-black uppercase tracking-[0.2em]">{user.email}</span>
+                                </div>
+
+                                <h1 className="text-4xl md:text-6xl font-black tracking-tighter text-white mb-6 leading-none">
+                                    Engine <span className="text-indigo-400">Settings</span>
+                                </h1>
+
+                                <p className="text-white/40 max-w-xl text-lg font-medium leading-relaxed mb-10">
+                                    Personalize your presence within the Registry Intelligence ecosystem. Manage your public identity, attribution preferences, and service entitlements.
+                                </p>
+
+                                <div className="mt-auto flex flex-wrap gap-4">
+                                    <div className="flex items-center gap-4 bg-white/5 border border-white/10 rounded-2xl px-6 py-3">
+                                        <div className={`p-2 rounded-lg ${isPublicProfile ? 'bg-indigo-500/20 text-indigo-400' : 'bg-white/5 text-white/20'}`}>
+                                            <Icons.users size={18} />
                                         </div>
-                                        <div style={{ marginTop: 'var(--space-3)' }}>
-                                            <input
-                                                type="file"
-                                                accept="image/*"
-                                                onChange={handleFileUpload}
-                                                style={{ display: 'none' }}
-                                                id="avatar-upload"
-                                            />
-                                            <label
-                                                htmlFor="avatar-upload"
-                                                className={`btn btn-secondary btn-sm ${uploading ? 'disabled' : ''}`}
-                                                style={{ cursor: uploading ? 'not-allowed' : 'pointer' }}
-                                            >
-                                                {uploading ? '⬆️ Uploading...' : '📁 Upload New Image'}
+                                        <div className="flex flex-col">
+                                            <span className="text-[10px] font-black uppercase text-white tracking-widest">Public Visibility</span>
+                                            <label className="relative inline-flex items-center cursor-pointer mt-1">
+                                                <input 
+                                                    type="checkbox" 
+                                                    className="sr-only peer"
+                                                    checked={isPublicProfile} 
+                                                    onChange={(e) => setIsPublicProfile(e.target.checked)}
+                                                />
+                                                <div className="w-11 h-6 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
                                             </label>
                                         </div>
                                     </div>
                                 </div>
                             </div>
-
-                            <button
-                                type="submit"
-                                className="btn btn-primary"
-                                disabled={saving}
-                            >
-                                {saving ? 'Saving...' : 'Save Changes'}
-                            </button>
-                        </form>
+                        </div>
                     </div>
+                </div>
+            </div>
 
-                    <div className="glass-card" style={{ marginBottom: 'var(--space-6)' }}>
-                        <h3 style={{
-                            fontSize: 'var(--text-lg)',
-                            marginBottom: 'var(--space-6)',
-                            paddingBottom: 'var(--space-3)',
-                            borderBottom: '1px solid var(--border-subtle)',
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center'
-                        }}>
-                            <span>🎨 Creator Profile Directory</span>
-                            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: 'var(--text-sm)' }}>
-                                <input 
-                                    type="checkbox" 
-                                    checked={isPublicProfile} 
-                                    onChange={(e) => setIsPublicProfile(e.target.checked)} 
-                                />
-                                Enable Public Profile
-                            </label>
-                        </h3>
-                        
-                        {isPublicProfile ? (
-                            <div className="animate-fade-in" style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 'var(--space-4)' }}>
-                                <div style={{ display: 'grid', gridTemplateColumns: 'minmax(200px, 1fr) minmax(200px, 1fr)', gap: 'var(--space-4)' }}>
-                                    <div className="form-group">
-                                        <label className="form-label">Profile Slug (URL)</label>
+            <main className="container mx-auto px-4 -mt-28 pb-12 relative z-30">
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                    {/* LEFT COLUMN: IDENTITY & CONFIG */}
+                    <div className="lg:col-span-2 space-y-8">
+                        {message.text && (
+                            <div className={`p-6 rounded-3xl border animate-in fade-in slide-in-from-top-4 duration-500 ${
+                                message.type === 'success' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : 'bg-rose-500/10 border-rose-500/20 text-rose-400'
+                            }`}>
+                                <div className="flex items-center gap-4">
+                                    <div className={`p-2 rounded-lg ${message.type === 'success' ? 'bg-emerald-500/20' : 'bg-rose-500/20'}`}>
+                                        {message.type === 'success' ? <Icons.check size={20} /> : <Icons.close size={20} />}
+                                    </div>
+                                    <div className="flex flex-col">
+                                        <span className="text-[10px] font-black uppercase tracking-widest opacity-60">{message.type.toUpperCase()} NOTIFICATION</span>
+                                        <span className="font-bold">{message.text}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        <div className="bg-[#12121e]/90 border border-white/10 rounded-3xl p-8 backdrop-blur-xl shadow-2xl relative overflow-hidden group">
+                            <div className="absolute top-0 right-0 p-8 w-64 h-64 bg-indigo-500/5 rounded-full blur-3xl pointer-events-none" />
+                            
+                            <div className="flex items-center gap-4 mb-8">
+                                <div className="p-3 bg-indigo-500/10 rounded-2xl text-indigo-400">
+                                    <Icons.user size={24} />
+                                </div>
+                                <div>
+                                    <h2 className="text-2xl font-black text-white tracking-tighter">Public Persona</h2>
+                                    <p className="text-white/40 text-[10px] font-black uppercase tracking-[0.2em]">Profile Metadata & URL Configuration</p>
+                                </div>
+                            </div>
+
+                            <form onSubmit={handleUpdateProfile} className="space-y-8">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                    <div className="space-y-3">
+                                        <label className="text-[10px] font-black uppercase tracking-widest text-white/40 flex justify-between">
+                                            Display Identity <span>Max 40 chars</span>
+                                        </label>
                                         <input
                                             type="text"
-                                            className="form-input"
-                                            value={slug}
-                                            onChange={(e) => setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
-                                            placeholder="e.g. john-doe"
+                                            className="w-full bg-black/40 border border-white/10 rounded-2xl p-4 text-white focus:outline-none focus:border-indigo-500/50 transition-all font-bold placeholder:text-white/10"
+                                            value={displayName}
+                                            onChange={(e) => setDisplayName(e.target.value)}
+                                            placeholder="Your Display Name"
                                         />
-                                        <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
-                                            promptresources.com/creators/<b>{slug || 'john-doe'}</b>
-                                        </div>
                                     </div>
-                                    <div className="form-group">
-                                        <label className="form-label">Creator Type</label>
+                                    <div className="space-y-3">
+                                        <label className="text-[10px] font-black uppercase tracking-widest text-white/40">
+                                            Classification Type
+                                        </label>
                                         <select
-                                            className="form-select"
+                                            className="w-full bg-black/40 border border-white/10 rounded-2xl p-4 text-white focus:outline-none focus:border-indigo-500/50 transition-all font-bold"
                                             value={profileType}
-                                            onChange={(e) => setProfileType(e.target.value as "individual" | "channel" | "organization")}
+                                            onChange={(e) => setProfileType(e.target.value as any)}
                                         >
-                                            <option value="individual">Individual</option>
-                                            <option value="channel">Channel</option>
-                                            <option value="organization">Organization</option>
+                                            <option value="individual">Individual Pioneer</option>
+                                            <option value="channel">Content Channel</option>
+                                            <option value="organization">Educational Organization</option>
                                         </select>
                                     </div>
                                 </div>
-                                
-                                <div className="form-group">
-                                    <label className="form-label">Bio</label>
-                                    <textarea
-                                        className="form-textarea"
-                                        value={bio}
-                                        onChange={(e) => setBio(e.target.value)}
-                                        placeholder="Tell the community about yourself..."
-                                        rows={3}
-                                    />
-                                </div>
-                                
-                                <div className="form-group">
-                                    <label className="form-label">Banner Image URL</label>
-                                    <input
-                                        type="text"
-                                        className="form-input"
-                                        value={bannerUrl}
-                                        onChange={(e) => setBannerUrl(e.target.value)}
-                                        placeholder="https://example.com/banner.jpg"
-                                    />
-                                    <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
-                                        Displayed at the top of your public gallery
+
+                                <div className="space-y-3">
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-white/40 flex justify-between">
+                                        Intelligence Domain URL <span>Registry Unique Slug</span>
+                                    </label>
+                                    <div className="flex">
+                                        <div className="bg-white/5 border border-white/10 border-r-0 rounded-l-2xl px-6 flex items-center text-white/20 text-xs font-bold tracking-tight">
+                                            registry.intelligence/creators/
+                                        </div>
+                                        <input
+                                            type="text"
+                                            className="flex-1 bg-black/40 border border-white/10 rounded-r-2xl p-4 text-white focus:outline-none focus:border-indigo-500/50 transition-all font-bold placeholder:text-white/10"
+                                            value={slug}
+                                            onChange={(e) => setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
+                                            placeholder="e.g. neuro-architect"
+                                        />
                                     </div>
                                 </div>
 
-                                <button
-                                    onClick={handleUpdateProfile}
-                                    className="btn btn-primary"
-                                    disabled={saving}
-                                >
-                                    {saving ? 'Saving...' : 'Save Creator Profile'}
-                                </button>
-                            </div>
-                        ) : (
-                            <p style={{ color: 'var(--text-muted)', fontSize: 'var(--text-sm)', margin: 0 }}>
-                                Enable your public profile to appear in the Creator Directory and showcase your contributed resources. Don't forget to click 'Save Changes' above.
-                            </p>
-                        )}
+                                <div className="space-y-3">
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-white/40">
+                                        Experience Bio
+                                    </label>
+                                    <textarea
+                                        className="w-full bg-black/40 border border-white/10 rounded-2xl p-4 text-white focus:outline-none focus:border-indigo-500/50 transition-all font-bold placeholder:text-white/10 min-h-[140px]"
+                                        value={bio}
+                                        onChange={(e) => setBio(e.target.value)}
+                                        placeholder="Briefly describe your focus and contributions to the registry..."
+                                    />
+                                </div>
+
+                                <div className="space-y-3">
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-white/40">
+                                        Banner Visual URL
+                                    </label>
+                                    <div className="flex gap-4">
+                                        <input
+                                            type="text"
+                                            className="flex-1 bg-black/40 border border-white/10 rounded-2xl p-4 text-white focus:outline-none focus:border-indigo-500/50 transition-all font-bold placeholder:text-white/10"
+                                            value={bannerUrl}
+                                            onChange={(e) => setBannerUrl(e.target.value)}
+                                            placeholder="https://example.com/cinematic-banner.jpg"
+                                        />
+                                        <div className="w-16 h-16 rounded-2xl border border-white/10 bg-black/60 overflow-hidden shrink-0">
+                                            {bannerUrl && <img src={bannerUrl} className="w-full h-full object-cover" alt="" />}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="pt-4 border-t border-white/5 flex justify-end">
+                                    <button
+                                        onClick={handleUpdateProfile}
+                                        disabled={saving}
+                                        className="px-10 py-4 bg-indigo-600 border border-indigo-500 text-white rounded-2xl text-[11px] font-black uppercase tracking-widest hover:bg-indigo-500 transition-all active:scale-95 disabled:opacity-50"
+                                    >
+                                        {saving ? (
+                                            <div className="flex items-center gap-2">
+                                                <div className="w-3 h-3 border border-white/40 border-t-white rounded-full animate-spin" />
+                                                Persisting Identity...
+                                            </div>
+                                        ) : 'Update Public Registry Records'}
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
                     </div>
 
-                    <div className="glass-card" style={{ marginBottom: 'var(--space-6)' }}>
-                        <h3 style={{
-                            fontSize: 'var(--text-lg)',
-                            marginBottom: 'var(--space-6)',
-                            paddingBottom: 'var(--space-3)',
-                            borderBottom: '1px solid var(--border-subtle)',
-                        }}>
-                            💎 Subscription
-                        </h3>
-                        {profile?.subscription?.status === 'active' ? (
-                            <div>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 'var(--space-4)' }}>
-                                    <div>
-                                        <div style={{ fontWeight: 700, fontSize: 'var(--text-md)', marginBottom: 'var(--space-2)' }}>
-                                            {profile.subscription.bundleId}
+                    {/* RIGHT COLUMN: SUBSCRIPTION & SYSTEM */}
+                    <div className="space-y-8">
+                        <div className="bg-[#12121e]/90 border border-white/10 rounded-3xl p-8 backdrop-blur-xl shadow-2xl relative overflow-hidden">
+                            <div className="flex items-center gap-4 mb-8">
+                                <div className="p-3 bg-amber-500/10 rounded-2xl text-amber-500">
+                                    <Icons.sparkles size={24} />
+                                </div>
+                                <div>
+                                    <h2 className="text-xl font-black text-white tracking-tighter">Entitlements</h2>
+                                    <p className="text-[9px] font-black uppercase tracking-[0.2em] text-white/20">Registry Subscription Status</p>
+                                </div>
+                            </div>
+
+                            {profile?.subscription?.status === 'active' ? (
+                                <div className="space-y-6">
+                                    <div className="p-5 bg-indigo-500/5 border border-indigo-500/20 rounded-2xl">
+                                        <div className="flex items-center justify-between mb-2">
+                                            <span className="text-[10px] font-black uppercase tracking-widest text-indigo-400">{profile.subscription.bundleId}</span>
+                                            <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded bg-emerald-500 text-white">ACTIVE</span>
                                         </div>
-                                        <span className="badge badge-success" style={{ marginBottom: 'var(--space-3)', display: 'inline-block' }}>
-                                            ✅ ACTIVE
-                                        </span>
-                                        <div style={{ fontSize: 'var(--text-sm)', color: 'var(--text-muted)', marginBottom: 'var(--space-3)' }}>
-                                            Active suite access:
-                                        </div>
-                                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-2)' }}>
+                                        <div className="text-lg font-bold text-white mb-4 italic">Intelligence Master Suite</div>
+                                        <div className="flex flex-wrap gap-2">
                                             {profile.subscription.activeSuites.map((suite) => (
-                                                <span key={suite} className="badge badge-primary" style={{ textTransform: 'capitalize' }}>
-                                                    {suite === 'resources' ? '📚' : suite === 'studio' ? '🎨' : suite === 'registry' ? '📋' : '✨'} {suite}
+                                                <span key={suite} className="px-3 py-1 bg-white/5 border border-white/5 rounded-lg text-[9px] font-black uppercase tracking-wider text-white/60">
+                                                    {suite} access
                                                 </span>
                                             ))}
                                         </div>
                                     </div>
                                     <ManageSubscriptionButton 
-                                        className="btn btn-ghost btn-sm"
-                                        label="Manage Plan"
+                                        className="w-full py-4 bg-white/5 border border-white/10 rounded-2xl text-[10px] font-black uppercase tracking-widest text-white/60 hover:text-white hover:bg-white/10 transition-all"
+                                        label="Configure Plan & Billing"
                                     />
                                 </div>
-                            </div>
-                        ) : (
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <div>
-                                    <div style={{ fontWeight: 600, marginBottom: 'var(--space-1)' }}>
-                                        Current Plan: <span className="badge badge-secondary" style={{ textTransform: 'uppercase' }}>FREE</span>
-                                    </div>
-                                    <div style={{ fontSize: 'var(--text-sm)', color: 'var(--text-muted)' }}>
-                                        Upgrade to unlock the full Stillwater ecosystem — Studio, Registry &amp; more.
+                            ) : (
+                                <div className="space-y-6 text-center">
+                                    <div className="p-8 bg-black/40 border border-dashed border-white/10 rounded-2xl">
+                                        <Icons.shield size={32} className="mx-auto mb-4 text-white/10" />
+                                        <div className="text-sm font-bold text-white/40 mb-2 uppercase tracking-wide">Standard Pioneer</div>
+                                        <p className="text-xs text-white/20 font-medium leading-relaxed mb-6">Upgrade to unlock the full Stillwater Intelligence ecosystem — Studio, Registry & more.</p>
+                                        <a href="/pricing" className="inline-block px-10 py-3 bg-indigo-600 rounded-xl text-[10px] font-black uppercase tracking-widest text-white hover:bg-indigo-500 transition-all shadow-lg shadow-indigo-600/20">
+                                            View Upgrade Paths
+                                        </a>
                                     </div>
                                 </div>
-                                <a href="/pricing" className="btn btn-primary btn-sm">
-                                    Upgrade Plan
-                                </a>
-                            </div>
-                        )}
-                    </div>
+                            )}
+                        </div>
 
-                    <div className="glass-card" style={{ opacity: 0.7 }}>
-                        <h3 style={{
-                            fontSize: 'var(--text-lg)',
-                            marginBottom: 'var(--space-6)',
-                            paddingBottom: 'var(--space-3)',
-                            borderBottom: '1px solid var(--border-subtle)',
-                        }}>
-                            🔒 Security & Privacy
-                        </h3>
-                        <p style={{ fontSize: 'var(--text-sm)', color: 'var(--text-muted)' }}>
-                            More security settings like Two-Factor Authentication and Password Reset are coming soon.
-                        </p>
+                        <div className="bg-rose-500/5 border border-rose-500/10 rounded-3xl p-8 backdrop-blur-xl">
+                            <div className="flex items-center gap-4 mb-4">
+                                <div className="p-2 bg-rose-500/10 rounded-lg text-rose-400">
+                                    <Icons.shield size={20} />
+                                </div>
+                                <h3 className="text-sm font-black uppercase tracking-[0.2em] text-white">Security Hub</h3>
+                            </div>
+                            <p className="text-xs text-white/30 font-medium leading-relaxed mb-6">
+                                Advanced security features including Multi-Factor Authentication and Federated Identity settings are currently being deployed.
+                            </p>
+                            <div className="text-[10px] font-black uppercase text-indigo-400/60 flex items-center gap-2">
+                                <div className="w-1.5 h-1.5 bg-indigo-400/60 rounded-full animate-pulse" />
+                                Coming in v2.4.0
+                            </div>
+                        </div>
                     </div>
                 </div>
-            </div>
+            </main>
             <Footer />
         </div>
     );

@@ -202,48 +202,77 @@ export default function CategoriesPage() {
     };
 
     return (
-        <div className="page-wrapper dashboard-theme">
+        <div className="page-wrapper dashboard-theme min-h-screen bg-[#0a0a0f] text-white selection:bg-indigo-500/30">
             <Navbar />
-            <div className="main-content">
-                <div className="container">
-                    {/* Premium Header - Matches Resources Page */}
-                    <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 mb-12">
-                        <div className="hero-section text-left">
-                            <div className="flex items-center gap-3 mb-4">
-                                <div className="p-3 bg-indigo-500/10 rounded-2xl border border-indigo-500/20">
-                                    <Icons.folder className="w-8 h-8 text-indigo-400" />
-                                </div>
-                                <h1 className="text-4xl md:text-5xl font-black tracking-tighter bg-gradient-to-r from-white via-white/90 to-white/40 bg-clip-text text-transparent">
-                                    Topic <span className="text-indigo-400">Registry</span>
-                                </h1>
-                            </div>
-                            <p className="text-foreground-muted max-w-xl text-lg font-medium leading-relaxed">
-                                Curate and organize the architectural taxonomy of the PromptMaster ecosystem. 
-                                Manage granular categories and discovery weights.
-                            </p>
-                        </div>
 
+            {/* ── CINEMATIC HERO COVER ── */}
+            <div className="relative w-full h-auto overflow-hidden flex flex-col">
+                {/* Background Layer (Blurred Telemetry) */}
+                <div className="absolute inset-0 z-0">
+                    <div className="w-full h-full bg-[#0a0a0f]">
+                        <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/10 via-transparent to-purple-500/10 opacity-50" />
+                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[400px] bg-indigo-500/10 rounded-full blur-[120px] pb-32" />
+                    </div>
+                </div>
+
+                <div className="container relative z-10 flex flex-col gap-8 pt-8 pb-32">
+                    {/* Header Pathing */}
+                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                        <div className="flex items-center gap-4">
+                            <div className="p-3 bg-white/5 border border-white/10 rounded-2xl">
+                                <Icons.folder size={20} className="text-indigo-400" />
+                            </div>
+                            <div className="flex flex-col">
+                                <div className="text-[10px] font-black text-white/20 uppercase tracking-[0.3em] mb-1">
+                                    Registry Intelligence / Taxonomy
+                                </div>
+                                <div className="flex items-center gap-2 text-xs font-bold text-white/60">
+                                    <span className="text-white uppercase">Topic Registry</span>
+                                    <span className="opacity-20">/</span>
+                                    <span className="text-indigo-400/60 font-black">Category Management</span>
+                                </div>
+                            </div>
+                        </div>
+                        
                         {isAdmin && (
-                            <div className="flex gap-3">
-                                <button 
-                                    onClick={() => setIsAddModalOpen(true)}
-                                    className="px-6 py-3.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl font-bold flex items-center gap-2 transition-all shadow-lg shadow-indigo-600/20"
-                                >
-                                    <Icons.plus size={20} />
-                                    New Category
-                                </button>
+                            <div className="flex items-center gap-3">
                                 {selectedIds.size > 0 && (
                                     <button 
                                         onClick={() => alert('Bulk actions coming soon')}
-                                        className="px-6 py-3.5 bg-white/5 border border-white/10 hover:bg-white/10 text-white rounded-2xl font-bold flex items-center gap-2 transition-all"
+                                        className="px-6 py-2.5 bg-rose-500/10 border border-rose-500/20 text-rose-400 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-rose-500/20 transition-all flex items-center gap-2"
                                     >
-                                        <Icons.trash size={20} className="text-rose-400" />
-                                        Delete {selectedIds.size}
+                                        <Icons.trash size={14} /> Delete {selectedIds.size} Assets
                                     </button>
                                 )}
+                                <button 
+                                    onClick={() => setIsAddModalOpen(true)}
+                                    className="px-8 py-2.5 bg-indigo-600 border border-indigo-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all hover:bg-indigo-500 shadow-lg shadow-indigo-600/20 active:scale-95 flex items-center gap-2"
+                                >
+                                    <Icons.plus size={14} /> New Registry Entry
+                                </button>
                             </div>
                         )}
                     </div>
+
+                    {/* Identity Glass Card (Section Overview) */}
+                    <div className="glass-card p-10 shadow-2xl relative overflow-hidden group">
+                        <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-indigo-500/5 rounded-full blur-[100px] -mr-48 -mt-48 group-hover:bg-indigo-500/10 transition-all duration-1000" />
+                        
+                        <div className="relative z-10">
+                            <h1 className="text-4xl md:text-6xl font-black tracking-tighter text-white mb-6 leading-none flex items-center gap-4">
+                                <Icons.folder className="text-indigo-400" size={48} />
+                                <span>Topic <span className="text-indigo-400">Registry</span></span>
+                            </h1>
+
+                            <p className="text-white/40 max-w-2xl text-lg font-medium leading-relaxed mb-6">
+                                Curate and organize the architectural taxonomy of the PromptMaster ecosystem. Manage granular categories, discovery weights, and structural metadata.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <main className="container mx-auto px-4 -mt-20 pb-12 relative z-30">
 
                     {/* Control Belt */}
                     <div className="flex flex-wrap items-center justify-between gap-4 p-4 bg-background-secondary/30 backdrop-blur-xl border border-white/5 rounded-[2rem] mb-10">
@@ -400,8 +429,7 @@ export default function CategoriesPage() {
                             ))}
                         </div>
                     )}
-                </div>
-            </div>
+                </main>
 
             {/* Modals */}
             <Modal

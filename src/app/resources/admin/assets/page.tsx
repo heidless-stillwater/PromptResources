@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import Image from 'next/image';
@@ -12,8 +12,24 @@ import { collection, addDoc, getDocs, deleteDoc, doc, updateDoc, query, orderBy 
 import { ThumbnailAsset } from '@/lib/types';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { Icons } from '@/components/ui/Icons';
 
 export default function AssetManagerPage() {
+    return (
+        <Suspense fallback={
+            <div className="page-wrapper dashboard-theme min-h-screen bg-[#0a0a0f] flex items-center justify-center">
+                <div className="flex flex-col items-center gap-4">
+                    <div className="w-12 h-12 border-4 border-indigo-500/20 border-t-indigo-500 rounded-full animate-spin" />
+                    <div className="text-[10px] font-black uppercase tracking-[0.3em] text-white/20">Initialising Asset Hub</div>
+                </div>
+            </div>
+        }>
+            <AssetManagerContent />
+        </Suspense>
+    );
+}
+
+function AssetManagerContent() {
     const { user, isAdmin, loading: authLoading } = useAuth();
     const router = useRouter();
     
@@ -50,7 +66,7 @@ export default function AssetManagerPage() {
         if (isAdmin) {
             fetchAssets();
         }
-    }, [isAdmin, authLoading]);
+    }, [isAdmin, authLoading, router]);
 
     const fetchAssets = async () => {
         try {
@@ -85,16 +101,14 @@ export default function AssetManagerPage() {
             setUploading(true);
             setMessage({ type: '', text: '' });
 
-            // 1. Upload to Storage
             const storagePath = `thumbnail-assets/${Date.now()}_${file.name}`;
             const storageRef = ref(storage, storagePath);
             const snapshot = await uploadBytes(storageRef, file);
             const downloadURL = await getDownloadURL(snapshot.ref);
 
-            // 2. Create Firestore Record
             const assetData = {
                 url: downloadURL,
-                storagePath, // Store path for deletion cleanup
+                storagePath,
                 title: newTitle || file.name,
                 tags: newTags.split(',').map(t => t.trim()).filter(Boolean),
                 category: newCategory || 'nanobanana',
@@ -145,7 +159,7 @@ export default function AssetManagerPage() {
             console.error('Generation helper error:', error);
             setErrorDetails({
                 title: 'AI Architect Unavailable',
-                message: 'The AI Architect is currently experiencing high demand or is temporarily offline. This usually happens when the Gemini API quota is reached or if the local service is restarting.'
+                message: 'The AI Architect is currently experiencing high demand or is temporarily offline.'
             });
             setShowErrorModal(true);
         } finally {
@@ -156,7 +170,7 @@ export default function AssetManagerPage() {
     const useArchitectedScenario = () => {
         setNewTitle(scenarioDesc.length > 30 ? scenarioDesc.slice(0, 30) + '...' : scenarioDesc);
         setNewTags(`nanobanana, scenario, ${scenarioDesc.toLowerCase().split(' ').slice(0, 2).join('-')}`);
-        setMessage({ type: 'success', text: 'Scenario metadata populated below! Now generate the image and upload it.' });
+        setMessage({ type: 'success', text: 'Scenario metadata populated below!' });
     };
 
     const handleStudioGenerate = async () => {
@@ -170,7 +184,6 @@ export default function AssetManagerPage() {
             
             const idToken = await user.getIdToken();
             
-            // Note: Crossing ports to Port 3001 (PromptTool API)
             const response = await fetch('http://localhost:3001/api/generate', {
                 method: 'POST',
                 headers: { 
@@ -180,7 +193,7 @@ export default function AssetManagerPage() {
                 body: JSON.stringify({ 
                     prompt: generatedPrompt,
                     uid: user.uid,
-                    quality: quality === 'draft' ? 'standard' : quality, // Map draft to standard for API if needed
+                    quality: quality === 'draft' ? 'standard' : quality,
                     aspectRatio: '16:9',
                     promptType: 'freeform',
                     count: 1,
@@ -188,7 +201,7 @@ export default function AssetManagerPage() {
                 })
             });
 
-            if (!response.ok) throw new Error('Could not connect to Studio API. Ensure port 3001 is running.');
+            if (!response.ok) throw new Error('Could not connect to Studio API.');
 
             const reader = response.body?.getReader();
             const decoder = new TextDecoder();
@@ -206,43 +219,37 @@ export default function AssetManagerPage() {
                         try {
                             const data = JSON.parse(line.slice(6));
                             if (data.type === 'progress') setStudioProgress(data.message);
-                                if (data.type === 'image_ready') {
-                                    setStudioResult(data.image);
-                                    setStudioProgress('Image generated! Auto-registering...');
-                                    
-                                    // AUTOMATIC REGISTRATION
-                                    const assetData = {
-                                        url: data.image.imageUrl,
-                                        storagePath: '', // Hosted in PromptTool storage
-                                        title: newTitle || scenarioDesc || 'Studio Creation',
-                                        tags: newTags.split(',').map(t => t.trim()).filter(Boolean),
-                                        category: 'nanobanana',
-                                        createdAt: new Date(),
-                                        updatedAt: new Date(),
-                                        addedBy: user.uid,
-                                        isStudioAsset: true
-                                    };
+                            if (data.type === 'image_ready') {
+                                setStudioResult(data.image);
+                                setStudioProgress('Image generated! Auto-registering...');
+                                
+                                const assetData = {
+                                    url: data.image.imageUrl,
+                                    storagePath: '',
+                                    title: newTitle || scenarioDesc || 'Studio Creation',
+                                    tags: newTags.split(',').map(t => t.trim()).filter(Boolean),
+                                    category: 'nanobanana',
+                                    createdAt: new Date(),
+                                    updatedAt: new Date(),
+                                    addedBy: user.uid,
+                                    isStudioAsset: true
+                                };
 
-                                    const docRef = await addDoc(collection(db, 'thumbnailAssets'), assetData);
-                                    
-                                    // FORCE IMMEDIATE UI UPDATE
-                                    const newAsset: ThumbnailAsset = { 
-                                        ...assetData, 
-                                        id: docRef.id,
-                                        createdAt: assetData.createdAt,
-                                        updatedAt: assetData.updatedAt
-                                    };
-                                    
-                                    setAssets(prev => [newAsset, ...prev]);
-                                    setStudioProgress('Success! Asset registered to library.');
-                                    
-                                    // Safety fetch to ensure sorted order is perfect
-                                    setTimeout(() => fetchAssets(), 1000);
-                                }
+                                const docRef = await addDoc(collection(db, 'thumbnailAssets'), assetData);
+                                
+                                const newAsset: ThumbnailAsset = { 
+                                    ...assetData, 
+                                    id: docRef.id,
+                                    createdAt: assetData.createdAt,
+                                    updatedAt: assetData.updatedAt
+                                };
+                                
+                                setAssets(prev => [newAsset, ...prev]);
+                                setStudioProgress('Success! Asset registered to library.');
+                                setTimeout(() => fetchAssets(), 1000);
+                            }
                             if (data.type === 'error') throw new Error(data.error);
-                        } catch (e) { 
-                            console.error('SSE bit parse error', e); 
-                        }
+                        } catch (e) { }
                     }
                 }
             }
@@ -251,35 +258,6 @@ export default function AssetManagerPage() {
             setStudioProgress(`Error: ${error.message}`);
         } finally {
             setIsGeneratingInStudio(false);
-        }
-    };
-
-    const registerStudioAsset = async () => {
-        if (!studioResult || !user) return;
-        
-        try {
-            setUploading(true);
-            const assetData = {
-                url: studioResult.imageUrl,
-                storagePath: '', // Hosted in PromptTool storage
-                title: newTitle || scenarioDesc || 'Studio Creation',
-                tags: newTags.split(',').map(t => t.trim()).filter(Boolean),
-                category: 'nanobanana',
-                createdAt: new Date(),
-                updatedAt: new Date(),
-                addedBy: user.uid,
-                isStudioAsset: true
-            };
-
-            await addDoc(collection(db, 'thumbnailAssets'), assetData);
-            setMessage({ type: 'success', text: 'Creation successfully registered to Hub library!' });
-            setIsStudioModalOpen(false);
-            fetchAssets();
-        } catch (error) {
-            console.error('Registration error:', error);
-            setMessage({ type: 'error', text: 'Failed to register Studio asset.' });
-        } finally {
-            setUploading(false);
         }
     };
 
@@ -295,10 +273,8 @@ export default function AssetManagerPage() {
                 ...a,
                 isDefault: a.id === asset.id
             })));
-            setMessage({ type: 'success', text: `"${asset.title}" is now the HUB DEFAULT template.` });
         } catch (error) {
             console.error('Error setting default:', error);
-            setMessage({ type: 'error', text: 'Failed to set default asset.' });
         } finally {
             setLoading(false);
         }
@@ -316,400 +292,298 @@ export default function AssetManagerPage() {
 
             await deleteDoc(doc(db, 'thumbnailAssets', asset.id));
             setAssets(prev => prev.filter(a => a.id !== asset.id));
-            setMessage({ type: 'success', text: 'Asset permanently removed.' });
         } catch (error) {
             console.error('Delete error:', error);
-            setMessage({ type: 'error', text: 'Failed to delete asset.' });
         } finally {
             setLoading(false);
         }
     };
 
     if (authLoading || !isAdmin) {
-        return <div className="page-wrapper"><Navbar /><div className="loading-page"><div className="spinner" /></div></div>;
+        return (
+            <div className="page-wrapper dashboard-theme min-h-screen bg-[#0a0a0f] flex items-center justify-center">
+                <div className="flex flex-col items-center gap-4">
+                    <div className="w-12 h-12 border-4 border-indigo-500/20 border-t-indigo-500 rounded-full animate-spin" />
+                    <div className="text-[10px] font-black uppercase tracking-[0.3em] text-white/20">Authorizing Access</div>
+                </div>
+            </div>
+        );
     }
 
     return (
-        <div className="page-wrapper">
+        <div className="page-wrapper dashboard-theme min-h-screen bg-[#0a0a0f] text-white selection:bg-indigo-500/30">
             <Navbar />
-            <div className="main-content">
-                <div className="container">
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 'var(--space-8)' }}>
-                        <div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-4)', marginBottom: 'var(--space-2)' }}>
-                                <h1 style={{ margin: 0 }}>🎨 Thumbnail Asset Hub</h1>
-                                <Link href="/admin" className="btn btn-ghost btn-sm" style={{ padding: '4px 10px', fontSize: '11px', border: '1px solid rgba(255,255,255,0.1)' }}>
-                                    ⚙️ Admin Panel
-                                </Link>
+
+            {/* Cinematic Hero */}
+            <div className="relative w-full h-auto overflow-hidden flex flex-col">
+                {/* Background Layer */}
+                <div className="absolute inset-0 z-0">
+                    <div className="absolute inset-0 bg-gradient-to-br from-indigo-900/10 via-[#0a0a0f] to-[#0a0a0f]" />
+                    <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-indigo-500/5 rounded-full blur-[120px] -mr-48 -mt-48" />
+                </div>
+
+                <div className="container relative z-10 flex flex-col gap-8 pt-8 pb-32">
+                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                        <div className="flex flex-col">
+                            <div className="text-[10px] font-black text-white/20 uppercase tracking-[0.3em] mb-1">
+                                Registry Intelligence / Systems / Assets
                             </div>
-                            <p style={{ color: 'var(--text-muted)' }}>Manage scenario-specific images generated with Nanobanana</p>
+                            <h1 className="text-4xl md:text-7xl font-black tracking-tighter text-white leading-none">
+                                Asset <span className="text-indigo-400 font-black">Library</span>
+                            </h1>
+                            <p className="text-white/40 font-medium max-w-xl mt-4 leading-relaxed">
+                                Manage scenario-specific images generated with Nanobanana. Orchestrate visual representations across the discovery cloud.
+                            </p>
                         </div>
-                        <div className="glass-card" style={{ padding: 'var(--space-4)', maxWidth: '400px' }}>
-                            <h4 style={{ marginBottom: 'var(--space-3)', fontSize: '14px' }}>⬆️ Register New Nanobanana Asset</h4>
-                            <div className="form-group" style={{ marginBottom: '12px' }}>
-                                <input 
-                                    type="text" 
-                                    className="form-input" 
-                                    placeholder="Title (e.g. Gemini Tutorial Dark)" 
-                                    value={newTitle}
-                                    onChange={e => setNewTitle(e.target.value)}
-                                    style={{ fontSize: '12px', padding: '6px 10px' }}
-                                />
-                            </div>
-                            <div className="form-group" style={{ marginBottom: '12px' }}>
-                                <input 
-                                    type="text" 
-                                    className="form-input" 
-                                    placeholder="Tags (comma separated: tool, gemini, blue)" 
-                                    value={newTags}
-                                    onChange={e => setNewTags(e.target.value)}
-                                    style={{ fontSize: '12px', padding: '6px 10px' }}
-                                />
-                            </div>
-                            <input 
-                                type="file" 
-                                id="asset-upload" 
-                                hidden 
-                                onChange={handleFileUpload}
-                                disabled={uploading}
-                            />
-                            <label htmlFor="asset-upload" className={`btn btn-primary btn-block ${uploading ? 'disabled' : ''}`}>
-                                {uploading ? 'Processing...' : '📁 Upload & Tag Asset'}
-                            </label>
+                        
+                        <div className="flex flex-wrap gap-3">
+                            <Link href="/admin" className="px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest bg-white/5 hover:bg-white/10 text-white/40 border border-white/10 transition-all active:scale-95 flex items-center gap-2">
+                                <Icons.settings size={14} /> Authority Hub
+                            </Link>
                         </div>
                     </div>
+                </div>
+            </div>
 
-                    {/* ✨ AI Scenario Architect Section */}
-                    <div className="glass-card" style={{ 
-                        marginBottom: 'var(--space-8)', 
-                        padding: 'var(--space-6)', 
-                        background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.05) 0%, rgba(168, 85, 247, 0.05) 100%)',
-                        border: '1px solid rgba(168, 85, 247, 0.2)'
-                    }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 'var(--space-4)' }}>
-                            <div>
-                                <h3 style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', marginBottom: '4px' }}>
-                                    ✨ AI Scenario Architect
-                                </h3>
-                                <p style={{ fontSize: 'var(--text-sm)', color: 'var(--text-secondary)' }}>
-                                    Describe your resource scenario and we'll engineer the perfect Nanobanana prompt for it.
-                                </p>
+            <main className="container mx-auto px-4 -mt-20 pb-20 relative z-30">
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                    {/* Control Bench */}
+                    <div className="lg:col-span-2 space-y-8">
+                        {/* AI Scenario Architect */}
+                        <div className="glass-card p-8 border-indigo-500/20 relative overflow-hidden group">
+                             <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/5 rounded-full blur-3xl -mr-32 -mt-32 group-hover:bg-indigo-500/10 transition-all duration-1000" />
+                             
+                            <div className="flex items-center gap-4 mb-8 relative z-10">
+                                <div className="p-3 bg-indigo-500/10 rounded-2xl text-indigo-400 border border-indigo-500/20">
+                                    <Icons.zap size={20} />
+                                </div>
+                                <div className="flex flex-col">
+                                    <h3 className="text-xl font-black uppercase tracking-widest text-white/80">Scenario Architect</h3>
+                                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-white/20 mt-1">AI-Powered Asset Engineering</p>
+                                </div>
                             </div>
-                            <button 
-                                className="btn btn-ghost btn-sm"
-                                onClick={() => setIsArchitectOpen(!isArchitectOpen)}
-                            >
-                                {isArchitectOpen ? 'Collapse' : 'Open Architect'}
-                            </button>
-                        </div>
 
-                        {isArchitectOpen && (
-                            <div className="animate-fade-in">
-                                <div style={{ display: 'flex', gap: 'var(--space-4)', marginBottom: 'var(--space-4)' }}>
-                                    <div style={{ flex: 1 }}>
-                                        <label className="form-label">Scenario Description</label>
-                                        <textarea
-                                            className="form-input"
-                                            rows={2}
-                                            placeholder="e.g. A futuristic workspace showing a Gemini AI assistant drafting code with a clean blue aesthetic..."
-                                            value={scenarioDesc}
-                                            onChange={(e) => setScenarioDesc(e.target.value)}
-                                            style={{ resize: 'none', fontSize: '13px' }}
-                                        />
-                                    </div>
-                                    <div style={{ alignSelf: 'flex-end', paddingBottom: '4px' }}>
+                            <div className="space-y-6 relative z-10">
+                                <div className="space-y-3">
+                                    <label className="text-[10px] font-black uppercase text-white/30 tracking-widest pl-2">Scenario Objective</label>
+                                    <textarea 
+                                        className="w-full bg-black/40 border border-white/10 rounded-2xl px-6 py-5 text-sm font-medium focus:border-indigo-500 outline-none transition-all min-h-[100px] leading-relaxed"
+                                        placeholder="Describe the visual objective (e.g. A futuristic workspace showing a Gemini AI assistant drafting code with a clean blue aesthetic...)"
+                                        value={scenarioDesc}
+                                        onChange={(e) => setScenarioDesc(e.target.value)}
+                                    />
+                                </div>
+
+                                <div className="flex flex-wrap items-center gap-4">
+                                     <button 
+                                        className="px-10 py-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] transition-all shadow-xl shadow-indigo-600/20 active:scale-95 flex items-center gap-3 disabled:opacity-50"
+                                        onClick={handleGeneratePrompt}
+                                        disabled={isGeneratingInspiration || !scenarioDesc}
+                                    >
+                                        {isGeneratingInspiration ? <Icons.spinner size={16} className="animate-spin" /> : <Icons.zap size={16} />}
+                                        Architect Scenario
+                                    </button>
+
+                                    {generatedPrompt && (
                                         <button 
-                                            className="btn btn-primary" 
-                                            onClick={handleGeneratePrompt}
-                                            disabled={isGeneratingInspiration || !scenarioDesc}
-                                            style={{ padding: 'var(--space-3) var(--space-6)' }}
+                                            className="px-6 py-4 bg-white/5 hover:bg-white/10 border border-white/10 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] transition-all active:scale-95 flex items-center gap-2"
+                                            onClick={handleStudioGenerate}
+                                            disabled={isGeneratingInStudio}
                                         >
-                                            {isGeneratingInspiration ? <div className="spinner-inline" /> : '🚀 Architect Scenario'}
+                                            {isGeneratingInStudio ? <Icons.spinner size={16} className="animate-spin" /> : <Icons.plus size={16} />}
+                                            Generate in Hub
                                         </button>
-                                    </div>
+                                    )}
                                 </div>
 
                                 {generatedPrompt && (
-                                    <div className="glass-card animate-fade-in" style={{ padding: 'var(--space-4)', background: 'rgba(0,0,0,0.2)', border: '1px dashed rgba(168, 85, 247, 0.4)' }}>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 'var(--space-2)' }}>
-                                            <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--accent-300)', textTransform: 'uppercase' }}>Recommended Nanobanana Prompt</span>
-                                            <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
-                                                <button 
-                                                    className="btn btn-ghost btn-xs"
-                                                    onClick={() => {
-                                                        navigator.clipboard.writeText(generatedPrompt);
-                                                        setMessage({ type: 'success', text: 'Prompt copied! Use it in Nanobanana Studio.' });
-                                                    }}
-                                                >
-                                                    Copy
-                                                </button>
-                                                <button 
-                                                    className="btn btn-ghost btn-xs"
-                                                    onClick={useArchitectedScenario}
-                                                    style={{ border: '1px solid rgba(168, 85, 247, 0.3)' }}
-                                                >
-                                                    ✅ Populate Metadata
-                                                </button>
-                                            </div>
+                                    <div className="p-6 bg-indigo-500/10 border border-indigo-500/20 rounded-2xl animate-in fade-in slide-in-from-top-4 duration-500">
+                                        <div className="flex justify-between items-center mb-4">
+                                            <span className="text-[9px] font-black uppercase tracking-[0.3em] text-indigo-400">Recommended Nanobanana Prompt</span>
+                                            <button 
+                                                className="text-[9px] font-black uppercase tracking-widest text-white/40 hover:text-white"
+                                                onClick={() => {
+                                                    navigator.clipboard.writeText(generatedPrompt);
+                                                    setMessage({ type: 'success', text: 'Prompt copied!' });
+                                                }}
+                                            >
+                                                Copy Identity
+                                            </button>
                                         </div>
-                                        <p style={{ fontSize: '13px', fontStyle: 'italic', color: 'var(--text-primary)', margin: 0, lineHeight: 1.5 }}>
-                                            "{generatedPrompt}"
-                                        </p>
-                                        <div style={{ marginTop: 'var(--space-4)', display: 'flex', gap: 'var(--space-3)', alignItems: 'center' }}>
-                                            <div style={{ 
-                                                display: 'flex', 
-                                                alignItems: 'center', 
-                                                gap: 'var(--space-2)', 
-                                                background: 'var(--bg-input)', 
-                                                padding: '6px 14px', 
-                                                borderRadius: 'var(--radius-sm)', 
-                                                border: '1px solid rgba(255,255,255,0.05)',
-                                                boxShadow: 'var(--shadow-sm)'
-                                            }}>
-                                                <span style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Fidelity</span>
-                                                <select 
-                                                    value={quality} 
-                                                    onChange={(e) => setQuality(e.target.value)}
-                                                    style={{ 
-                                                        background: 'transparent', 
-                                                        color: 'var(--text-primary)', 
-                                                        border: 'none', 
-                                                        fontSize: '12px', 
-                                                        fontWeight: 600, 
-                                                        outline: 'none', 
-                                                        cursor: 'pointer',
-                                                        appearance: 'none',
-                                                        paddingRight: '4px'
-                                                    }}
-                                                >
-                                                    <option value="draft" style={{ background: 'var(--bg-card)', color: 'var(--text-primary)' }}>Draft (Fast)</option>
-                                                    <option value="standard" style={{ background: 'var(--bg-card)', color: 'var(--text-primary)' }}>Standard HD</option>
-                                                    <option value="high" style={{ background: 'var(--bg-card)', color: 'var(--text-primary)' }}>High Def (2K)</option>
-                                                    <option value="ultra" style={{ background: 'var(--bg-card)', color: 'var(--text-primary)' }}>Ultra 4K</option>
-                                                </select>
-                                            </div>
-                                                <button 
-                                                    onClick={handleStudioGenerate}
-                                                    className="btn btn-primary btn-sm"
-                                                    style={{ background: 'linear-gradient(135deg, #A855F7 0%, #6366F1 100%)', border: 'none' }}
-                                                >
-                                                    ⚡ Generate in Hub
-                                                </button>
-                                            <p style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'flex', alignItems: 'center' }}>
-                                                💡 Use the generated prompt on port 3001, then upload your masterpiece below.
-                                            </p>
+                                        <p className="text-xs font-medium text-white/70 italic leading-relaxed">"{generatedPrompt}"</p>
+                                        <div className="flex justify-end mt-6">
+                                            <button className="text-[9px] font-black uppercase tracking-widest text-indigo-400 hover:text-indigo-300 flex items-center gap-2" onClick={useArchitectedScenario}>
+                                                <Icons.check size={10} strokeWidth={4} /> Populate Metadata
+                                            </button>
                                         </div>
                                     </div>
                                 )}
                             </div>
-                        )}
-                    </div>
-
-                    {message.text && (
-                        <div className={`alert alert-${message.type}`} style={{ marginBottom: 'var(--space-6)' }}>
-                            {message.text}
                         </div>
-                    )}
 
-                    {loading && assets.length === 0 ? (
-                        <div style={{ display: 'flex', justifyContent: 'center', padding: 'var(--space-12)' }}>
-                            <div className="spinner" />
-                        </div>
-                    ) : (
-                        <div style={{ 
-                            display: 'grid', 
-                            gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', 
-                            gap: 'var(--space-6)' 
-                        }}>
-                            {assets.map((asset: any) => (
-                                <div key={asset.id} className="glass-card" style={{ padding: 0, overflow: 'hidden' }}>
-                                    <div style={{ position: 'relative', height: '160px', width: '100%' }}>
-                                        <Image 
+                        {/* Assets Grid */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            {assets.map((asset) => (
+                                <div key={asset.id} className="glass-card overflow-hidden group/card hover:border-indigo-500/30 transition-all">
+                                    <div className="relative aspect-video overflow-hidden">
+                                        <img 
                                             src={asset.url} 
                                             alt={asset.title} 
-                                            fill 
-                                            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-                                            style={{ objectFit: 'cover' }}
+                                            className="w-full h-full object-cover group-hover/card:scale-105 transition-transform duration-700"
                                         />
-                                        <div style={{ 
-                                            position: 'absolute', 
-                                            top: '8px', 
-                                            left: '8px',
-                                            display: 'flex',
-                                            gap: '4px',
-                                            zIndex: 10
-                                        }}>
+                                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-60" />
+                                        
+                                        <div className="absolute top-4 left-4 z-10 flex gap-2">
                                             {asset.isDefault ? (
-                                                <div style={{ 
-                                                    background: 'var(--success)',
-                                                    color: 'white',
-                                                    padding: '2px 8px',
-                                                    borderRadius: '100px',
-                                                    fontSize: '9px',
-                                                    fontWeight: 800,
-                                                    textTransform: 'uppercase',
-                                                    boxShadow: '0 0 15px rgba(16, 185, 129, 0.4)',
-                                                }}>
-                                                    Primary Default
-                                                </div>
+                                                <span className="px-3 py-1 bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 text-[8px] font-black uppercase tracking-widest rounded-lg backdrop-blur-md">
+                                                    Hub Default
+                                                </span>
                                             ) : (
                                                 <button 
-                                                    className="btn btn-secondary btn-sm" 
                                                     onClick={() => handleSetDefault(asset)}
-                                                    style={{ padding: '4px 8px', fontSize: '10px', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}
+                                                    className="px-3 py-1 bg-black/40 hover:bg-indigo-600/40 border border-white/10 text-white/40 hover:text-white text-[8px] font-black uppercase tracking-widest rounded-lg backdrop-blur-md opacity-0 group-hover/card:opacity-100 transition-all"
                                                 >
-                                                    ⭐ Set Default
+                                                    Set Default
                                                 </button>
                                             )}
                                         </div>
 
-                                        <div style={{ 
-                                            position: 'absolute', 
-                                            top: '8px', 
-                                            right: '8px',
-                                            zIndex: 10
-                                        }}>
+                                        <div className="absolute top-4 right-4 z-10 flex gap-2 opacity-0 group-hover/card:opacity-100 transition-all">
                                             <button 
-                                                className="btn btn-danger btn-sm" 
                                                 onClick={() => handleDelete(asset)}
-                                                style={{ padding: '4px 8px', fontSize: '10px' }}
+                                                className="p-2 bg-rose-500/20 hover:bg-rose-500 border border-rose-500/30 text-rose-400 hover:text-white rounded-lg backdrop-blur-md transition-all"
                                             >
-                                                🗑️ Delete
+                                                <Icons.trash size={12} />
                                             </button>
                                         </div>
-                                    </div>
-                                    <div style={{ padding: 'var(--space-4)' }}>
-                                        <h4 style={{ fontSize: '14px', marginBottom: '8px', color: 'var(--text-primary)' }}>{asset.title}</h4>
-                                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
-                                            {asset.tags?.map((tag: string) => (
-                                                <span key={tag} className="badge badge-secondary" style={{ fontSize: '10px' }}>
-                                                    {tag}
-                                                </span>
-                                            ))}
-                                            {(!asset.tags || asset.tags.length === 0) && (
-                                                <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>No tags</span>
-                                            )}
+
+                                        <div className="absolute bottom-4 left-4 right-4 z-10">
+                                            <div className="flex flex-col">
+                                                <div className="text-[10px] font-black uppercase tracking-widest text-indigo-400 mb-1">{asset.category}</div>
+                                                <h4 className="text-sm font-black text-white group-hover/card:text-indigo-400 transition-colors">{asset.title}</h4>
+                                            </div>
                                         </div>
+                                    </div>
+                                    <div className="p-4 flex flex-wrap gap-2">
+                                        {asset.tags?.map((tag) => (
+                                            <span key={tag} className="px-2 py-0.5 bg-white/5 border border-white/10 rounded text-[9px] font-black uppercase tracking-widest text-white/30 group-hover/card:text-white/60 transition-colors">
+                                                {tag}
+                                            </span>
+                                        ))}
                                     </div>
                                 </div>
                             ))}
                         </div>
-                    )}
+                    </div>
 
-                    {!loading && assets.length === 0 && (
-                        <div style={{ textAlign: 'center', padding: 'var(--space-12)', background: 'var(--bg-secondary)', borderRadius: 'var(--radius-lg)' }}>
-                            <div style={{ fontSize: '3rem', marginBottom: 'var(--space-4)' }}>🖼️</div>
-                            <h3>Library is Empty</h3>
-                            <p style={{ color: 'var(--text-secondary)' }}>Upload your Nanobanana scenario images to start building your curation toolkit.</p>
-                        </div>
-                    )}
-                </div>
-            </div>
-
-            {/* 🎨 Nanobanana Studio Modal (Port 3001 Bridge) */}
-            {isStudioModalOpen && (
-                <div style={{ 
-                    position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', 
-                    background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(10px)', 
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000 
-                }}>
-                    <div className="glass-card animate-scale-in" style={{ 
-                        width: '90%', maxWidth: '600px', padding: 'var(--space-8)', 
-                        border: '1px solid var(--accent-primary)', boxShadow: 'var(--shadow-glow)' 
-                    }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 'var(--space-6)' }}>
-                            <h2 style={{ margin: 0, fontSize: '20px' }}>🎨 Nanobanana Hub Generator</h2>
-                            <button className="btn btn-ghost" onClick={() => setIsStudioModalOpen(false)}>✕</button>
-                        </div>
-
-                        <div style={{ 
-                            height: '300px', width: '100%', background: 'rgba(0,0,0,0.4)', 
-                            borderRadius: 'var(--radius-md)', border: '1px dashed rgba(255,255,255,0.1)',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
-                            position: 'relative', marginBottom: 'var(--space-6)'
-                        }}>
-                            {isGeneratingInStudio ? (
-                                <div style={{ textAlign: 'center' }}>
-                                    <div className="spinner" style={{ margin: '0 auto 16px' }} />
-                                    <p style={{ fontSize: '13px', color: 'var(--accent-300)', fontWeight: 600 }}>{studioProgress}</p>
-                                </div>
-                            ) : studioResult ? (
-                                <div style={{ position: 'relative', width: '100%', height: '100%' }}>
-                                    <Image 
-                                        src={studioResult.imageUrl} 
-                                        alt="Result" 
-                                        fill 
-                                        priority
-                                        sizes="(max-width: 768px) 90vw, 600px"
-                                        style={{ objectFit: 'contain' }}
+                    {/* Sidebar Bench */}
+                    <div className="space-y-8">
+                        {/* Registrar Form */}
+                        <div className="glass-card p-8 bg-indigo-600/[0.03] border-indigo-500/20">
+                            <h3 className="text-sm font-black uppercase tracking-[0.2em] text-white/30 mb-8 flex items-center gap-2">
+                                <Icons.plus size={14} className="text-indigo-400" /> Registrar
+                            </h3>
+                            
+                            <div className="space-y-6">
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black uppercase text-white/20 tracking-widest pl-2">Asset Title</label>
+                                    <input 
+                                        type="text" 
+                                        className="w-full bg-black/40 border border-white/5 rounded-2xl px-5 py-4 text-xs font-bold focus:border-indigo-500 outline-none transition-all placeholder:text-white/10"
+                                        placeholder="e.g. Gemini Tutorial Dark"
+                                        value={newTitle}
+                                        onChange={e => setNewTitle(e.target.value)}
                                     />
                                 </div>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black uppercase text-white/20 tracking-widest pl-2">Tags (Signals)</label>
+                                    <input 
+                                        type="text" 
+                                        className="w-full bg-black/40 border border-white/5 rounded-2xl px-5 py-4 text-xs font-bold focus:border-indigo-500 outline-none transition-all placeholder:text-white/10"
+                                        placeholder="tool, gemini, blue, workspace"
+                                        value={newTags}
+                                        onChange={e => setNewTags(e.target.value)}
+                                    />
+                                </div>
+                                
+                                <input type="file" id="asset-upload" hidden onChange={handleFileUpload} disabled={uploading} />
+                                <label htmlFor="asset-upload" className={`w-full py-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] transition-all shadow-xl shadow-indigo-600/20 cursor-pointer flex items-center justify-center gap-3 ${uploading ? 'opacity-50 pointer-events-none' : ''}`}>
+                                    {uploading ? <Icons.spinner size={16} className="animate-spin" /> : <Icons.upload size={16} />}
+                                    Commence Registration
+                                </label>
+                            </div>
+                        </div>
+
+                        {/* Info Hub */}
+                        <div className="glass-card p-8">
+                            <div className="flex items-center gap-3 mb-6">
+                                <Icons.info size={14} className="text-indigo-400" />
+                                <span className="text-[10px] font-black uppercase tracking-widest text-white/40">Hub Protocols</span>
+                            </div>
+                            <p className="text-xs font-medium text-white/40 leading-relaxed">
+                                Assets registered here are used as visual proxies for non-video resources. The <span className="text-indigo-400">Scenario Architect</span> ensures thematic consistency across the registry.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </main>
+            <Footer />
+
+            {/* In-Hub Studio Modal */}
+            {isStudioModalOpen && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/90 backdrop-blur-3xl animate-in fade-in duration-300">
+                    <div className="bg-[#0a0a0f] border border-white/10 rounded-[3rem] p-12 max-w-2xl w-full text-center shadow-3xl relative overflow-hidden">
+                        <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl -mr-32 -mt-32" />
+                        
+                        <div className="flex justify-between items-start mb-10">
+                            <div className="text-left">
+                                <h2 className="text-3xl font-black uppercase tracking-widest">Studio <span className="text-indigo-400">Bridge</span></h2>
+                                <p className="text-[10px] font-black uppercase tracking-[0.3em] text-white/20 mt-1">Nanobanana Execution Protocol</p>
+                            </div>
+                            <button className="w-12 h-12 bg-white/5 border border-white/10 rounded-2xl flex items-center justify-center text-white/40 hover:text-white transition-all" onClick={() => setIsStudioModalOpen(false)}>
+                                <Icons.close size={20} />
+                            </button>
+                        </div>
+
+                        <div className="bg-black/40 border border-white/5 rounded-3xl aspect-video relative overflow-hidden mb-10 flex items-center justify-center">
+                            {isGeneratingInStudio ? (
+                                <div className="flex flex-col items-center gap-6">
+                                    <div className="w-12 h-12 border-4 border-indigo-500/20 border-t-indigo-500 rounded-full animate-spin" />
+                                    <div className="text-[10px] font-black uppercase tracking-[0.3em] text-indigo-400 animate-pulse">{studioProgress}</div>
+                                </div>
+                            ) : studioResult ? (
+                                <img src={studioResult.imageUrl} alt="Result" className="w-full h-full object-cover animate-in zoom-in-95 duration-500" />
                             ) : (
-                                <p style={{ color: 'var(--text-muted)' }}>{studioProgress || 'Waiting for generation...'}</p>
+                                <div className="text-[10px] font-black uppercase tracking-widest text-white/10">Establishing Bridge Connection...</div>
                             )}
                         </div>
 
                         {studioResult && (
-                            <div className="animate-fade-in" style={{ textAlign: 'center', marginBottom: 'var(--space-6)', padding: 'var(--space-4)', background: 'rgba(16, 185, 129, 0.1)', borderRadius: 'var(--radius-md)', border: '1px solid rgba(16, 185, 129, 0.2)' }}>
-                                <p style={{ fontSize: '14px', color: 'var(--success)', fontWeight: 700, margin: 0 }}>
-                                    ✨ Successfully registered to Hub Library
-                                </p>
+                            <div className="mb-10 p-6 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl animate-in fade-in slide-in-from-top-4 duration-300">
+                                <span className="text-[10px] font-black uppercase tracking-widest text-emerald-400 flex items-center justify-center gap-2">
+                                    <Icons.check size={14} strokeWidth={4} /> Asset Successfully Registered to Registry
+                                </span>
                             </div>
                         )}
 
-                        <div style={{ display: 'flex', gap: 'var(--space-4)' }}>
+                        <div className="flex gap-4">
                             <button 
-                                className="btn btn-primary" 
-                                style={{ flex: 1, height: '48px', background: studioResult ? 'var(--bg-input)' : undefined }}
+                                className="flex-1 py-5 rounded-2xl font-black text-xs uppercase tracking-widest bg-white/5 hover:bg-white/10 transition-all border border-white/10"
                                 onClick={() => setIsStudioModalOpen(false)}
                             >
-                                {studioResult ? 'Close Generator' : 'Cancel'}
+                                Terminate
                             </button>
                             <button 
-                                className="btn btn-ghost" 
-                                style={{ border: '1px solid rgba(255,255,255,0.1)' }}
+                                className="flex-[2] py-5 rounded-2xl font-black text-xs uppercase tracking-widest bg-indigo-600 hover:bg-indigo-500 transition-all shadow-xl shadow-indigo-600/30 flex items-center justify-center gap-2"
                                 onClick={handleStudioGenerate}
                                 disabled={isGeneratingInStudio}
                             >
-                                {studioResult ? '🔄 Regenerate' : '🚀 Start Generation'}
+                                {isGeneratingInStudio ? <Icons.spinner className="animate-spin" /> : <><Icons.zap size={16} /> Force Regeneration</>}
                             </button>
                         </div>
-                        
-                        <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: 'var(--space-6)', textAlign: 'center' }}>
-                            💡 This generation is powered by the Nanobanana API on port 3001.
-                        </p>
                     </div>
                 </div>
             )}
-
-            <Footer />
-
-            {/* ⚠️ Error Modal */}
-            <Modal
-                isOpen={showErrorModal}
-                onClose={() => setShowErrorModal(false)}
-                title={`⚠️ ${errorDetails.title}`}
-                maxWidth="480px"
-                className="modal-danger"
-                footer={
-                    <div style={{ display: 'flex', gap: 'var(--space-3)', justifyContent: 'flex-end', width: '100%' }}>
-                        <button className="btn btn-secondary" onClick={() => setShowErrorModal(false)}>Close</button>
-                        <button className="btn btn-primary" onClick={() => { setShowErrorModal(false); handleGeneratePrompt(); }}>
-                            🔄 Retry Now
-                        </button>
-                    </div>
-                }
-            >
-                <div style={{ textAlign: 'center', padding: 'var(--space-2)' }}>
-                    <div style={{ fontSize: '3rem', marginBottom: 'var(--space-4)' }}>🔌</div>
-                    <p style={{ color: 'var(--text-primary)', fontWeight: 600, marginBottom: 'var(--space-4)' }}>
-                        {errorDetails.message}
-                    </p>
-                    <p style={{ color: 'var(--text-secondary)', fontSize: '13px', fontStyle: 'italic' }}>
-                        Suggestion: Please wait about 60 seconds and try again. If the problem persists, check your Gemini API configuration in .env.local.
-                    </p>
-                </div>
-            </Modal>
         </div>
     );
 }

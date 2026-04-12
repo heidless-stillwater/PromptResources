@@ -10,14 +10,15 @@ import { db } from '@/lib/firebase';
 import { collection, getDocs, doc, updateDoc, deleteDoc, setDoc } from 'firebase/firestore';
 import { UserProfile, Resource } from '@/lib/types';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Icons } from '@/components/ui/Icons';
 
 export default function AdminPage() {
     return (
         <Suspense fallback={
-            <div className="page-wrapper">
-                <Navbar />
-                <div className="loading-page">
-                    <div className="spinner" />
+            <div className="page-wrapper dashboard-theme min-h-screen bg-[#0a0a0f] flex items-center justify-center">
+                <div className="flex flex-col items-center gap-4">
+                    <div className="w-12 h-12 border-4 border-indigo-500/20 border-t-indigo-500 rounded-full animate-spin" />
+                    <div className="text-[10px] font-black uppercase tracking-[0.3em] text-white/20">Initialising Command</div>
                 </div>
             </div>
         }>
@@ -134,7 +135,7 @@ function AdminContent() {
 
     useEffect(() => {
         const tab = searchParams.get('tab');
-        if (tab && ['overview', 'users', 'resources', 'suggestions', 'categories'].includes(tab)) {
+        if (tab && ['overview', 'users', 'resources', 'creators', 'suggestions', 'categories'].includes(tab)) {
             setActiveTab(tab as any);
         }
     }, [searchParams]);
@@ -198,10 +199,10 @@ function AdminContent() {
 
     if (authLoading || usersLoading || resourcesLoading || creatorsLoading || !isAdmin) {
         return (
-            <div className="page-wrapper">
-                <Navbar />
-                <div className="loading-page">
-                    <div className="spinner" />
+            <div className="page-wrapper dashboard-theme min-h-screen bg-[#0a0a0f] flex items-center justify-center">
+                <div className="flex flex-col items-center gap-4">
+                    <div className="w-12 h-12 border-4 border-indigo-500/20 border-t-indigo-500 rounded-full animate-spin" />
+                    <div className="text-[10px] font-black uppercase tracking-[0.3em] text-white/20">Authorizing Access</div>
                 </div>
             </div>
         );
@@ -218,190 +219,233 @@ function AdminContent() {
     const creatorsCount = users.filter((u) => u.isPublicProfile || u.isStub).length;
 
     return (
-        <div className="page-wrapper">
+        <div className="page-wrapper dashboard-theme min-h-screen bg-[#0a0a0f] text-white selection:bg-indigo-500/30">
             <Navbar />
-            <div className="main-content">
-                <div className="container">
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-8)' }}>
-                        <h1>⚙️ Admin Panel</h1>
-                        <div className="badge badge-secondary">Logged in as {activeRole?.toUpperCase()}</div>
-                    </div>
 
-                    {/* Tabs */}
-                    <div className="tabs">
-                        {(['overview', 'users', 'resources', 'creators', 'suggestions', 'categories'] as const).map((tab) => (
-                            <button
-                                key={tab}
-                                className={`tab ${activeTab === tab ? 'active' : ''}`}
-                                onClick={() => handleTabChange(tab)}
-                                id={`admin-tab-${tab}`}
-                                style={{ position: 'relative' }}
-                            >
-                                {tab === 'overview' && '📊 '}
-                                {tab === 'users' && '👥 '}
-                                {tab === 'resources' && '📚 '}
-                                {tab === 'creators' && '🎨 '}
-                                {tab === 'suggestions' && '💡 '}
-                                {tab === 'categories' && '🏷️ '}
-                                {tab.charAt(0).toUpperCase() + tab.slice(1)}
-                                {tab === 'suggestions' && reviewCount > 0 && (
-                                    <span className="tab-notification">
-                                        {reviewCount}
-                                    </span>
-                                )}
-                            </button>
-                        ))}
-                    </div>
+            {/* Cinematic Hero */}
+            <div className="relative w-full h-auto overflow-hidden flex flex-col">
+                {/* Background Layer */}
+                <div className="absolute inset-0 z-0">
+                    <div className="absolute inset-0 bg-gradient-to-br from-indigo-900/10 via-[#0a0a0f] to-[#0a0a0f]" />
+                    <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-indigo-500/5 rounded-full blur-[120px] -mr-48 -mt-48" />
+                </div>
 
-                    {/* Overview */}
-                    {activeTab === 'overview' && (
-                        <div className="animate-fade-in">
-                            <div className="stats-grid" style={{ marginBottom: 'var(--space-8)' }}>
-                                <div className="glass-card stat-card">
-                                    <div className="stat-value">{users.length}</div>
-                                    <div className="stat-label">Total Users</div>
+                <div className="container relative z-10 flex flex-col gap-8 pt-8 pb-32">
+                    {/* Header Pathing */}
+                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                        <div className="flex items-center gap-4">
+                            <div className="p-3 bg-white/5 border border-white/10 rounded-2xl">
+                                <Icons.settings size={20} className="text-indigo-400" />
+                            </div>
+                            <div className="flex flex-col">
+                                <div className="text-[10px] font-black text-white/20 uppercase tracking-[0.3em] mb-1">
+                                    Registry Intelligence / Systems
                                 </div>
-                                <div className="glass-card stat-card">
-                                    <div className="stat-value">{resources.length}</div>
-                                    <div className="stat-label">Resources</div>
-                                </div>
-                                <div className="glass-card stat-card">
-                                    <div className="stat-value">{creatorsCount}</div>
-                                    <div className="stat-label">Creators</div>
-                                </div>
-                                <div className="glass-card stat-card">
-                                    <div className="stat-value">{freeCount}</div>
-                                    <div className="stat-label">Free Items</div>
-                                </div>
-                                <div className="glass-card stat-card">
-                                    <div className="stat-value">{reviewCount}</div>
-                                    <div className="stat-label">Pending Review</div>
+                                <div className="flex items-center gap-2 text-xs font-bold text-white/60">
+                                    <span className="text-white uppercase">Authority Hub</span>
+                                    <span className="opacity-20">/</span>
+                                    <span className="text-indigo-400/60 font-black">Control Center</span>
                                 </div>
                             </div>
+                        </div>
+                        
+                        <div className="flex items-center gap-4 p-4 bg-white/5 border border-white/10 rounded-2xl backdrop-blur-xl">
+                            <div className="flex flex-col items-end">
+                                <div className="text-[10px] font-black text-white/20 uppercase tracking-widest leading-none mb-1">Active Authority</div>
+                                <div className="text-xs font-bold text-indigo-400">{activeRole?.toUpperCase()}</div>
+                            </div>
+                            <div className="h-8 w-px bg-white/10" />
+                            <div className="flex items-center gap-2">
+                                <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
+                                <span className="text-[10px] font-black uppercase tracking-widest text-white/40">Sync Operational</span>
+                            </div>
+                        </div>
+                    </div>
 
-                            <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: 'var(--space-8)' }}>
-                                <div className="glass-card">
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-6)' }}>
-                                        <h3 style={{ margin: 0 }}>Recent Users</h3>
-                                        <button className="btn btn-ghost btn-sm" onClick={() => setActiveTab('users')}>View All</button>
+                    {/* Identity Glass Card (Section Overview) */}
+                    <div className="glass-card p-10 shadow-2xl relative overflow-hidden group">
+                        <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-indigo-500/5 rounded-full blur-[100px] -mr-48 -mt-48 group-hover:bg-indigo-500/10 transition-all duration-1000" />
+                        
+                        <div className="relative z-10">
+                            <h1 className="text-4xl md:text-7xl font-black tracking-tighter text-white mb-6 leading-none flex items-center gap-4">
+                                <Icons.settings size={48} className="text-indigo-400" />
+                                <span>Control <span className="text-indigo-400">Hub</span></span>
+                            </h1>
+
+                            <p className="text-white/40 max-w-2xl text-lg font-medium leading-relaxed mb-8">
+                                Orchestrate the architectural integrity of the PromptMaster ecosystem. Manage users, resources, and taxonomies through the high-density administrative workbench.
+                            </p>
+
+                            {/* Integrated Stats HUD */}
+                            <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+                                {[
+                                    { label: 'Total Users', value: users.length, icon: <Icons.users size={14} /> },
+                                    { label: 'Resource Assets', value: resources.length, icon: <Icons.database size={14} /> },
+                                    { label: 'Pending Review', value: reviewCount, icon: <Icons.sparkles size={14} />, color: 'text-indigo-400' },
+                                    { label: 'Active Creators', value: creatorsCount, icon: <Icons.user size={14} /> },
+                                    { label: 'Free Assets', value: freeCount, icon: <Icons.zap size={14} /> }
+                                ].map((stat, i) => (
+                                    <div key={i} className="bg-white/[0.03] border border-white/5 p-5 rounded-2xl group hover:border-white/20 transition-all cursor-default relative overflow-hidden">
+                                        <div className="flex items-center gap-2 text-white/20 group-hover:text-white/40 mb-3 transition-colors relative z-10">
+                                            {stat.icon}
+                                            <span className="text-[10px] font-black uppercase tracking-widest">{stat.label}</span>
+                                        </div>
+                                        <div className={`text-3xl font-black relative z-10 ${stat.color || 'text-white'}`}>{stat.value}</div>
                                     </div>
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <main className="container mx-auto px-4 -mt-20 pb-20 relative z-30">
+                {/* Navigation Hub */}
+                <div className="flex flex-wrap items-center gap-2 p-2 bg-white/5 backdrop-blur-3xl border border-white/5 rounded-[2rem] w-fit mb-10">
+                    {(['overview', 'users', 'resources', 'creators', 'suggestions', 'categories'] as const).map((tab) => (
+                        <button
+                            key={tab}
+                            className={`px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] transition-all flex items-center gap-2 group ${
+                                activeTab === tab 
+                                    ? 'bg-indigo-600 border border-indigo-400 text-white shadow-xl shadow-indigo-600/20' 
+                                    : 'text-white/40 hover:text-white hover:bg-white/5'
+                            }`}
+                            onClick={() => handleTabChange(tab)}
+                        >
+                            {tab}
+                            {tab === 'suggestions' && reviewCount > 0 && (
+                                <span className="bg-rose-500 text-white text-[8px] min-w-[14px] h-[14px] flex items-center justify-center rounded-full px-1">
+                                    {reviewCount}
+                                </span>
+                            )}
+                        </button>
+                    ))}
+                </div>
+
+                {/* Dashboard Views */}
+                <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+                    {activeTab === 'overview' && (
+                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                            <div className="lg:col-span-2 space-y-8">
+                                <div className="glass-card p-8">
+                                    <div className="flex justify-between items-center mb-8 border-b border-white/5 pb-6">
+                                        <div className="flex items-center gap-3">
+                                            <div className="p-2 bg-indigo-500/10 rounded-xl text-indigo-400">
+                                                <Icons.users size={20} />
+                                            </div>
+                                            <h3 className="text-xl font-black tracking-widest uppercase text-white/80">Authority Feed</h3>
+                                        </div>
+                                        <button className="text-[10px] font-black uppercase tracking-widest text-indigo-400 hover:text-indigo-300" onClick={() => setActiveTab('users')}>
+                                            Full Directory →
+                                        </button>
+                                    </div>
+                                    <div className="space-y-4">
                                         {users.slice(0, 5).map((u) => (
-                                            <div key={u.uid} style={{
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                gap: 'var(--space-4)',
-                                                paddingBottom: 'var(--space-4)',
-                                                borderBottom: '1px solid rgba(255,255,255,0.05)',
-                                            }}>
-                                                <div className="avatar" style={{ border: '2px solid rgba(255,255,255,0.1)' }}>
+                                            <div key={u.uid} className="flex items-center gap-4 p-4 rounded-2xl bg-white/[0.02] border border-white/5 hover:bg-white/[0.05] transition-all">
+                                                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500/20 to-purple-500/20 flex items-center justify-center border border-white/10 text-xs font-black">
                                                     {(u.displayName?.[0] || u.email?.[0] || 'U').toUpperCase()}
                                                 </div>
-                                                <div style={{ flex: 1 }}>
-                                                    <div style={{ fontSize: 'var(--text-sm)', fontWeight: 600 }}>{u.displayName}</div>
-                                                    <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>{u.email}</div>
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="text-sm font-bold truncate">{u.displayName}</div>
+                                                    <div className="text-[10px] text-white/30 truncate uppercase tracking-widest">{u.email}</div>
                                                 </div>
-                                                <span className={`badge ${u.role === 'su' ? 'badge-primary' : 'badge-secondary'}`}>{u.role}</span>
+                                                <div className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest ${
+                                                    u.role === 'su' ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30' : 'bg-white/5 text-white/40 border border-white/10'
+                                                }`}>
+                                                    {u.role}
+                                                </div>
                                             </div>
                                         ))}
                                     </div>
                                 </div>
+                            </div>
 
-                                <div className="glass-card">
-                                    <h3 style={{ marginBottom: 'var(--space-6)' }}>Quick Actions</h3>
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-                                        <Link href="/resources/new" className="btn btn-primary" style={{ width: '100%' }}>
-                                            ➕ Add Resource
+                            <div className="space-y-8">
+                                <div className="glass-card p-8 bg-indigo-600/[0.03] border-indigo-500/20">
+                                    <h3 className="text-sm font-black uppercase tracking-[0.2em] text-white/30 mb-6 flex items-center gap-2">
+                                        <Icons.zap size={14} className="text-indigo-400" /> Command Center
+                                    </h3>
+                                    <div className="grid grid-cols-1 gap-3">
+                                        <Link href="/resources/new" className="p-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl flex items-center gap-4 transition-all shadow-lg shadow-indigo-600/20 active:scale-[0.98]">
+                                            <div className="p-2 bg-white/20 rounded-xl"><Icons.plus size={18} /></div>
+                                            <span className="text-xs font-black uppercase tracking-widest">Register New Asset</span>
                                         </Link>
-                                        <Link href="/resources/admin/assets" className="btn btn-secondary" style={{ width: '100%', justifyContent: 'flex-start' }}>
-                                            🖼️ Nanobanana Scenario Hub
+                                        <Link href="/resources/admin/assets" className="p-4 bg-white/5 hover:bg-white/10 rounded-2xl flex items-center gap-4 transition-all border border-white/5">
+                                            <div className="p-2 bg-white/10 rounded-xl"><Icons.image size={18} /></div>
+                                            <span className="text-xs font-black uppercase tracking-widest">Asset Scenario Hub</span>
                                         </Link>
-                                        <div style={{ height: '1px', background: 'rgba(255,255,255,0.05)', margin: 'var(--space-1) 0' }} />
-                                        <button className="btn btn-secondary" style={{ width: '100%', justifyContent: 'flex-start' }}
-                                            onClick={() => setActiveTab('users')}>
-                                            👥 Manage Users
-                                        </button>
-                                        <Link href="/admin/creators" className="btn btn-secondary" style={{ width: '100%', justifyContent: 'flex-start' }}>
-                                            🎨 Manage Creators
-                                        </Link>
-                                        <button className="btn btn-secondary" style={{ width: '100%', justifyContent: 'flex-start' }}
-                                            onClick={() => setActiveTab('resources')}>
-                                            📚 Manage Resources
-                                        </button>
-                                        <Link href="/admin/audit/youtube" className="btn btn-secondary" style={{ width: '100%', justifyContent: 'flex-start' }}>
-                                            📺 YouTube Audit Tool
-                                        </Link>
-                                        <button 
-                                            className="btn btn-secondary" 
-                                            style={{ width: '100%', justifyContent: 'flex-start' }}
-                                            onClick={() => handleTabChange('suggestions')}>
-                                            💡 Review Suggestions ({reviewCount})
-                                        </button>
+                                        <div className="h-px bg-white/5 my-2" />
+                                        {[
+                                            { label: 'Directory Management', icon: <Icons.users size={16} />, tab: 'users' },
+                                            { label: 'Creator Registry', icon: <Icons.user size={16} />, tab: 'creators' },
+                                            { label: 'YouTube Audit Bot', icon: <Icons.video size={16} />, href: '/admin/audit/youtube' }
+                                        ].map((act, i) => (
+                                            <button 
+                                                key={i}
+                                                onClick={() => act.tab ? setActiveTab(act.tab as any) : act.href && router.push(act.href)}
+                                                className="p-4 bg-white/[0.02] hover:bg-white/[0.05] rounded-2xl flex items-center gap-4 transition-all border border-white/5 text-white/60 hover:text-white"
+                                            >
+                                                <div className="text-white/20">{act.icon}</div>
+                                                <span className="text-[10px] font-black uppercase tracking-widest">{act.label}</span>
+                                            </button>
+                                        ))}
                                     </div>
                                 </div>
                             </div>
                         </div>
                     )}
 
-                    {/* Users Tab */}
+                    {/* Users View */}
                     {activeTab === 'users' && (
-                        <div className="animate-fade-in">
-                            <div className="table-wrapper">
-                                <table className="table" id="users-table">
+                        <div className="glass-card overflow-hidden">
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left border-collapse">
                                     <thead>
-                                        <tr>
-                                            <th>User</th>
-                                            <th>Email</th>
-                                            <th>Role</th>
-                                            <th>Subscription</th>
-                                            <th>Joined</th>
-                                            <th>Actions</th>
+                                        <tr className="bg-white/5 border-b border-white/5">
+                                            <th className="p-6 text-[10px] font-black uppercase tracking-widest text-white/30">Registry Authority</th>
+                                            <th className="p-6 text-[10px] font-black uppercase tracking-widest text-white/30">Credentials</th>
+                                            <th className="p-6 text-[10px] font-black uppercase tracking-widest text-white/30">System Role</th>
+                                            <th className="p-6 text-[10px] font-black uppercase tracking-widest text-white/30">Tier</th>
+                                            <th className="p-6 text-[10px] font-black uppercase tracking-widest text-white/30">Established</th>
                                         </tr>
                                     </thead>
-                                    <tbody>
+                                    <tbody className="divide-y divide-white/5">
                                         {users.map((u) => (
-                                            <tr key={u.uid}>
-                                                <td>
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
-                                                        <div className="avatar" style={{ width: 28, height: 28, fontSize: 'var(--text-xs)' }}>
+                                            <tr key={u.uid} className="hover:bg-white/[0.02] transition-colors group">
+                                                <td className="p-6">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center text-[10px] font-black border border-white/10">
                                                             {(u.displayName?.[0] || 'U').toUpperCase()}
                                                         </div>
-                                                        {u.displayName}
+                                                        <span className="text-sm font-bold group-hover:text-indigo-400 transition-colors">{u.displayName}</span>
                                                     </div>
                                                 </td>
-                                                <td style={{ color: 'var(--text-muted)' }}>{u.email}</td>
-                                                <td>
+                                                <td className="p-6 text-xs text-white/40 font-mono tracking-tight">{u.email}</td>
+                                                <td className="p-6">
                                                     <select
-                                                        className="form-select"
+                                                        className="bg-black/40 border border-white/10 rounded-lg px-2 py-1 text-[10px] font-black uppercase tracking-widest outline-none focus:border-indigo-500/50"
                                                         value={u.role}
                                                         onChange={(e) => handleRoleChange(u.uid, e.target.value)}
-                                                        style={{ minWidth: 100, padding: 'var(--space-1) var(--space-2)', fontSize: 'var(--text-xs)' }}
                                                     >
                                                         <option value="member">Member</option>
                                                         <option value="admin">Admin</option>
                                                         <option value="su">SU</option>
                                                     </select>
                                                 </td>
-                                                <td>
+                                                <td className="p-6">
                                                     <select
-                                                        className="form-select"
+                                                        className="bg-black/40 border border-white/10 rounded-lg px-2 py-1 text-[10px] font-black uppercase tracking-widest outline-none focus:border-indigo-500/50"
                                                         value={u.subscriptionType}
                                                         onChange={(e) => handleSubChange(u.uid, e.target.value)}
-                                                        style={{ minWidth: 100, padding: 'var(--space-1) var(--space-2)', fontSize: 'var(--text-xs)' }}
                                                     >
                                                         <option value="free">Free</option>
                                                         <option value="standard">Standard</option>
                                                         <option value="pro">Pro</option>
                                                     </select>
                                                 </td>
-                                                <td style={{ color: 'var(--text-muted)', fontSize: 'var(--text-xs)' }}>
+                                                <td className="p-6 text-[10px] font-black uppercase tracking-widest text-white/20">
                                                     {u.createdAt ? new Date(u.createdAt).toLocaleDateString() : 'N/A'}
                                                 </td>
-                                                <td>
-                                                    <span className="badge badge-primary" style={{ fontSize: '0.65rem' }}>
-                                                        {u.uid.slice(0, 8)}...
-                                                    </span>
-                                                </td>
                                             </tr>
                                         ))}
                                     </tbody>
@@ -410,127 +454,48 @@ function AdminContent() {
                         </div>
                     )}
 
-                    {/* Suggestions Tab */}
-                    {activeTab === 'suggestions' && (
-                        <div className="animate-fade-in">
-                            <div className="table-wrapper">
-                                <table className="table" id="suggestions-table">
-                                    <thead>
-                                        <tr>
-                                            <th>Title</th>
-                                            <th>Platform</th>
-                                            <th>Type</th>
-                                            <th>Pricing</th>
-                                            <th>Submitted By</th>
-                                            <th>Status</th>
-                                            <th>Actions</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {resources.filter(r => r.status === 'pending' || r.status === 'suggested').length === 0 ? (
-                                            <tr>
-                                                <td colSpan={7} style={{ textAlign: 'center', padding: 'var(--space-8)', color: 'var(--text-muted)' }}>
-                                                    No suggestions needing review.
-                                                </td>
-                                            </tr>
-                                        ) : resources.filter(r => r.status === 'pending' || r.status === 'suggested').map((r) => (
-                                            <tr key={r.id}>
-                                                <td>
-                                                    <div style={{ fontWeight: 600 }}>{r.title}</div>
-                                                    <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', maxWidth: '300px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                                        {r.url}
-                                                    </div>
-                                                </td>
-                                                <td><span className="badge badge-accent">{r.platform}</span></td>
-                                                <td style={{ color: 'var(--text-muted)' }}>{r.type}</td>
-                                                <td><span className={`badge badge-${r.pricing}`}>{r.pricing}</span></td>
-                                                <td>
-                                                    <div style={{ fontSize: 'var(--text-xs)' }}>
-                                                        {users.find(u => u.uid === r.addedBy)?.email || r.addedBy || 'Anonymous'}
-                                                    </div>
-                                                </td>
-                                                <td>
-                                                    <span className={`badge badge-${r.status === 'suggested' ? 'accent' : 'secondary'}`}>
-                                                        {r.status}
-                                                    </span>
-                                                </td>
-                                                <td>
-                                                    <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
-                                                        <button
-                                                            className="btn btn-primary btn-sm"
-                                                            onClick={() => handleApproveResource(r.id)}
-                                                        >
-                                                            ✅ Approve
-                                                        </button>
-                                                        <button
-                                                            className="btn btn-ghost btn-sm"
-                                                            onClick={() => handleDeleteResource(r.id)}
-                                                            style={{ color: 'var(--danger-400)' }}
-                                                        >
-                                                            ❌ Reject
-                                                        </button>
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Resources Tab */}
+                    {/* Resources View */}
                     {activeTab === 'resources' && (
-                        <div className="animate-fade-in">
-                            <div style={{
-                                display: 'flex',
-                                justifyContent: 'flex-end',
-                                marginBottom: 'var(--space-4)',
-                            }}>
-                                <Link href="/resources/new" className="btn btn-primary">
-                                    ➕ Add Resource
+                        <div className="space-y-6">
+                            <div className="flex justify-end">
+                                <Link href="/resources/new" className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg shadow-indigo-600/20 active:scale-95 flex items-center gap-2">
+                                    <Icons.plus size={14} /> New Resource
                                 </Link>
                             </div>
-                            <div className="table-wrapper">
-                                <table className="table" id="resources-table">
+                            <div className="glass-card overflow-hidden">
+                                <table className="w-full text-left">
                                     <thead>
-                                        <tr>
-                                            <th>Title</th>
-                                            <th>Platform</th>
-                                            <th>Status</th>
-                                            <th>Type</th>
-                                            <th>Pricing</th>
-                                            <th>Actions</th>
+                                        <tr className="bg-white/5 border-b border-white/5">
+                                            <th className="p-6 text-[10px] font-black uppercase tracking-widest text-white/30">Discovery Title</th>
+                                            <th className="p-6 text-[10px] font-black uppercase tracking-widest text-white/30">Platform Hub</th>
+                                            <th className="p-6 text-[10px] font-black uppercase tracking-widest text-white/30">Visibility</th>
+                                            <th className="p-6 text-[10px] font-black uppercase tracking-widest text-white/30">Taxonomy</th>
+                                            <th className="p-6 text-[10px] font-black uppercase tracking-widest text-white/30 text-right">Action Hub</th>
                                         </tr>
                                     </thead>
-                                    <tbody>
+                                    <tbody className="divide-y divide-white/5">
                                         {resources.filter(r => r.status !== 'pending' && r.status !== 'suggested').map((r) => (
-                                            <tr key={r.id}>
-                                                <td>
-                                                    <Link href={`/resources/${r.id}`} style={{
-                                                        fontWeight: 600,
-                                                        fontSize: 'var(--text-sm)',
-                                                    }}>
-                                                        {r.title}
-                                                    </Link>
+                                            <tr key={r.id} className="hover:bg-white/[0.02] transition-colors">
+                                                <td className="p-6">
+                                                    <Link href={`/resources/${r.id}`} className="text-sm font-bold hover:text-indigo-400 transition-colors">{r.title}</Link>
                                                 </td>
-                                                <td><span className="badge badge-accent">{r.platform}</span></td>
-                                                <td>
-                                                    <span className={`badge badge-${r.status === 'published' ? 'success' : 'secondary'}`}>
+                                                <td className="p-6">
+                                                    <span className="px-2 py-0.5 bg-white/5 border border-white/10 rounded text-[9px] font-black uppercase tracking-widest">{r.platform}</span>
+                                                </td>
+                                                <td className="p-6">
+                                                    <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-widest ${r.status === 'published' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-white/10 text-white/40'}`}>
                                                         {r.status}
                                                     </span>
                                                 </td>
-                                                <td style={{ color: 'var(--text-muted)' }}>{r.type}</td>
-                                                <td><span className={`badge badge-${r.pricing}`}>{r.pricing}</span></td>
-                                                <td>
-                                                    <div style={{ display: 'flex', gap: 'var(--space-1)' }}>
-                                                        <Link href={`/resources/${r.id}/edit`} className="btn btn-ghost btn-sm">✏️</Link>
+                                                <td className="p-6 text-xs text-white/40 uppercase tracking-widest">{r.type}</td>
+                                                <td className="p-6 text-right">
+                                                    <div className="flex items-center justify-end gap-2">
+                                                        <Link href={`/resources/${r.id}/edit`} className="p-2 bg-white/5 rounded-lg hover:bg-white/10 text-white/40 hover:text-white transition-all"><Icons.edit size={14} /></Link>
                                                         <button
-                                                            className="btn btn-ghost btn-sm"
                                                             onClick={() => handleDeleteResource(r.id)}
-                                                            style={{ color: 'var(--danger-400)' }}
+                                                            className="p-2 bg-white/5 rounded-lg hover:bg-rose-500/20 text-white/40 hover:text-rose-400 transition-all"
                                                         >
-                                                            🗑
+                                                            <Icons.trash size={14} />
                                                         </button>
                                                     </div>
                                                 </td>
@@ -542,61 +507,51 @@ function AdminContent() {
                         </div>
                     )}
 
-                    {/* Creators Tab */}
+                    {/* Creators View */}
                     {activeTab === 'creators' && (
-                        <div className="animate-fade-in">
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-6)' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-4)' }}>
-                                    <h3 style={{ margin: 0 }}>🎨 Creator Registry Explorer</h3>
-                                    <div className="badge badge-secondary">{creators.length} items</div>
+                        <div className="space-y-8">
+                            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                                <div className="flex items-center gap-3">
+                                    <div className="p-2 bg-indigo-500/10 rounded-xl text-indigo-400"><Icons.user size={20} /></div>
+                                    <h3 className="text-xl font-black tracking-widest uppercase">Creator Explorer</h3>
                                 </div>
-                                <button className="btn btn-primary btn-sm" onClick={() => setIsCreatingStub(!isCreatingStub)}>
-                                    {isCreatingStub ? 'Cancel' : '➕ Add External Stub'}
+                                <button 
+                                    className="px-6 py-2.5 bg-indigo-600 border border-indigo-400 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg shadow-indigo-600/20"
+                                    onClick={() => setIsCreatingStub(!isCreatingStub)}
+                                >
+                                    {isCreatingStub ? 'Cancel Action' : '➕ Register External Stub'}
                                 </button>
                             </div>
 
-                            {/* Advanced Filter Bar */}
-                            <div className="filter-bar" style={{ marginBottom: 'var(--space-4)', display: 'flex', flexWrap: 'wrap', gap: 'var(--space-2)' }}>
-                                <div className="search-input-wrapper" style={{ flex: 2, minWidth: '250px' }}>
-                                    <span className="search-icon">🔍</span>
+                            <div className="flex flex-wrap items-center gap-3 p-4 bg-white/5 border border-white/5 rounded-3xl">
+                                <div className="relative flex-1 min-w-[300px]">
+                                    <Icons.search size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-white/20" />
                                     <input 
                                         type="text" 
-                                        placeholder="Search creators by name or slug..." 
+                                        className="w-full bg-black/40 border border-white/5 rounded-2xl py-3 pl-12 pr-4 text-xs font-medium outline-none focus:border-indigo-500/30"
+                                        placeholder="Search registry by name or signature slug..."
                                         value={creatorsSearch}
                                         onChange={(e) => setCreatorsSearch(e.target.value)}
                                     />
                                 </div>
-                                <select className="form-select" style={{ flex: 1, fontSize: '0.8rem' }} value={creatorFilterType} onChange={(e) => setCreatorFilterType(e.target.value)}>
-                                    <option value="all">All Types</option>
-                                    <option value="individual">Individual</option>
-                                    <option value="channel">Channel</option>
-                                    <option value="organization">Organization</option>
+                                <select className="bg-black/40 border border-white/5 rounded-2xl p-3 text-[10px] font-black uppercase tracking-widest outline-none" value={creatorFilterType} onChange={(e) => setCreatorFilterType(e.target.value)}>
+                                    <option value="all">Diversity: All</option>
+                                    <option value="individual">Identity: Individual</option>
+                                    <option value="channel">Identity: Channel</option>
                                 </select>
-                                <select className="form-select" style={{ flex: 1, fontSize: '0.8rem' }} value={creatorFilterStatus} onChange={(e) => setCreatorFilterStatus(e.target.value as any)}>
-                                    <option value="all">All Status</option>
-                                    <option value="stub">Stubs Only</option>
-                                    <option value="native">Native Only</option>
-                                </select>
-                                <select className="form-select" style={{ flex: 1, fontSize: '0.8rem' }} value={creatorSortBy} onChange={(e) => setCreatorSortBy(e.target.value as any)}>
-                                    <option value="total">Resources (Dec)</option>
-                                    <option value="authored">Authored (Dec)</option>
-                                    <option value="name">Alphabetical</option>
-                                    <option value="newest">Newest First</option>
+                                <select className="bg-black/40 border border-white/5 rounded-2xl p-3 text-[10px] font-black uppercase tracking-widest outline-none" value={creatorSortBy} onChange={(e) => setCreatorSortBy(e.target.value as any)}>
+                                    <option value="total">Weight: Volume</option>
+                                    <option value="name">Alpha: Name</option>
                                 </select>
                             </div>
 
                             {isCreatingStub && (
-                                <div className="glass-card" style={{ marginBottom: 'var(--space-6)', border: '1px solid var(--accent-primary)', animation: 'slideDown 0.3s ease' }}>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 'var(--space-4)' }}>
-                                        <h4 style={{ margin: 0 }}>Register External Creator Stub</h4>
-                                        <button className="btn btn-ghost btn-sm" onClick={() => setIsCreatingStub(false)}>✕</button>
-                                    </div>
-                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 'var(--space-4)' }}>
-                                        <div className="form-group">
+                                <div className="glass-card p-6 border-indigo-500/50 animate-in slide-in-from-top-4 duration-300">
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-black uppercase tracking-widest text-white/30 ml-2">Display Name</label>
                                             <input 
-                                                type="text" 
-                                                className="form-input" 
-                                                placeholder="Display Name (e.g. Kevin Stratvert)" 
+                                                type="text" className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-xs outline-none focus:border-indigo-500"
                                                 value={newStub.name}
                                                 onChange={(e) => {
                                                     const name = e.target.value;
@@ -604,109 +559,76 @@ function AdminContent() {
                                                 }}
                                             />
                                         </div>
-                                        <div className="form-group">
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-black uppercase tracking-widest text-white/30 ml-2">Canonical Slug</label>
                                             <input 
-                                                type="text" 
-                                                className="form-input" 
-                                                placeholder="Custom Slug" 
+                                                type="text" className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-xs outline-none focus:border-indigo-500"
                                                 value={newStub.slug}
                                                 onChange={(e) => setNewStub(s => ({...s, slug: e.target.value}))}
                                             />
                                         </div>
-                                        <div className="form-group">
-                                            <select 
-                                                className="form-select" 
-                                                value={newStub.type}
-                                                onChange={(e) => setNewStub(s => ({...s, type: e.target.value}))}
-                                            >
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-black uppercase tracking-widest text-white/30 ml-2">Identity Type</label>
+                                            <select className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-xs outline-none focus:border-indigo-500 uppercase tracking-widest font-black" 
+                                                value={newStub.type} onChange={(e) => setNewStub(s => ({...s, type: e.target.value}))}>
                                                 <option value="individual">Individual</option>
                                                 <option value="channel">Channel</option>
                                                 <option value="organization">Organization</option>
                                             </select>
                                         </div>
-                                        <div style={{ gridColumn: 'span 3', display: 'flex', justifyContent: 'flex-end', gap: 'var(--space-2)' }}>
-                                            <button className="btn btn-ghost btn-sm" onClick={() => setIsCreatingStub(false)}>Cancel</button>
-                                            <button 
-                                                className="btn btn-primary btn-sm"
-                                                onClick={() => createStubMutation.mutate(newStub)}
-                                                disabled={!newStub.name || createStubMutation.isPending}
-                                            >
-                                                {createStubMutation.isPending ? 'Saving...' : 'Confirm Registration'}
-                                            </button>
-                                        </div>
+                                    </div>
+                                    <div className="flex justify-end gap-3">
+                                        <button className="px-6 py-2.5 bg-white/5 hover:bg-white/10 rounded-xl text-[10px] font-black uppercase tracking-widest" onClick={() => setIsCreatingStub(false)}>Terminate</button>
+                                        <button className="px-6 py-2.5 bg-indigo-600 rounded-xl text-[10px] font-black uppercase tracking-widest" onClick={() => createStubMutation.mutate(newStub)}>Commit Registration</button>
                                     </div>
                                 </div>
                             )}
 
-                            <div className="table-wrapper">
-                                <table className="table">
+                            <div className="glass-card overflow-hidden">
+                                <table className="w-full text-left">
                                     <thead>
-                                        <tr>
-                                            <th onClick={() => setCreatorSortBy('name')} style={{ cursor: 'pointer' }}>
-                                                Creator {creatorSortBy === 'name' ? '↓' : ''}
-                                            </th>
-                                            <th>Type</th>
-                                            <th onClick={() => setCreatorSortBy('total')} style={{ cursor: 'pointer' }}>
-                                                Total {creatorSortBy === 'total' ? '↓' : ''}
-                                            </th>
-                                            <th onClick={() => setCreatorSortBy('authored')} style={{ cursor: 'pointer' }}>
-                                                Authored {creatorSortBy === 'authored' ? '↓' : ''}
-                                            </th>
-                                            <th>Curated</th>
-                                            <th>Actions</th>
+                                        <tr className="bg-white/5 border-b border-white/5">
+                                            <th className="p-6 text-[10px] font-black uppercase tracking-widest text-white/30">Contributor Identity</th>
+                                            <th className="p-6 text-[10px] font-black uppercase tracking-widest text-white/30">Profile Meta</th>
+                                            <th className="p-6 text-[10px] font-black uppercase tracking-widest text-white/30 text-center">Density</th>
+                                            <th className="p-6 text-[10px] font-black uppercase tracking-widest text-white/30 text-right">Action Hub</th>
                                         </tr>
                                     </thead>
-                                    <tbody>
+                                    <tbody className="divide-y divide-white/5">
                                         {creators
-                                            .filter(c => {
-                                                const matchesSearch = c.displayName.toLowerCase().includes(creatorsSearch.toLowerCase()) || 
-                                                                     (c.slug && c.slug.toLowerCase().includes(creatorsSearch.toLowerCase()));
-                                                const matchesType = creatorFilterType === 'all' || (c.profileType || 'individual') === creatorFilterType;
-                                                const matchesStatus = creatorFilterStatus === 'all' || (creatorFilterStatus === 'stub' ? c.isStub : !c.isStub);
-                                                return matchesSearch && matchesType && matchesStatus;
-                                            })
-                                            .sort((a, b) => {
-                                                if (creatorSortBy === 'name') return a.displayName.localeCompare(b.displayName);
-                                                if (creatorSortBy === 'authored') return (b.authoredCount || 0) - (a.authoredCount || 0);
-                                                if (creatorSortBy === 'newest') return new Date(b.createdAt as any).getTime() - new Date(a.createdAt as any).getTime();
-                                                return (b.resourceCount || 0) - (a.resourceCount || 0);
-                                            })
+                                            .filter(c => c.displayName.toLowerCase().includes(creatorsSearch.toLowerCase()))
+                                            .sort((a, b) => (b.resourceCount || 0) - (a.resourceCount || 0))
                                             .map((c) => (
-                                            <tr key={c.uid}>
-                                                <td>
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                        <div className="avatar" style={{ width: 24, height: 24, fontSize: '10px' }}>
-                                                            {(c.displayName?.[0] || 'C').toUpperCase()}
-                                                        </div>
-                                                        <div>
-                                                            <div style={{ fontWeight: 600, fontSize: '0.85rem' }}>{c.displayName}</div>
-                                                            <div style={{ fontSize: '9px', color: 'var(--text-muted)' }}>{c.slug}</div>
+                                            <tr key={c.uid} className="hover:bg-white/[0.02] transition-colors">
+                                                <td className="p-6">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-xs font-black">{c.displayName?.[0]?.toUpperCase()}</div>
+                                                        <div className="flex flex-col">
+                                                            <span className="text-sm font-bold">{c.displayName}</span>
+                                                            <span className="text-[9px] font-black uppercase tracking-[0.2em] text-white/20">{c.slug}</span>
                                                         </div>
                                                     </div>
                                                 </td>
-                                                <td>
-                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                                                        <span className="badge badge-secondary" style={{ fontSize: '9px', width: 'fit-content' }}>{c.profileType || 'individual'}</span>
-                                                        {c.isStub && <span style={{ fontSize: '8px', color: 'var(--accent-primary)', fontWeight: 700 }}>EXTERNAL</span>}
+                                                <td className="p-6">
+                                                    <div className="flex flex-col gap-1">
+                                                        <span className="text-[10px] font-bold text-white/40">{c.profileType || 'individual'}</span>
+                                                        {c.isStub && <span className="text-[8px] font-black text-indigo-400 uppercase tracking-widest">External Stub</span>}
                                                     </div>
                                                 </td>
-                                                <td style={{ fontWeight: 700 }}>{c.resourceCount || 0}</td>
-                                                <td>✍️ {c.authoredCount || 0}</td>
-                                                <td style={{ color: 'var(--text-muted)' }}>📂 {c.curatedCount || 0}</td>
-                                                <td>
-                                                    <div style={{ display: 'flex', gap: '4px' }}>
+                                                <td className="p-6 text-center">
+                                                    <div className="inline-flex flex-col items-center">
+                                                        <span className="text-lg font-black">{c.resourceCount || 0}</span>
+                                                        <span className="text-[8px] font-black text-white/20 uppercase tracking-widest">Resources</span>
+                                                    </div>
+                                                </td>
+                                                <td className="p-6 text-right">
+                                                    <div className="flex items-center justify-end gap-2">
                                                         <button 
-                                                            className="btn btn-ghost btn-sm" 
+                                                            className="p-2 bg-white/5 rounded-lg hover:bg-white/10 transition-all" 
                                                             onClick={() => syncCreatorMutation.mutate(c.uid)}
-                                                            disabled={syncCreatorMutation.isPending && syncCreatorMutation.variables === c.uid}
-                                                            title="Re-calculate statistics"
-                                                        >
-                                                            {syncCreatorMutation.isPending && syncCreatorMutation.variables === c.uid ? (
-                                                                <div className="spinner-inline" style={{ width: '12px', height: '12px' }} />
-                                                            ) : '🔄'}
-                                                        </button>
-                                                        <Link href={`/creators/${c.slug || c.uid}`} target="_blank" className="btn btn-ghost btn-sm" title="View Public Profile">
-                                                            🔗
+                                                        ><Icons.refresh size={14} /></button>
+                                                        <Link href={`/creators/${c.slug || c.uid}`} target="_blank" className="p-2 bg-white/5 rounded-lg hover:bg-white/10 transition-all">
+                                                            <Icons.external size={14} />
                                                         </Link>
                                                     </div>
                                                 </td>
@@ -718,32 +640,71 @@ function AdminContent() {
                         </div>
                     )}
 
-                    {/* Categories Tab */}
+                    {/* Suggestions View */}
+                    {activeTab === 'suggestions' && (
+                        <div className="glass-card overflow-hidden">
+                            <table className="w-full text-left">
+                                <thead>
+                                    <tr className="bg-white/5 border-b border-white/5">
+                                        <th className="p-6 text-[10px] font-black uppercase tracking-widest text-white/30">Proposed Signal</th>
+                                        <th className="p-6 text-[10px] font-black uppercase tracking-widest text-white/30">Source Metadata</th>
+                                        <th className="p-6 text-[10px] font-black uppercase tracking-widest text-white/30 text-right">Curation Authority</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-white/5">
+                                    {resources.filter(r => r.status === 'pending' || r.status === 'suggested').map((r) => (
+                                        <tr key={r.id} className="hover:bg-white/[0.02] transition-colors">
+                                            <td className="p-6">
+                                                <div className="text-sm font-black mb-1">{r.title}</div>
+                                                <div className="text-[10px] text-white/30 font-mono tracking-tighter truncate max-w-[400px]">{r.url}</div>
+                                            </td>
+                                            <td className="p-6">
+                                                <div className="flex flex-col gap-1">
+                                                    <div className="text-[10px] font-black uppercase tracking-widest text-indigo-400">{r.platform}</div>
+                                                    <div className="text-[9px] font-bold text-white/30 uppercase tracking-widest">{users.find(u => u.uid === r.addedBy)?.email || 'Anonymous'}</div>
+                                                </div>
+                                            </td>
+                                            <td className="p-6 text-right">
+                                                <div className="flex items-center justify-end gap-2">
+                                                    <button className="px-5 py-2 bg-emerald-500 hover:bg-emerald-400 text-white text-[10px] font-black uppercase tracking-widest rounded-lg transition-all" onClick={() => handleApproveResource(r.id)}>Commit</button>
+                                                    <button className="px-5 py-2 bg-white/5 border border-white/10 text-[10px] font-black uppercase tracking-widest rounded-lg hover:bg-rose-500/20 hover:text-rose-400 transition-all" onClick={() => handleDeleteResource(r.id)}>Discard</button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                    {resources.filter(r => r.status === 'pending' || r.status === 'suggested').length === 0 && (
+                                        <tr>
+                                            <td colSpan={3} className="p-20 text-center text-white/20 text-[10px] font-black uppercase tracking-widest">No pending proposals in registry</td>
+                                        </tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
 
-                    {/* Categories Tab */}
+                    {/* Categories View */}
                     {activeTab === 'categories' && (
-                        <div className="animate-fade-in">
-                            <div className="glass-card">
-                                <h3 style={{ marginBottom: 'var(--space-4)' }}>Category Management</h3>
-                                <p style={{ color: 'var(--text-muted)', marginBottom: 'var(--space-4)' }}>
-                                    Categories are auto-populated from resources. AI suggestions help maintain consistency.
+                        <div className="glass-card p-10 relative overflow-hidden group">
+                            <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-indigo-500/5 rounded-full blur-[100px] -mr-48 -mt-48 group-hover:bg-indigo-500/10 transition-all duration-1000" />
+                            <div className="relative z-10">
+                                <h3 className="text-2xl font-black mb-4 tracking-tighter uppercase tracking-widest text-white/80">Registry Taxonomy</h3>
+                                <p className="text-white/40 max-w-2xl text-lg font-medium leading-relaxed mb-10">
+                                    Managing structural discovery weights across the global asset hub. AI-suggested topics and manual curator tags are unified here.
                                 </p>
-                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-2)' }}>
-                                    {Array.from(new Set(resources.flatMap((r) => r.categories || []))).sort().map((cat) => {
-                                        const count = resources.filter((r) => r.categories?.includes(cat)).length;
-                                        return (
-                                            <div key={cat} className="badge badge-primary" style={{ padding: 'var(--space-2) var(--space-3)' }}>
-                                                {cat} <span style={{ opacity: 0.6 }}>({count})</span>
-                                            </div>
-                                        );
-                                    })}
+                                <div className="flex flex-wrap gap-3">
+                                    {Array.from(new Set(resources.flatMap((r) => r.categories || []))).sort().map((cat) => (
+                                        <div key={cat} className="px-4 py-2 bg-white/5 border border-white/10 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:border-indigo-500/50 transition-all cursor-default">
+                                            {cat} <span className="text-white/20 ml-2">{resources.filter(r => r.categories?.includes(cat)).length}</span>
+                                        </div>
+                                    ))}
                                 </div>
                             </div>
                         </div>
                     )}
                 </div>
-            </div>
+            </main>
             <Footer />
         </div>
     );
 }
+

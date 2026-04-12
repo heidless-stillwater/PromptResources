@@ -1,13 +1,14 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, Suspense } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import { useAuth } from '@/contexts/AuthContext';
-import { Resource, Attribution } from '@/lib/types';
+import { Resource } from '@/lib/types';
 import { isYouTubeUrl, fetchYouTubeMetadata, isGenericYouTubeName } from '@/lib/youtube';
+import { Icons } from '@/components/ui/Icons';
 
 interface AuditItem {
     resource: Resource;
@@ -18,6 +19,21 @@ interface AuditItem {
 }
 
 export default function YouTubeAuditPage() {
+    return (
+        <Suspense fallback={
+            <div className="page-wrapper dashboard-theme min-h-screen bg-[#0a0a0f] flex items-center justify-center">
+                <div className="flex flex-col items-center gap-4">
+                    <div className="w-12 h-12 border-4 border-indigo-500/20 border-t-indigo-500 rounded-full animate-spin" />
+                    <div className="text-[10px] font-black uppercase tracking-[0.3em] text-white/20">Initialising Command</div>
+                </div>
+            </div>
+        }>
+            <YouTubeAuditContent />
+        </Suspense>
+    );
+}
+
+function YouTubeAuditContent() {
     const { user, isAdmin, loading: authLoading } = useAuth();
     const router = useRouter();
     const [auditItems, setAuditItems] = useState<AuditItem[]>([]);
@@ -145,127 +161,161 @@ export default function YouTubeAuditPage() {
 
     if (authLoading || loading) {
         return (
-            <div className="page-wrapper">
-                <Navbar />
-                <div className="loading-page"><div className="spinner" /></div>
+            <div className="page-wrapper dashboard-theme min-h-screen bg-[#0a0a0f] flex items-center justify-center">
+                <div className="flex flex-col items-center gap-4">
+                    <div className="w-12 h-12 border-4 border-indigo-500/20 border-t-indigo-500 rounded-full animate-spin" />
+                    <div className="text-[10px] font-black uppercase tracking-[0.3em] text-white/20">Initialising Audit Engine</div>
+                </div>
             </div>
         );
     }
 
     return (
-        <div className="page-wrapper">
+        <div className="page-wrapper dashboard-theme min-h-screen bg-[#0a0a0f] text-white selection:bg-indigo-500/30">
             <Navbar />
-            <div className="main-content">
-                <div className="container">
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-6)' }}>
-                        <div>
-                            <Link href="/admin" className="btn btn-ghost btn-sm" style={{ marginBottom: 'var(--space-2)' }}>
-                                ← Back to Admin
-                            </Link>
-                            <h1>📺 YouTube Resource Audit</h1>
+
+            {/* Cinematic Hero */}
+            <div className="relative w-full h-auto overflow-hidden flex flex-col">
+                {/* Background Layer */}
+                <div className="absolute inset-0 z-0">
+                    <div className="absolute inset-0 bg-gradient-to-br from-rose-900/10 via-[#0a0a0f] to-[#0a0a0f]" />
+                    <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-rose-500/5 rounded-full blur-[120px] -mr-48 -mt-48" />
+                </div>
+
+                <div className="container relative z-10 flex flex-col gap-8 pt-8 pb-32">
+                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-8">
+                        <div className="flex flex-col">
+                            <div className="text-[10px] font-black text-white/20 uppercase tracking-[0.3em] mb-1">
+                                Registry Intelligence / Audit / Youtube
+                            </div>
+                            <h1 className="text-4xl md:text-7xl font-black tracking-tighter text-white leading-none">
+                                Youtube <span className="text-rose-500 font-black">Audit</span>
+                            </h1>
+                            <p className="text-white/40 font-medium max-w-xl mt-4 leading-relaxed">
+                                System-wide reconciliation of generic video attributions. Identifying missing creator identities across the discovery cloud.
+                            </p>
                         </div>
-                        <div style={{ display: 'flex', gap: 'var(--space-3)' }}>
+                        
+                        <div className="flex flex-wrap gap-3">
+                            <Link href="/admin" className="px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest bg-white/5 hover:bg-white/10 text-white/40 border border-white/10 transition-all active:scale-95 flex items-center gap-2">
+                                <Icons.arrowLeft size={14} /> Authority Hub
+                            </Link>
                             <button
-                                className="btn btn-secondary"
+                                className="px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest bg-white/5 hover:bg-white/10 text-white/40 border border-white/10 transition-all active:scale-95 flex items-center gap-2"
                                 onClick={runAudit}
                                 disabled={isAuditing || auditItems.every(i => i.status !== 'pending')}
                             >
-                                🔍 Scan Channels
+                                <Icons.search size={14} /> Scan Channels
                             </button>
                             <button
-                                className="btn btn-primary"
+                                className="px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest bg-rose-600 hover:bg-rose-500 text-white shadow-lg shadow-rose-600/20 transition-all active:scale-95 flex items-center gap-2"
                                 onClick={fixAll}
                                 disabled={isAuditing || !auditItems.some(i => i.status === 'ready')}
                             >
-                                ✨ Fix All Ready
+                                <Icons.zap size={14} /> Reconclie All
                             </button>
                         </div>
                     </div>
 
-                    <div className="stats-grid" style={{ marginBottom: 'var(--space-8)' }}>
-                        <div className="glass-card stat-card">
-                            <div className="stat-value">{stats.youtube}</div>
-                            <div className="stat-label">YouTube Resources</div>
-                        </div>
-                        <div className="glass-card stat-card">
-                            <div className="stat-value">{auditItems.filter(i => i.status === 'ready' || i.status === 'pending').length}</div>
-                            <div className="stat-label">Potential Fixes</div>
-                        </div>
-                        <div className="glass-card stat-card">
-                            <div className="stat-value">{stats.fixed}</div>
-                            <div className="stat-label">Fixed Today</div>
-                        </div>
-                    </div>
-
-                    <div className="glass-card">
-                        <div className="table-wrapper">
-                            <table className="table">
-                                <thead>
-                                    <tr>
-                                        <th>Resource</th>
-                                        <th>Current Attribution</th>
-                                        <th>Suggested Channel</th>
-                                        <th>Status</th>
-                                        <th style={{ textAlign: 'right' }}>Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {auditItems.map((item, idx) => (
-                                        <tr key={item.resource.id}>
-                                            <td>
-                                                <div style={{ fontWeight: 600, fontSize: 'var(--text-sm)' }}>{item.resource.title}</div>
-                                                <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', maxWidth: '300px', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                                    {item.resource.url}
-                                                </div>
-                                            </td>
-                                            <td>
-                                                <span className={`badge ${isGenericYouTubeName(item.currentName) ? 'badge-accent' : ''}`}>
-                                                    {item.currentName}
-                                                </span>
-                                            </td>
-                                            <td style={{ color: 'var(--success-400)', fontWeight: 600 }}>
-                                                {item.suggestedName || '-'}
-                                            </td>
-                                            <td>
-                                                {item.status === 'pending' && <span className="badge">Pending Scan</span>}
-                                                {item.status === 'checking' && <span className="badge">Checking...</span>}
-                                                {item.status === 'ready' && <span className="badge badge-success">Ready to Fix</span>}
-                                                {item.status === 'fixing' && <span className="badge">Fixing...</span>}
-                                                {item.status === 'fixed' && <span className="badge badge-primary">✅ Fixed</span>}
-                                                {item.status === 'error' && <span className="badge badge-danger" title={item.error}>⚠️ Error</span>}
-                                                {item.status === 'skipped' && <span className="badge">Skipped</span>}
-                                            </td>
-                                            <td style={{ textAlign: 'right' }}>
-                                                {item.status === 'ready' && (
-                                                    <button className="btn btn-primary btn-sm" onClick={() => fixItem(idx)}>
-                                                        Apply Fix
-                                                    </button>
-                                                )}
-                                                {item.status === 'error' && (
-                                                    <button className="btn btn-ghost btn-sm" onClick={() => {
-                                                        const items = [...auditItems];
-                                                        items[idx].status = 'pending';
-                                                        setAuditItems(items);
-                                                    }}>
-                                                        Retry
-                                                    </button>
-                                                )}
-                                            </td>
-                                        </tr>
-                                    ))}
-                                    {auditItems.length === 0 && (
-                                        <tr>
-                                            <td colSpan={5} style={{ textAlign: 'center', padding: 'var(--space-10)', color: 'var(--text-muted)' }}>
-                                                No YouTube resources found to audit.
-                                            </td>
-                                        </tr>
-                                    )}
-                                </tbody>
-                            </table>
-                        </div>
+                    {/* Integrated Stats Grid */}
+                    <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+                        {[
+                            { label: 'Video Resources', value: stats.youtube, icon: <Icons.video size={14} /> },
+                            { label: 'Identified Signals', value: auditItems.filter(i => i.status === 'ready' || i.status === 'pending').length, icon: <Icons.activity size={14} />, color: 'text-rose-400' },
+                            { label: 'System Fixed', value: stats.fixed, icon: <Icons.check size={14} />, color: 'text-emerald-400' }
+                        ].map((stat, i) => (
+                            <div key={i} className="glass-card p-5 group hover:border-white/20 transition-all cursor-default relative overflow-hidden">
+                                <div className="absolute top-0 right-0 w-24 h-24 bg-rose-500/5 rounded-full blur-2xl -mr-12 -mt-12 group-hover:bg-rose-500/10 transition-all" />
+                                <div className="flex items-center gap-2 text-white/20 group-hover:text-white/40 mb-3 transition-colors relative z-10">
+                                    {stat.icon}
+                                    <span className="text-[10px] font-black uppercase tracking-widest">{stat.label}</span>
+                                </div>
+                                <div className={`text-3xl font-black relative z-10 ${stat.color || 'text-white'}`}>{stat.value}</div>
+                            </div>
+                        ))}
                     </div>
                 </div>
             </div>
+
+            <main className="container mx-auto px-4 -mt-20 pb-20 relative z-30">
+                <div className="glass-card overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-500">
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left">
+                            <thead>
+                                <tr className="bg-white/5 border-b border-white/5">
+                                    <th className="p-6 text-[10px] font-black uppercase tracking-widest text-white/30">Target Resource</th>
+                                    <th className="p-6 text-[10px] font-black uppercase tracking-widest text-white/30">Generic Metadata</th>
+                                    <th className="p-6 text-[10px] font-black uppercase tracking-widest text-white/30">Found Identity</th>
+                                    <th className="p-6 text-[10px] font-black uppercase tracking-widest text-white/30">Engine Status</th>
+                                    <th className="p-6 text-[10px] font-black uppercase tracking-widest text-white/30 text-right">Operational Tool</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-white/5">
+                                {auditItems.map((item, idx) => (
+                                    <tr key={item.resource.id} className="hover:bg-white/[0.02] transition-colors group">
+                                        <td className="p-6">
+                                            <div className="text-sm font-black mb-1 group-hover:text-rose-400 transition-colors">{item.resource.title}</div>
+                                            <div className="text-[9px] font-black text-white/10 uppercase tracking-widest truncate max-w-[400px]">
+                                                {item.resource.url}
+                                            </div>
+                                        </td>
+                                        <td className="p-6">
+                                            <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-widest ${isGenericYouTubeName(item.currentName) ? 'bg-rose-500/10 text-rose-400' : 'bg-white/10 text-white/40'}`}>
+                                                {item.currentName}
+                                            </span>
+                                        </td>
+                                        <td className="p-6">
+                                            <div className="text-xs font-black text-rose-400 uppercase tracking-widest">
+                                                {item.suggestedName || (item.status === 'checking' ? '...' : '-')}
+                                            </div>
+                                        </td>
+                                        <td className="p-6">
+                                            <div className="flex items-center gap-2">
+                                                {item.status === 'pending' && <span className="text-[9px] font-black text-white/20 uppercase tracking-widest">Queue</span>}
+                                                {item.status === 'checking' && <span className="text-[9px] font-black text-indigo-400 uppercase tracking-widest animate-pulse">Checking</span>}
+                                                {item.status === 'ready' && <span className="text-[9px] font-black text-emerald-400 uppercase tracking-widest bg-emerald-500/10 px-2 py-0.5 rounded">Ready</span>}
+                                                {item.status === 'fixing' && <span className="text-[9px] font-black text-indigo-400 uppercase tracking-widest animate-pulse">Fixing</span>}
+                                                {item.status === 'fixed' && <span className="text-[9px] font-black text-emerald-400 uppercase tracking-widest">Reconciled</span>}
+                                                {item.status === 'error' && <span className="text-[9px] font-black text-rose-500 uppercase tracking-widest" title={item.error}>Signal Error</span>}
+                                                {item.status === 'skipped' && <span className="text-[9px] font-black text-white/10 uppercase tracking-widest">Inactive</span>}
+                                            </div>
+                                        </td>
+                                        <td className="p-6 text-right">
+                                            {item.status === 'ready' && (
+                                                <button 
+                                                    className="px-4 py-2 bg-rose-500 hover:bg-rose-400 text-white text-[10px] font-black uppercase tracking-widest rounded-lg transition-all active:scale-95" 
+                                                    onClick={() => fixItem(idx)}
+                                                >
+                                                    Fix Signal
+                                                </button>
+                                            )}
+                                            {item.status === 'error' && (
+                                                <button 
+                                                    className="px-4 py-2 bg-white/5 hover:bg-white/10 text-white/40 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all active:scale-95" 
+                                                    onClick={() => {
+                                                        const items = [...auditItems];
+                                                        items[idx].status = 'pending';
+                                                        setAuditItems(items);
+                                                    }}
+                                                >
+                                                    Retry
+                                                </button>
+                                            )}
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                {auditItems.length === 0 && !loading && (
+                    <div className="py-40 text-center glass-card border-dashed">
+                        <Icons.video size={48} className="mx-auto mb-6 text-white/10" />
+                        <p className="font-black text-[10px] uppercase tracking-[0.4em] text-white/20">No video signals found in registry</p>
+                    </div>
+                )}
+            </main>
             <Footer />
         </div>
     );

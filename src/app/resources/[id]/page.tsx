@@ -604,96 +604,176 @@ export default function ResourceDetailPage() {
         );
     }
 
-    const ytId = resource.youtubeVideoId || (resource.mediaFormat === 'youtube' ? extractYouTubeId(resource.url) : null);
+    const r = resource as Resource;
+    const ytId = r.youtubeVideoId || (r.mediaFormat === 'youtube' ? extractYouTubeId(r.url) : null);
 
     return (
-        <div className="page-wrapper">
+        <div className="page-wrapper dashboard-theme min-h-screen bg-[#0a0a0f] text-white">
             <Navbar />
-            <div className="main-content">
-                <div className="container detail-container">
-                    {/* Breadcrumb & Global Actions */}
-                    <div className="detail-header-nav">
-                        <div className="detail-breadcrumb">
-                            <Link href="/resources">Resources</Link>
-                            <span>/</span>
-                            <span>{resource.title}</span>
+            
+            {/* ── CINEMATIC HERO COVER ── */}
+            <div className="relative w-full h-auto overflow-hidden flex flex-col">
+                {/* Background Layer (Blurred Telemetry) */}
+                <div className="absolute inset-0 z-0">
+                    {r.thumbnailUrl || r.youtubeVideoId ? (
+                        <div className="relative w-full h-full">
+                            <img 
+                                src={r.thumbnailUrl || `https://img.youtube.com/vi/${r.youtubeVideoId}/maxresdefault.jpg`} 
+                                alt="" 
+                                className="w-full h-full object-cover scale-110 blur-3xl opacity-20" 
+                            />
+                            <div className="absolute inset-0 bg-gradient-to-b from-[#0a0a0f]/40 via-[#0a0a0f]/80 to-[#0a0a0f]" />
                         </div>
-                        <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
-                            {user && (
-                                <Link href="/resources/new" className="btn btn-secondary btn-sm">
-                                    ➕ Add Resource
-                                </Link>
-                            )}
-                            <Link href="/resources" className="btn btn-primary btn-sm">
-                                📚 Resources
+                    ) : (
+                        <div className="absolute inset-0 bg-gradient-to-br from-indigo-900/10 via-[#0a0a0f] to-[#0a0a0f]" />
+                    )}
+                </div>
+
+                <div className="container relative z-10 flex flex-col gap-8 pt-8 pb-32">
+                    {/* Header Pathing */}
+                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-12">
+                        <div className="flex items-center gap-4">
+                            <Link href="/resources" className="p-3 bg-white/5 border border-white/10 rounded-2xl hover:bg-indigo-500/20 hover:border-indigo-500/30 transition-all group">
+                                <Icons.arrowLeft size={20} className="text-white/40 group-hover:text-indigo-400 group-hover:-translate-x-1 transition-all" />
                             </Link>
+                            <div className="flex flex-col">
+                                <div className="text-[10px] font-black text-white/20 uppercase tracking-[0.3em] mb-1">
+                                    Registry Intelligence / Assets
+                                </div>
+                                <div className="flex items-center gap-2 text-xs font-bold text-white/60">
+                                    <span className="text-indigo-400/60 uppercase">Resource Detail</span>
+                                    <span className="opacity-20">/</span>
+                                    <span className="truncate max-w-[200px]">{r.title}</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="flex items-center gap-3">
+                            <button 
+                                onClick={handleSave}
+                                className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 border ${
+                                    isSaved 
+                                    ? 'bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-600/20' 
+                                    : 'bg-white/5 border-white/10 text-white/40 hover:text-white hover:bg-white/10'
+                                }`}
+                            >
+                                {isSaved ? '★ Saved to Library' : '☆ Save Asset'}
+                            </button>
+                            <div className="h-6 w-px bg-white/10 mx-2" />
+                            <button onClick={() => setShareOpen(!shareOpen)} className="p-3 bg-white/5 border border-white/10 rounded-xl text-white/40 hover:text-white transition-all">
+                                <Icons.share size={18} />
+                                {shareOpen && (
+                                    <div className="absolute top-full right-0 mt-4 z-50 share-menu animate-in fade-in slide-in-from-top-2">
+                                        <button className="share-menu-item" onClick={handleCopyLink}>
+                                            {copyStatus === 'Copy Link' ? '🔗 ' + copyStatus : '✅ ' + copyStatus}
+                                        </button>
+                                        <button className="share-menu-item" onClick={handleShareTwitter}>🐦 X / Twitter</button>
+                                    </div>
+                                )}
+                            </button>
                         </div>
                     </div>
 
-                    <div className="detail-layout animate-slide-up">
-                        <div className="detail-main-column">
-                            {/* Media Section */}
-                            <div className="detail-media-container" style={{ display: 'block', background: 'transparent', border: 'none', boxShadow: 'none' }}>
+                    {/* Identity Glass Card */}
+                    <div className="glass-card p-8 shadow-2xl relative overflow-hidden group">
+                        <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-indigo-500/5 rounded-full blur-[100px] -mr-48 -mt-48 group-hover:bg-indigo-500/10 transition-all duration-1000" />
+                        
+                        <div className="relative z-10 flex flex-col md:flex-row gap-10">
+                            {/* Visual Representative */}
+                            <div className="w-full md:w-[480px] aspect-video rounded-3xl overflow-hidden border border-white/10 bg-black/40 shadow-inner group/media relative">
                                 {ytId ? (
-                                    <div className="video-theater-mode animate-in fade-in zoom-in duration-500">
-                                        <div className="youtube-embed shadow-2xl">
-                                            <iframe
-                                                src={getYouTubeEmbedUrl(ytId)}
-                                                title={resource.title}
-                                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                                                allowFullScreen
-                                            />
-                                        </div>
-                                        <div className="video-actions-overlay" style={{ gap: 'var(--space-2)' }}>
-                                            <a 
-                                                href={resource.url} 
-                                                target="_blank" 
-                                                rel="noopener noreferrer"
-                                                className="btn btn-secondary btn-sm"
-                                                style={{ fontSize: '10px', background: 'rgba(255,255,255,0.05)' }}
-                                            >
-                                                📺 Watch on YouTube
-                                            </a>
-                                            {(isAdmin || (user && resource.addedBy === user.uid)) && (
-                                                <button 
-                                                    className="btn btn-secondary btn-sm"
-                                                    onClick={() => setIsPickerOpen(true)}
-                                                    style={{ fontSize: '10px', background: 'rgba(168, 85, 247, 0.1)', border: '1px solid rgba(168, 85, 247, 0.2)' }}
-                                                >
-                                                    🖼️ Swap Thumbnail
-                                                </button>
-                                            )}
-                                        </div>
-                                    </div>
+                                    <iframe
+                                        src={getYouTubeEmbedUrl(ytId)}
+                                        title={r.title}
+                                        className="w-full h-full"
+                                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                        allowFullScreen
+                                    />
+                                ) : r.thumbnailUrl ? (
+                                    <img src={r.thumbnailUrl} alt={r.title} className="w-full h-full object-cover" />
                                 ) : (
-                                    <div className="detail-media-container" style={{ position: 'relative' }}>
-                                        {resource.thumbnailUrl ? (
-                                            <img 
-                                                src={resource.thumbnailUrl} 
-                                                alt={resource.title}
-                                                className="detail-media"
-                                            />
-                                        ) : (
-                                            <div style={{ height: '300px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-secondary)', borderRadius: 'var(--radius-lg)', border: '1px dashed var(--border)' }}>
-                                                <p style={{ color: 'var(--text-muted)' }}>No hero image set</p>
-                                            </div>
-                                        )}
-                                        {(isAdmin || (user && resource.addedBy === user.uid)) && (
-                                            <div style={{ position: 'absolute', bottom: '12px', right: '12px' }}>
-                                                <button 
-                                                    className="btn btn-secondary btn-sm"
-                                                    onClick={() => setIsPickerOpen(true)}
-                                                    style={{ fontSize: '10px', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', border: '1px solid rgba(255,255,255,0.1)' }}
-                                                >
-                                                    🖼️ Update Hero Image
-                                                </button>
-                                            </div>
-                                        )}
+                                    <div className="w-full h-full flex flex-col items-center justify-center text-white/10">
+                                        <Icons.database size={64} strokeWidth={1} />
+                                        <span className="text-[10px] font-black uppercase tracking-widest mt-4">Static Documentation</span>
                                     </div>
+                                )}
+                                {(isAdmin || (user && r.addedBy === user.uid)) && (
+                                    <button 
+                                        onClick={() => setIsPickerOpen(true)}
+                                        className="absolute bottom-4 right-4 p-2 bg-black/60 backdrop-blur-xl border border-white/10 rounded-xl text-white/40 hover:text-white opacity-0 group-hover/media:opacity-100 transition-all"
+                                    >
+                                        <Icons.edit size={14} />
+                                    </button>
                                 )}
                             </div>
 
-                            <div className="detail-title-section group">
+                            {/* Textual Identity */}
+                            <div className="flex-1 flex flex-col py-2">
+                                <div className="flex items-center gap-3 mb-4">
+                                    <span className={`px-3 py-1 bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 rounded-lg text-[9px] font-black uppercase tracking-widest`}>
+                                        {r.type}
+                                    </span>
+                                    {r.isFavorite && (
+                                        <div className="flex items-center gap-1.5 px-3 py-1 bg-amber-500/10 border border-amber-500/20 text-amber-500 rounded-lg text-[9px] font-black uppercase tracking-widest">
+                                            <Icons.sparkles size={10} /> Featured
+                                        </div>
+                                    )}
+                                </div>
+
+                                <h1 className="text-4xl md:text-6xl font-black tracking-tighter text-white mb-4 leading-none">
+                                    {r.title}
+                                </h1>
+
+                                <div className="flex flex-wrap items-center gap-6 mb-8 text-white/40">
+                                    <div className="flex items-center gap-3">
+                                        <Rating value={r.averageRating || 0} count={r.reviewCount || 0} />
+                                    </div>
+                                    <div className="h-4 w-px bg-white/10" />
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-lg">🌐</span>
+                                        <span className="text-xs font-black uppercase tracking-widest">{r.platform}</span>
+                                    </div>
+                                    <div className="h-4 w-px bg-white/10" />
+                                    <div className="flex items-center gap-3">
+                                        <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest border ${
+                                            r.pricing === 'free' ? 'border-emerald-500/20 text-emerald-400 bg-emerald-500/5' : 
+                                            r.pricing === 'paid' ? 'border-amber-500/20 text-amber-500 bg-amber-500/5' : 
+                                            'border-indigo-500/20 text-indigo-400 bg-indigo-500/5'
+                                        }`}>
+                                            {r.pricing}
+                                        </span>
+                                    </div>
+                                </div>
+
+                                <div className="mt-auto flex gap-4">
+                                    <a 
+                                        href={r.url} 
+                                        target="_blank" 
+                                        rel="noopener noreferrer"
+                                        className="flex-1 md:flex-none px-10 py-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl font-black text-sm transition-all flex items-center justify-center gap-3 shadow-xl shadow-indigo-600/20"
+                                    >
+                                        Execute Command <Icons.external size={18} />
+                                    </a>
+                                    
+                                    {(isAdmin || (user && r.addedBy === user.uid)) && (
+                                        <Link href={`/resources/${r.id}/edit`} className="p-4 bg-white/5 border border-white/10 rounded-2xl hover:bg-white/10 transition-all text-white/40 hover:text-white">
+                                            <Icons.edit size={20} />
+                                        </Link>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div className="main-content -mt-28 overflow-visible">
+                <main className="container mx-auto px-4 pt-0 pb-20 relative z-30">
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
+                        {/* Main Stream */}
+                        <div className="lg:col-span-2 space-y-10">
+                                <div className="bg-[#12121e]/90 border border-white/10 rounded-3xl p-6 md:p-8 backdrop-blur-xl shadow-2xl relative overflow-hidden group mb-8">
+                                    <div className="absolute top-0 right-0 p-8 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none group-hover:bg-indigo-500/20 transition-all duration-700"></div>
                                 {isEditingTitle ? (
                                     <div className="animate-in fade-in zoom-in duration-200" style={{ width: '100%', marginBottom: 'var(--space-4)' }}>
                                         <input 
@@ -731,20 +811,20 @@ export default function ResourceDetailPage() {
                                         </div>
                                     </div>
                                 ) : (
-                                    <h1 className="detail-title" style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-4)' }}>
-                                        {(resource.isFavorite || isAdmin || (user && resource.addedBy === user.uid)) && (
+                                    <h1 className="text-3xl md:text-5xl font-black tracking-tighter bg-gradient-to-r from-white to-white/60 bg-clip-text text-transparent flex items-center gap-4 mb-4">
+                                        {(r.isFavorite || isAdmin || (user && r.addedBy === user.uid)) && (
                                             <span 
-                                                title={resource.isFavorite ? "Featured Resource (Click to unfeature)" : "Feature this resource"}
+                                                title={r.isFavorite ? "Featured Resource (Click to unfeature)" : "Feature this resource"}
                                                 onClick={(e) => {
-                                                    if (isAdmin || (user && resource.addedBy === user.uid)) {
+                                                    if (isAdmin || (user && r.addedBy === user.uid)) {
                                                         e.stopPropagation();
-                                                        handleUpdateField('isFavorite', !resource.isFavorite);
+                                                        handleUpdateField('isFavorite', !r.isFavorite);
                                                     }
                                                 }}
                                                 style={{ 
-                                                    cursor: (isAdmin || (user && resource.addedBy === user.uid)) ? 'pointer' : 'default',
-                                                    opacity: resource.isFavorite ? 1 : 0.3,
-                                                    filter: resource.isFavorite ? 'drop-shadow(0 0 8px rgba(250, 204, 21, 0.5))' : 'grayscale(100%)',
+                                                    cursor: (isAdmin || (user && r.addedBy === user.uid)) ? 'pointer' : 'default',
+                                                    opacity: r.isFavorite ? 1 : 0.3,
+                                                    filter: r.isFavorite ? 'drop-shadow(0 0 8px rgba(250, 204, 21, 0.5))' : 'grayscale(100%)',
                                                     transition: 'all 0.2s ease',
                                                 }}
                                                 className="hover:scale-110"
@@ -753,70 +833,110 @@ export default function ResourceDetailPage() {
                                             </span>
                                         )}
                                         <span
-                                            style={{ cursor: (isAdmin || (user && resource.addedBy === user.uid)) ? 'pointer' : 'default', display: 'flex', alignItems: 'center' }}
+                                            style={{ cursor: (isAdmin || (user && r.addedBy === user.uid)) ? 'pointer' : 'default', display: 'flex', alignItems: 'center' }}
                                             onClick={() => {
-                                                if (isAdmin || (user && resource.addedBy === user.uid)) {
+                                                if (isAdmin || (user && r.addedBy === user.uid)) {
                                                     setIsEditingTitle(true);
-                                                    setTempTitle(resource.title);
+                                                    setTempTitle(r.title);
                                                 }
                                             }}
                                         >
-                                            {resource.title}
-                                            {(isAdmin || (user && resource.addedBy === user.uid)) && (
+                                            {r.title}
+                                            {(isAdmin || (user && r.addedBy === user.uid)) && (
                                                 <span style={{ fontSize: '14px', marginLeft: 'var(--space-2)' }}>✏️</span>
                                             )}
                                         </span>
                                         {isEditingRank ? (
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
-                                                <input 
-                                                    type="number" 
-                                                    className="form-input" 
-                                                    style={{ width: '80px', padding: 'var(--space-1) var(--space-2)' }} 
-                                                    value={tempRank} 
-                                                    onChange={(e) => setTempRank(e.target.value)} 
-                                                    placeholder="Priority..."
-                                                    autoFocus
-                                                />
-                                                <button 
-                                                    className="btn btn-primary btn-sm"
-                                                    onClick={async () => {
-                                                        const numRank = parseInt(tempRank);
-                                                        await handleUpdateField('rank', isNaN(numRank) ? null : numRank);
-                                                        setIsEditingRank(false);
-                                                    }}
-                                                >
-                                                    Save
-                                                </button>
-                                                <button 
-                                                    className="btn btn-secondary btn-sm" 
-                                                    onClick={() => setIsEditingRank(false)}
-                                                >
-                                                    Cancel
-                                                </button>
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)', background: 'var(--bg-secondary)', padding: 'var(--space-3)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', marginTop: 'var(--space-2)' }}>
+                                                <div style={{ fontSize: '10px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--text-muted)' }}>Quick Select Priority</div>
+                                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-2)' }}>
+                                                    {[1, 5, 10, 25, 50, 100].map(val => (
+                                                        <button 
+                                                            key={val}
+                                                            className={`btn btn-sm ${parseInt(tempRank) === val ? 'btn-primary' : 'btn-secondary'}`}
+                                                            style={{ padding: '4px 8px', fontSize: '11px', fontWeight: 'bold' }}
+                                                            onClick={() => setTempRank(val.toString())}
+                                                        >
+                                                            Top {val}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                                
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+                                                    <button 
+                                                        className="btn btn-secondary"
+                                                        style={{ padding: '0', width: '36px', height: '36px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}
+                                                        onClick={() => setTempRank(Math.max(1, (parseInt(tempRank) || 2) - 1).toString())}
+                                                    >
+                                                        -
+                                                    </button>
+                                                    <input 
+                                                        type="number" 
+                                                        className="form-input" 
+                                                        style={{ width: '80px', height: '36px', padding: '0', textAlign: 'center', fontSize: '16px', fontWeight: 'bold' }} 
+                                                        value={tempRank} 
+                                                        onChange={(e) => setTempRank(e.target.value)} 
+                                                        placeholder="Rank"
+                                                        autoFocus
+                                                    />
+                                                    <button 
+                                                        className="btn btn-secondary"
+                                                        style={{ padding: '0', width: '36px', height: '36px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}
+                                                        onClick={() => setTempRank(((parseInt(tempRank) || 0) + 1).toString())}
+                                                    >
+                                                        +
+                                                    </button>
+                                                </div>
+
+                                                <div style={{ display: 'flex', gap: 'var(--space-2)', paddingTop: 'var(--space-2)', borderTop: '1px solid var(--border)' }}>
+                                                    <button 
+                                                        className="btn btn-primary btn-sm"
+                                                        onClick={async () => {
+                                                            const numRank = parseInt(tempRank);
+                                                            await handleUpdateField('rank', isNaN(numRank) ? null : numRank);
+                                                            setIsEditingRank(false);
+                                                        }}
+                                                    >
+                                                        Save Rank
+                                                    </button>
+                                                    <button 
+                                                        className="btn btn-secondary btn-sm" 
+                                                        onClick={() => setIsEditingRank(false)}
+                                                    >
+                                                        Cancel
+                                                    </button>
+                                                    <button 
+                                                        className="btn btn-secondary btn-sm"
+                                                        style={{ marginLeft: 'auto' }}
+                                                        onClick={() => setTempRank('')}
+                                                    >
+                                                        Clear
+                                                    </button>
+                                                </div>
                                             </div>
                                         ) : (
                                             <span 
                                                 className="detail-rank" 
-                                                style={{ cursor: (isAdmin || (user && resource.addedBy === user.uid)) ? 'pointer' : 'default', padding: '0 var(--space-2)', borderRadius: 'var(--radius-sm)' }}
+                                                style={{ cursor: (isAdmin || (user && r.addedBy === user.uid)) ? 'pointer' : 'default', padding: '0 var(--space-2)', borderRadius: 'var(--radius-sm)' }}
                                                 onClick={() => {
-                                                    if (isAdmin || (user && resource.addedBy === user.uid)) {
+                                                    if (isAdmin || (user && r.addedBy === user.uid)) {
                                                         setIsEditingRank(true);
-                                                        setTempRank(resource.rank ? resource.rank.toString() : '');
+                                                        setTempRank(r.rank ? r.rank.toString() : '');
                                                     }
                                                 }}
-                                                title={(isAdmin || (user && resource.addedBy === user.uid)) ? "Click to set priority rank" : ""}
+                                                title={(isAdmin || (user && r.addedBy === user.uid)) ? "Click to set priority rank" : ""}
                                             >
-                                                {(isAdmin || (user && resource.addedBy === user.uid)) && !resource.rank ? 'Set Priority' : `Rank #${resource.rank}`}
+                                                {(isAdmin || (user && r.addedBy === user.uid)) && !r.rank ? 'Set Ranking' : `Rank #${r.rank}`}
                                             </span>
                                         )}
                                     </h1>
                                 )}
                                 
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-4)' }}>
-                                    <Rating value={resource.averageRating || 0} count={resource.reviewCount || 0} />
+                                    <Rating value={r.averageRating || 0} count={r.reviewCount || 0} />
                                 </div>
 
-                                <div className="detail-actions">
+                                <div className="flex flex-wrap items-center gap-3 mt-6 pt-6 border-t border-white/10">
                                     <button
                                         className="btn btn-secondary"
                                         onClick={() => setIsNoteModalOpen(true)}
@@ -825,9 +945,9 @@ export default function ResourceDetailPage() {
                                         {noteContent ? '📝 Edit Note' : '➕ Add Note'}
                                     </button>
 
-                                    {(isAdmin || (user && resource.addedBy === user.uid)) && (
+                                    {(isAdmin || (user && r.addedBy === user.uid)) && (
                                         <>
-                                            <Link href={`/resources/${resource.id}/edit`} className="btn btn-secondary" id="edit-resource-top">
+                                            <Link href={`/resources/${r.id}/edit`} className="btn btn-secondary" id="edit-resource-top">
                                                 ✏️ Edit
                                             </Link>
                                             <button
@@ -872,35 +992,38 @@ export default function ResourceDetailPage() {
                                 </div>
                             </div>
 
-                             <div className="detail-section">
-                                <h3 className="detail-section-title">Technical Description</h3>
-                                <div className="detail-description">
-                                    {resource.description}
+                             <div className="bg-[#12121e]/50 border border-white/5 rounded-3xl p-6 md:p-8 mb-8 hover:bg-[#12121e]/70 transition-colors">
+                                <div className="flex items-center gap-3 mb-6">
+                                    <div className="w-8 h-8 rounded-xl bg-indigo-500/10 flex items-center justify-center text-indigo-400">📄</div>
+                                    <h3 className="text-sm font-black uppercase tracking-[0.2em] text-white/50">Technical Description</h3>
+                                </div>
+                                <div className="text-white/70 leading-loose text-sm">
+                                    {r.description}
                                 </div>
                             </div>
 
                             {/* Recommended Nanobanana Prompt (Editable in-place) */}
-                            {(resource.prompts && resource.prompts.length > 0 || isAdmin || (user && resource.addedBy === user.uid)) && (
+                            {(r.prompts && r.prompts.length > 0 || isAdmin || (user && r.addedBy === user.uid)) && (
                                 <div className="detail-section animate-fade-in group">
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                         <h3 className="detail-section-title">🚀 Recommended Nanobanana Prompt</h3>
-                                        {(isAdmin || (user && resource.addedBy === user.uid)) && !isEditingPrompts && (
+                                        {(isAdmin || (user && r.addedBy === user.uid)) && !isEditingPrompts && (
                                             <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
                                                 <button 
                                                     className="btn btn-secondary btn-sm transition-opacity"
                                                     onClick={() => {
                                                         setIsEditingPrompts(true);
-                                                        setTempPrompts(resource.prompts?.join('\n') || '');
+                                                        setTempPrompts(r.prompts?.join('\n') || '');
                                                     }}
                                                     style={{ padding: '2px 8px', fontSize: '10px' }}
                                                 >
                                                     ✏️ Edit Prompt
                                                 </button>
-                                                {resource.prompts && resource.prompts.length > 0 && (
+                                                {r.prompts && r.prompts.length > 0 && (
                                                     <button 
                                                         className="btn btn-primary btn-sm"
                                                         onClick={() => {
-                                                            navigator.clipboard.writeText(resource.prompts?.join('\n') || '');
+                                                            navigator.clipboard.writeText(r.prompts?.join('\n') || '');
                                                             alert('Prompt copied!');
                                                         }}
                                                         style={{ padding: '2px 8px', fontSize: '10px' }}
@@ -944,13 +1067,13 @@ export default function ResourceDetailPage() {
                                             </div>
                                         ) : (
                                             <div style={{ fontSize: 'var(--text-sm)', lineHeight: '1.6', color: 'var(--accent-300)', fontFamily: 'var(--font-mono)', whiteSpace: 'pre-wrap' }}>
-                                                {resource.prompts && resource.prompts.length > 0 ? (
-                                                    resource.prompts.join('\n')
-                                                ) : (isAdmin || (user && resource.addedBy === user.uid)) ? (
+                                                {r.prompts && r.prompts.length > 0 ? (
+                                                    r.prompts.join('\n')
+                                                ) : (isAdmin || (user && r.addedBy === user.uid)) ? (
                                                     <em style={{ color: 'var(--text-muted)', cursor: 'pointer' }} onClick={() => {
                                                         setIsEditingPrompts(true);
                                                         setTempPrompts('');
-                                                    }}>Add scenario prompts for this resource...</em>
+                                                    }}>Add scenario prompts for this r...</em>
                                                 ) : null}
                                             </div>
                                         )}
@@ -958,11 +1081,11 @@ export default function ResourceDetailPage() {
                                 </div>
                             )}
 
-                            {resource.pricingDetails && (
+                            {r.pricingDetails && (
                                 <div className="detail-section">
                                     <h3 className="detail-section-title">Licensing & Cost</h3>
                                     <div className="glass-card" style={{ padding: 'var(--space-4)', fontSize: 'var(--text-sm)', borderStyle: 'dashed' }}>
-                                        {resource.pricingDetails}
+                                        {r.pricingDetails}
                                     </div>
                                 </div>
                             )}
@@ -971,12 +1094,12 @@ export default function ResourceDetailPage() {
                             <div className="detail-section animate-fade-in group">
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                     <h3 className="detail-section-title">📖 Important Notes & Instructions</h3>
-                                    {(isAdmin || (user && resource.addedBy === user.uid)) && !isEditingPublicNotes && (
+                                    {(isAdmin || (user && r.addedBy === user.uid)) && !isEditingPublicNotes && (
                                         <button 
                                             className="btn btn-secondary btn-sm transition-opacity"
                                             onClick={() => {
                                                 setIsEditingPublicNotes(true);
-                                                setTempPublicNotes(resource.notes || '');
+                                                setTempPublicNotes(r.notes || '');
                                             }}
                                             style={{ padding: '2px 8px', fontSize: '10px' }}
                                         >
@@ -1016,16 +1139,16 @@ export default function ResourceDetailPage() {
                                         </div>
                                     ) : (
                                         <div style={{ fontSize: 'var(--text-sm)', lineHeight: '1.6', color: 'var(--text-secondary)' }}>
-                                            {resource.notes ? (
+                                            {r.notes ? (
                                                 <ReactMarkdown 
                                                     remarkPlugins={[remarkGfm]}
                                                     components={{
                                                         a: ({ node, ...props }) => <a {...props} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--primary-light)', textDecoration: 'underline' }} />
                                                     }}
                                                 >
-                                                    {resource.notes}
+                                                    {r.notes}
                                                 </ReactMarkdown>
-                                            ) : (isAdmin || (user && resource.addedBy === user.uid)) ? (
+                                            ) : (isAdmin || (user && r.addedBy === user.uid)) ? (
                                                 <em style={{ color: 'var(--text-muted)', cursor: 'pointer' }} onClick={() => {
                                                     setIsEditingPublicNotes(true);
                                                     setTempPublicNotes('');
@@ -1037,7 +1160,7 @@ export default function ResourceDetailPage() {
                             </div>
 
                             {/* Internal Admin Notes (Editable in-place) */}
-                            {(isAdmin || (user && resource.addedBy === user.uid)) && (
+                            {(isAdmin || (user && r.addedBy === user.uid)) && (
                                 <div className="detail-section animate-fade-in group">
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                         <h3 className="detail-section-title">🔒 Internal Curator Notes</h3>
@@ -1046,7 +1169,7 @@ export default function ResourceDetailPage() {
                                                 className="btn btn-secondary btn-sm transition-opacity"
                                                 onClick={() => {
                                                     setIsEditingAdminNotes(true);
-                                                    setTempAdminNotes(resource.adminNotes || '');
+                                                    setTempAdminNotes(r.adminNotes || '');
                                                 }}
                                                 style={{ padding: '2px 8px', fontSize: '10px' }}
                                             >
@@ -1086,14 +1209,14 @@ export default function ResourceDetailPage() {
                                             </div>
                                         ) : (
                                             <div style={{ fontSize: 'var(--text-xs)', lineHeight: '1.6', color: 'var(--text-muted)' }}>
-                                                {resource.adminNotes ? (
+                                                {r.adminNotes ? (
                                                     <ReactMarkdown 
                                                         remarkPlugins={[remarkGfm]}
                                                         components={{
                                                             a: ({ node, ...props }) => <a {...props} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent-orange)', textDecoration: 'underline' }} />
                                                         }}
                                                     >
-                                                        {resource.adminNotes}
+                                                        {r.adminNotes}
                                                     </ReactMarkdown>
                                                 ) : (
                                                     <em style={{ cursor: 'pointer' }} onClick={() => {
@@ -1138,259 +1261,172 @@ export default function ResourceDetailPage() {
                             <CommentSection resourceId={resourceId} />
                         </div>
 
-                        <aside className="detail-sidebar">
-                            <div className="sidebar-section">
-                                <h3 className="detail-section-title">Access</h3>
-                                <a 
-                                    href={resource.url} 
-                                    target="_blank" 
-                                    rel="noopener noreferrer" 
-                                    className="resource-link-card"
-                                    style={{ marginTop: 0 }}
-                                >
-                                    <div className="resource-link-info">
-                                        <div className="resource-link-icon">
-                                            {resource.mediaFormat === 'youtube' ? '📺' : 
-                                             resource.mediaFormat === 'pdf' ? '📄' : '🌐'}
-                                        </div>
-                                        <div className="resource-link-text">
-                                            <span className="resource-link-label">Direct Entry</span>
-                                            <span className="resource-link-url">{new URL(resource.url).hostname}</span>
-                                        </div>
+                        {/* Sidebar */}
+                        <aside className="space-y-10">
+                            {/* Access Control */}
+                            <div className="glass-card p-8">
+                                <div className="flex items-center gap-3 mb-6">
+                                    <div className="w-8 h-8 rounded-lg bg-indigo-500/10 flex items-center justify-center text-indigo-400">
+                                        <Icons.external size={16} />
                                     </div>
-                                    <span style={{ color: 'var(--accent-primary)' }}>↗</span>
-                                </a>
-                                <button
-                                    className="btn btn-secondary btn-sm"
-                                    style={{ width: '100%', marginTop: 'var(--space-2)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 'var(--space-2)' }}
-                                    onClick={(e) => {
-                                        e.preventDefault();
-                                        navigator.clipboard.writeText(resource.url);
-                                        const btn = e.currentTarget;
-                                        const original = btn.textContent;
-                                        btn.textContent = '✅ Copied!';
-                                        setTimeout(() => { btn.textContent = original; }, 2000);
-                                    }}
-                                    title="Copy resource URL to clipboard"
+                                    <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-white/40">Access Protocol</h3>
+                                </div>
+                                
+                                <a 
+                                    href={r.url} 
+                                    target="_blank" 
+                                    rel="noopener noreferrer"
+                                    className="block p-4 bg-white/5 border border-white/10 rounded-2xl hover:bg-white/10 transition-all group/link mb-4"
                                 >
-                                    📋 Copy Link
+                                    <div className="flex justify-between items-center">
+                                        <div className="min-w-0">
+                                            <div className="text-white font-bold truncate">{new URL(r.url).hostname}</div>
+                                            <div className="text-[10px] text-white/30 uppercase tracking-widest mt-1">Direct Interface</div>
+                                        </div>
+                                        <Icons.external size={16} className="text-white/20 group-hover/link:text-indigo-400 group-hover/link:translate-x-0.5 group-hover/link:-translate-y-0.5 transition-all" />
+                                    </div>
+                                </a>
+
+                                <button
+                                    onClick={(e) => { e.preventDefault(); navigator.clipboard.writeText(r.url); alert('URL Copied!'); }}
+                                    className="w-full py-3 bg-black/20 border border-white/5 rounded-xl text-[10px] font-black uppercase tracking-widest text-white/40 hover:text-white transition-all"
+                                >
+                                    📋 Copy Interface URL
                                 </button>
                             </div>
 
-                            <div className="sidebar-section">
-                                <h3 className="detail-section-title">Classification</h3>
-                                <div className="detail-meta-pills" style={{ marginTop: 0 }}>
-                                    {(isAdmin || (user && resource.addedBy === user.uid)) ? (
-                                        <>
-                                            <select 
-                                                className={`badge badge-${resource.pricing}`} 
-                                                value={resource.pricing} 
-                                                onChange={(e) => handleUpdateField('pricing', e.target.value)}
-                                                style={{ appearance: 'none', cursor: 'pointer', paddingRight: '0.8rem', outline: 'none' }}
-                                                title="Update Pricing"
-                                            >
-                                                {PRICING_OPTIONS.map(opt => <option key={opt} value={opt} style={{ background: 'var(--bg-secondary)', color: 'var(--text-primary)' }}>{opt}</option>)}
-                                            </select>
-                                            <select 
-                                                className="badge badge-accent" 
-                                                value={resource.platform} 
-                                                onChange={(e) => handleUpdateField('platform', e.target.value)}
-                                                style={{ appearance: 'none', cursor: 'pointer', paddingRight: '0.8rem', outline: 'none' }}
-                                                title="Update Platform"
-                                            >
-                                                {PLATFORM_OPTIONS.map(opt => <option key={opt} value={opt} style={{ background: 'var(--bg-secondary)', color: 'var(--text-primary)' }}>{opt}</option>)}
-                                            </select>
-                                            <select 
-                                                className="badge badge-primary" 
-                                                value={resource.type} 
-                                                onChange={(e) => handleUpdateField('type', e.target.value)}
-                                                style={{ appearance: 'none', cursor: 'pointer', paddingRight: '0.8rem', outline: 'none' }}
-                                                title="Update Type"
-                                            >
-                                                {TYPE_OPTIONS.map(opt => <option key={opt} value={opt} style={{ background: 'var(--bg-secondary)', color: 'var(--text-primary)' }}>{opt}</option>)}
-                                            </select>
-                                            <select 
-                                                className="badge badge-secondary" 
-                                                value={resource.mediaFormat} 
-                                                onChange={(e) => handleUpdateField('mediaFormat', e.target.value)}
-                                                style={{ appearance: 'none', cursor: 'pointer', paddingRight: '0.8rem', outline: 'none' }}
-                                                title="Update Media Format"
-                                            >
-                                                {MEDIA_OPTIONS.map(opt => <option key={opt} value={opt} style={{ background: 'var(--bg-secondary)', color: 'var(--text-primary)' }}>{opt}</option>)}
-                                            </select>
-                                        </>
-                                    ) : (
-                                        <>
-                                            <span className={`badge badge-${resource.pricing}`}>{resource.pricing}</span>
-                                            <span className="badge badge-accent">{resource.platform}</span>
-                                            <span className="badge badge-primary">{resource.type}</span>
-                                            <span className="badge badge-secondary">{resource.mediaFormat}</span>
-                                        </>
-                                    )}
+                            {/* Classification */}
+                            <div className="glass-card p-8">
+                                <div className="flex items-center gap-3 mb-6">
+                                    <div className="w-8 h-8 rounded-lg bg-indigo-500/10 flex items-center justify-center text-indigo-400">
+                                        <Icons.rows size={16} />
+                                    </div>
+                                    <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-white/40">Classification</h3>
                                 </div>
-                                
-                                <div style={{ marginTop: 'var(--space-6)' }}>
-                                    <div style={{ fontSize: '10px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--text-muted)', marginBottom: 'var(--space-3)' }}>Categories</div>
-                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-2)' }}>
-                                        {resource.categories?.map((cat) => (
-                                            <button
-                                                key={cat}
-                                                className="category-badge-editable"
-                                                onClick={() => handleRemoveCategory(cat)}
-                                                title="Click to remove category"
-                                                disabled={!isAdmin && resource.addedBy !== user?.uid}
-                                            >
-                                                {cat}
-                                            </button>
-                                        ))}
 
-                                        {(isAdmin || (user && resource.addedBy === user.uid)) && (
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
-                                                {isCategoryInputOpen ? (
-                                                    <select
-                                                        autoFocus
-                                                        className="category-select-inline"
-                                                        onChange={(e) => handleAddCategory(e.target.value)}
-                                                        onBlur={() => setIsCategoryInputOpen(false)}
-                                                        defaultValue=""
-                                                    >
-                                                        <option value="" disabled>Add Category...</option>
-                                                        {allCategories
-                                                            .filter(c => !resource.categories?.includes(c))
-                                                            .map(c => (
-                                                                <option key={c} value={c}>{c}</option>
-                                                            ))
-                                                        }
-                                                    </select>
-                                                ) : (
-                                                    <button 
-                                                        className="tag-add-btn" 
-                                                        onClick={() => setIsCategoryInputOpen(true)}
-                                                        title="Add Category"
-                                                    >
-                                                        +
-                                                    </button>
-                                                )}
-                                            </div>
+                                <div className="space-y-6">
+                                    <div className="flex flex-wrap gap-2">
+                                        {(isAdmin || (user && r.addedBy === user.uid)) ? (
+                                            <>
+                                                <select 
+                                                    className={`px-3 py-1.5 bg-indigo-500/5 border border-indigo-500/10 rounded-lg text-[10px] font-bold text-indigo-400/80 outline-none cursor-pointer hover:bg-indigo-500/10 transition-all appearance-none`}
+                                                    value={r.pricing} 
+                                                    onChange={(e) => handleUpdateField('pricing', e.target.value)}
+                                                >
+                                                    {['free', 'paid', 'freemium', 'enterprise'].map(opt => <option key={opt} value={opt} className="bg-[#0a0a0f]">{opt.toUpperCase()}</option>)}
+                                                </select>
+                                                <select 
+                                                    className="px-3 py-1.5 bg-white/5 border border-white/10 rounded-lg text-[10px] font-bold text-white/60 outline-none cursor-pointer hover:bg-white/10 transition-all appearance-none"
+                                                    value={r.platform} 
+                                                    onChange={(e) => handleUpdateField('platform', e.target.value)}
+                                                >
+                                                    {['web', 'ios', 'android', 'macos', 'windows', 'multi'].map(opt => <option key={opt} value={opt} className="bg-[#0a0a0f]">{opt.toUpperCase()}</option>)}
+                                                </select>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <span className={`px-3 py-1.5 bg-indigo-500/5 border border-indigo-500/10 rounded-lg text-[10px] font-bold text-indigo-400/80 uppercase`}>{r.pricing}</span>
+                                                <span className="px-3 py-1.5 bg-white/5 border border-white/10 rounded-lg text-[10px] font-bold text-white/60 uppercase">{r.platform}</span>
+                                            </>
                                         )}
+                                    </div>
+
+                                    <div>
+                                        <div className="text-[9px] font-black uppercase tracking-widest text-white/20 mb-3">Topic Categories</div>
+                                        <div className="flex flex-wrap gap-2">
+                                            {r.categories?.map(cat => (
+                                                <button
+                                                    key={cat}
+                                                    onClick={() => {(isAdmin || (user && r.addedBy === user.uid)) ? handleRemoveCategory(cat) : null}}
+                                                    className={`px-3 py-1.5 bg-indigo-500/5 border border-indigo-500/10 rounded-lg text-[10px] font-bold text-indigo-400/80 transition-all ${ (isAdmin || (user && r.addedBy === user.uid)) ? 'hover:border-red-500/40 hover:text-red-400' : ''}`}
+                                                >
+                                                    {cat}
+                                                </button>
+                                            ))}
+                                            {(isAdmin || (user && r.addedBy === user.uid)) && (
+                                               <button onClick={() => setIsCategoryInputOpen(true)} className="px-3 py-1.5 bg-white/5 border border-white/10 rounded-lg text-[10px] font-bold text-white/40 hover:text-white">+</button>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <div className="text-[9px] font-black uppercase tracking-widest text-white/20 mb-3">Community Tags</div>
+                                        <div className="flex flex-wrap gap-2">
+                                            {r.tags?.map(tag => (
+                                                <button 
+                                                    key={tag} 
+                                                    onClick={() => {(isAdmin || (user && r.addedBy === user.uid)) ? handleRemoveTag(tag) : null}}
+                                                    className={`text-[10px] font-bold text-white/30 italic hover:text-indigo-400 transition-colors`}
+                                                >
+                                                    #{tag}
+                                                </button>
+                                            ))}
+                                            {(isAdmin || (user && r.addedBy === user.uid)) && (
+                                                <button onClick={() => setIsTagInputOpen(true)} className="w-6 h-6 rounded bg-white/5 flex items-center justify-center text-white/20 hover:text-white transition-all">+</button>
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
                             </div>
 
-                            {resource.attributions && resource.attributions.length > 0 && (
-                                <div className="sidebar-section">
-                                    <h3 className="detail-section-title">Attribution</h3>
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
-                                        {deduplicateAttributions(resource.attributions || []).map((c) => {
-                                            const isGeneric = isGenericYouTubeName(c.name) && resource.url && isYouTubeUrl(resource.url);
-                                            const name = isGeneric ? 'YouTube' : c.name;
-                                            return { ...c, name };
-                                        }).map((attribution, idx) => {
-                                            const internalLink = attribution.userId ? `/creators/${attribution.userId}` : null;
-                                            
-                                            return (
-                                                <div 
-                                                    key={idx}
-                                                    className="attribution-card group/attr"
-                                                    style={{ padding: 'var(--space-3)', fontSize: 'var(--text-xs)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--bg-elevated)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)' }}
-                                                >
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', flexGrow: 1, minWidth: 0 }}>
-                                                        <div className="attribution-avatar" style={{ width: '32px', height: '32px', fontSize: '1rem', flexShrink: 0 }}>👤</div>
-                                                        <div style={{ minWidth: 0 }}>
-                                                            {internalLink ? (
-                                                                <Link 
-                                                                    href={internalLink}
-                                                                    className="font-bold text-white hover:text-indigo-400 transition-colors truncate block"
-                                                                    title={`View ${attribution.name}'s profile`}
-                                                                >
-                                                                    {attribution.name}
-                                                                </Link>
-                                                            ) : (
-                                                                <div className="font-bold text-white/90 truncate">{attribution.name}</div>
-                                                            )}
-                                                            <div className="text-[10px] text-white/40 uppercase tracking-wider">
-                                                                {attribution.role || 'Contributor'}
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                    
-                                                    <div className="flex gap-2">
-                                                        {attribution.url && (
-                                                            <a 
-                                                                href={attribution.url}
-                                                                target="_blank"
-                                                                rel="noopener noreferrer"
-                                                                className="w-8 h-8 flex items-center justify-center rounded-lg bg-white/5 text-white/30 hover:text-white hover:bg-white/10 transition-all"
-                                                                title="External Source"
-                                                            >
-                                                                <Icons.external size={14} />
-                                                            </a>
-                                                        )}
-                                                        {internalLink && (
-                                                            <Link 
-                                                                href={internalLink}
-                                                                className="w-8 h-8 flex items-center justify-center rounded-lg bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500 hover:text-white transition-all opacity-0 group-hover/attr:opacity-100"
-                                                                title="View Registry Profile"
-                                                            >
-                                                                <Icons.user size={14} />
-                                                            </Link>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            );
-                                        })}
+                            {/* Management Protocol (Curator Only) */}
+                            {(isAdmin || (user && r.addedBy === user.uid)) && (
+                                <div className="glass-card p-8 border-indigo-500/20 bg-indigo-500/5">
+                                    <div className="flex items-center gap-3 mb-6">
+                                        <div className="w-8 h-8 rounded-lg bg-indigo-500/20 flex items-center justify-center text-indigo-400">
+                                            <Icons.settings size={16} />
+                                        </div>
+                                        <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-indigo-400">Curation Workbench</h3>
+                                    </div>
+                                    <div className="space-y-3">
+                                        <Link href={`/resources/${r.id}/edit`} className="flex items-center justify-between p-4 bg-white/5 border border-white/10 rounded-2xl hover:bg-white/10 transition-all group/edit">
+                                            <span className="text-[10px] font-black uppercase tracking-widest text-white/60 group-hover/edit:text-white">Hard Refactor</span>
+                                            <Icons.edit size={14} className="text-white/20 group-hover/edit:text-indigo-400" />
+                                        </Link>
+                                        <button 
+                                            onClick={handleDelete}
+                                            disabled={deleting}
+                                            className="w-full flex items-center justify-between p-4 bg-red-500/5 border border-red-500/10 rounded-2xl hover:bg-red-500/10 transition-all group/del"
+                                        >
+                                            <span className="text-[10px] font-black uppercase tracking-widest text-red-400/60 group-hover/del:text-red-400">{deleting ? 'Terminating...' : 'Decommission Asset'}</span>
+                                            <Icons.delete size={14} className="text-red-400/20 group-hover/del:text-red-400" />
+                                        </button>
                                     </div>
                                 </div>
                             )}
 
-                            <div className="sidebar-section">
-                                <h3 className="detail-section-title">Tags</h3>
-                                <div className="inline-tag-editor">
-                                    {resource.tags?.map((tag) => (
-                                        <button 
-                                            key={tag} 
-                                            className="tag-badge-editable"
-                                            onClick={() => handleRemoveTag(tag)}
-                                            title="Click to remove tag"
-                                            disabled={!isAdmin && resource.addedBy !== user?.uid}
-                                        >
-                                            #{tag}
-                                        </button>
-                                    ))}
-                                    
-                                    {(isAdmin || (user && resource.addedBy === user.uid)) && (
-                                        <>
-                                            {isTagInputOpen ? (
-                                                <input
-                                                    autoFocus
-                                                    className="tag-input-inline"
-                                                    value={newTag}
-                                                    onChange={(e) => setNewTag(e.target.value)}
-                                                    onKeyDown={(e) => {
-                                                        if (e.key === 'Enter') handleAddTag();
-                                                        if (e.key === 'Escape') setIsTagInputOpen(false);
-                                                    }}
-                                                    onBlur={() => {
-                                                        if (!newTag.trim()) setIsTagInputOpen(false);
-                                                    }}
-                                                    placeholder="Add tag..."
-                                                />
-                                            ) : (
-                                                <button 
-                                                    className="tag-add-btn" 
-                                                    onClick={() => setIsTagInputOpen(true)}
-                                                    title="Add new tag"
-                                                >
-                                                    +
-                                                </button>
+                            {/* Attribution Stats */}
+                            <div className="glass-card p-8">
+                                <div className="flex items-center gap-3 mb-6">
+                                    <div className="w-8 h-8 rounded-lg bg-indigo-500/10 flex items-center justify-center text-indigo-400">
+                                        <Icons.user size={16} />
+                                    </div>
+                                    <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-white/40">Intelligence Origin</h3>
+                                </div>
+                                <div className="space-y-3">
+                                    {deduplicateAttributions(r.attributions || []).map((attr, idx) => (
+                                        <div key={idx} className="flex items-center justify-between p-3 bg-white/5 border border-white/5 rounded-xl">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-8 h-8 rounded-lg bg-indigo-500 text-white flex items-center justify-center font-black text-xs">
+                                                    {attr.name.charAt(0)}
+                                                </div>
+                                                <div className="min-w-0">
+                                                    <div className="text-xs font-bold text-white truncate">{attr.name}</div>
+                                                    <div className="text-[8px] font-black uppercase text-white/20">{attr.role || 'Contributor'}</div>
+                                                </div>
+                                            </div>
+                                            {attr.userId && (
+                                                <Link href={`/creators/${attr.userId}`} className="p-2 text-white/20 hover:text-indigo-400 transition-all">
+                                                    <Icons.arrowRight size={14} />
+                                                </Link>
                                             )}
-                                        </>
-                                    )}
+                                        </div>
+                                    ))}
                                 </div>
                             </div>
                         </aside>
                     </div>
-                </div>
+                </main>
             </div>
             {/* Note Editor Modal */}
             <Modal
@@ -1403,7 +1439,7 @@ export default function ResourceDetailPage() {
                         setNoteMessage({ type: '', text: '' });
                     }
                 }}
-                title={`Notes for ${resource.title}`}
+                title={`Notes for ${r.title}`}
                 maxWidth="800px"
                 footer={
                     <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center' }}>
@@ -1671,6 +1707,6 @@ export default function ResourceDetailPage() {
             />
 
             <Footer />
-        </div >
+        </div>
     );
 }

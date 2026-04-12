@@ -411,54 +411,79 @@ export default function ResourcesClient({
     };
 
     return (
-        <div className="page-wrapper dashboard-theme">
+        <div className="page-wrapper dashboard-theme min-h-screen bg-[#0a0a0f] text-white selection:bg-indigo-500/30">
             <Navbar />
 
-            <div className="main-content">
-                <div className="container">
-                    {/* Premium Header - Sync'd with Taxonomy Registry */}
-                    <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 mb-12" id="listing-action-hub">
-                        <div className="hero-section text-left">
-                            {searchParams.get('suggested') === 'true' && (
-                                <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 mb-6 py-3 px-4 rounded-xl text-xs font-black uppercase tracking-widest shadow-[0_0_20px_rgba(16,185,129,0.1)]">
-                                    ✨ Contribution received! Under review.
-                                </div>
-                            )}
-                            <div className="flex items-center gap-3 mb-4">
-                                <div className="p-3 bg-indigo-500/10 rounded-2xl border border-indigo-500/20">
-                                    <Icons.database className="w-8 h-8 text-indigo-400" />
-                                </div>
-                                <h1 className="text-4xl md:text-7xl font-black tracking-[-0.05em] bg-gradient-to-br from-white via-white/90 to-white/30 bg-clip-text text-transparent leading-[0.9]">
-                                    Master <span className="text-indigo-400">Library</span>
-                                </h1>
-                            </div>
-                            <p className="text-white/40 max-w-xl text-lg font-medium leading-relaxed">
-                                Explore <span className="text-indigo-400 font-bold">{totalResources}</span> curated architectural prompts and structural assets.
-                                Refine your workspace using the workbench controls below.
-                            </p>
-                        </div>
+            {/* ── CINEMATIC HERO COVER ── */}
+            <div className="relative w-full h-auto overflow-hidden flex flex-col">
+                {/* Background Layer (Blurred Telemetry) */}
+                <div className="absolute inset-0 z-0">
+                    <div className="w-full h-full bg-[#0a0a0f]">
+                        <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/10 via-transparent to-purple-500/10 opacity-50" />
+                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[400px] bg-indigo-500/10 rounded-full blur-[120px] pb-32" />
+                    </div>
+                </div>
 
-                        <div className="flex gap-3">
+                <div className="container relative z-10 flex flex-col gap-8 pt-8 pb-32">
+                    {/* Header Pathing */}
+                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                        <div className="flex items-center gap-4">
+                            <div className="p-3 bg-white/5 border border-white/10 rounded-2xl">
+                                <Icons.database size={20} className="text-indigo-400" />
+                            </div>
+                            <div className="flex flex-col">
+                                <div className="text-[10px] font-black text-white/20 uppercase tracking-[0.3em] mb-1">
+                                    Registry Intelligence / Discovery
+                                </div>
+                                <div className="flex items-center gap-2 text-xs font-bold text-white/60">
+                                    <span className="text-white uppercase">Master Library</span>
+                                    <span className="opacity-20">/</span>
+                                    <span className="text-indigo-400/60 font-black">All Resources</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div className="flex items-center gap-3">
                             {isAdmin && (
                                 <button 
-                                    className="px-6 py-3.5 bg-white/5 border border-white/10 hover:bg-white/10 text-white rounded-2xl text-[11px] font-black uppercase tracking-widest flex items-center gap-2 transition-all"
-                                    onClick={() => setDedupOpen(true)} 
+                                    className="px-6 py-2.5 bg-white/5 border border-white/10 rounded-xl text-[10px] font-black uppercase tracking-widest text-white/40 hover:text-white transition-all flex items-center gap-2"
+                                    onClick={() => setDedupOpen(true)}
                                 >
-                                    <Icons.search size={14} />
-                                    Check Duplicates
+                                    <Icons.search size={14} /> Duplicate Audit
                                 </button>
                             )}
-                            {user && (
-                                <Link 
-                                    href="/resources/new" 
-                                    className="px-8 py-3.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl text-[11px] font-black uppercase tracking-widest flex items-center gap-2 transition-all shadow-lg shadow-indigo-600/20"
-                                >
-                                    <Icons.plus size={16} />
-                                    Add Resource
-                                </Link>
-                            )}
+                            <div className="h-6 w-px bg-white/10 mx-2" />
+                            <Link href="/resources/new" className="px-6 py-2.5 bg-indigo-600 border border-indigo-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 shadow-lg shadow-indigo-600/20 active:scale-95">
+                                <Icons.plus size={14} /> Add Resource
+                            </Link>
                         </div>
                     </div>
+
+                    {/* Identity Glass Card (Section Overview) */}
+                    <div className="glass-card p-10 shadow-2xl relative overflow-hidden group">
+                        <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-indigo-500/5 rounded-full blur-[100px] -mr-48 -mt-48 group-hover:bg-indigo-500/10 transition-all duration-1000" />
+                        
+                        <div className="relative z-10">
+                            {searchParams.get('suggested') === 'true' && (
+                                <div className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-xl text-[10px] font-black uppercase tracking-widest mb-8">
+                                    <Icons.sparkles size={12} /> Sync Success: Contribution Pending Review
+                                </div>
+                            )}
+
+                            <h1 className="text-4xl md:text-6xl font-black tracking-tighter text-white mb-6 leading-none flex items-center gap-4">
+                                <Icons.database size={48} className="text-indigo-400" />
+                                <span>Master <span className="text-indigo-400">Library</span></span>
+                            </h1>
+
+                            <p className="text-white/40 max-w-2xl text-lg font-medium leading-relaxed mb-6">
+                                Explore <span className="text-indigo-400 font-bold">{totalResources}</span> curated architectural prompts and structural assets within the master registry. Refine your workspace using the unified workbench controls.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <main className="container mx-auto px-4 -mt-20 mb-12 relative z-30">
 
                     {/* Integrated Control Belt (Search + Filters + View Modes) */}
                     <div className="sticky top-[72px] z-[40] -mx-4 px-4 pt-4 pb-[5px] bg-[#0a0a0f]/80 backdrop-blur-xl border-b border-white/5 shadow-[0_10px_30px_rgba(0,0,0,0.3)] mb-[5px]">
@@ -500,6 +525,14 @@ export default function ResourcesClient({
                                         >
                                             <Icons.close size={12} /> <span className="font-black uppercase tracking-widest">Clear Filters</span>
                                         </button>
+                                    )}
+                                    {user && (
+                                        <Link 
+                                            href="/resources/new" 
+                                            className="h-10 px-6 bg-indigo-600 border border-indigo-500 hover:bg-indigo-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 shadow-lg shadow-indigo-600/20 active:scale-95"
+                                        >
+                                            <Icons.plus size={14} /> Add Resource
+                                        </Link>
                                     )}
                                     
                                     <div className="h-6 w-px bg-white/5"></div>
@@ -708,34 +741,33 @@ export default function ResourcesClient({
                             </div>
                         </div>
                     )}
-                </div>
+                </main>
+
+                <Footer />
+
+                {/* Dedup Modal */}
+                <DedupModal isOpen={dedupOpen} onClose={() => setDedupOpen(false)} />
+
+                {/* Mobile FAB */}
+                {user && (
+                    <Link 
+                        href="/resources/new" 
+                        className="md:hidden fixed bottom-6 right-6 w-14 h-14 bg-primary rounded-full flex items-center justify-center shadow-2xl z-40 border border-white/20"
+                        id="mobile-add-fab"
+                    >
+                        <span className="text-2xl text-white">➕</span>
+                    </Link>
+                )}
+
+                <ConfirmationModal
+                    isOpen={confirmModal.isOpen}
+                    onClose={closeConfirmModal}
+                    onConfirm={confirmModal.onConfirm}
+                    title={confirmModal.title}
+                    message={confirmModal.message}
+                    confirmText={confirmModal.confirmText}
+                    isDanger={confirmModal.isDanger}
+                />
             </div>
-
-            <Footer />
-
-            {/* Dedup Modal */}
-            <DedupModal isOpen={dedupOpen} onClose={() => setDedupOpen(false)} />
-
-            {/* Mobile FAB */}
-            {user && (
-                <Link 
-                    href="/resources/new" 
-                    className="md:hidden fixed bottom-6 right-6 w-14 h-14 bg-primary rounded-full flex items-center justify-center shadow-2xl z-40 border border-white/20"
-                    id="mobile-add-fab"
-                >
-                    <span className="text-2xl text-white">➕</span>
-                </Link>
-            )}
-
-            <ConfirmationModal
-                isOpen={confirmModal.isOpen}
-                onClose={closeConfirmModal}
-                onConfirm={confirmModal.onConfirm}
-                title={confirmModal.title}
-                message={confirmModal.message}
-                confirmText={confirmModal.confirmText}
-                isDanger={confirmModal.isDanger}
-            />
-        </div>
     );
 }

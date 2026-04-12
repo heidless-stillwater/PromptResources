@@ -597,40 +597,34 @@ export default function NewResourcePage() {
             <Navbar />
             <div className="main-content">
                 <div className="container" style={{ maxWidth: '900px' }}>
-                    {/* Breadcrumb & Top Nav */}
-                    <div style={{ marginBottom: 'var(--space-4)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', fontSize: 'var(--text-sm)', color: 'var(--text-muted)' }}>
-                            <Link href="/resources" style={{ color: 'var(--text-muted)', textDecoration: 'none' }}>
-                                ← Resources
-                            </Link>
-                            <span>/</span>
-                            <span style={{ color: 'var(--text-secondary)' }}>
-                                {isAdmin ? 'Add New Resource' : 'Suggest a Resource'}
-                            </span>
+                    {/* ── CINEMATIC HEADER ── */}
+                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-12">
+                        <div className="flex items-center gap-4">
+                            <div className="flex flex-col">
+                                <div className="text-[10px] font-black text-white/20 uppercase tracking-[0.3em] mb-1">
+                                    Registry Intelligence / Action Hub
+                                </div>
+                                <h1 className="text-4xl md:text-6xl font-black tracking-tighter text-white leading-none">
+                                    {isAdmin ? 'Add New' : 'Suggest'} <span className="text-indigo-400">Resource</span>
+                                </h1>
+                            </div>
                         </div>
-                        <div style={{ display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap' }}>
+
+                        <div className="flex items-center gap-3">
                             {isAdmin && (
-                                <Link href="/admin" className="btn btn-secondary btn-sm" id="back-to-admin">
-                                    ⚙️ Admin
+                                <Link 
+                                    href="/admin" 
+                                    className="px-5 py-2.5 bg-white/5 border border-white/10 rounded-xl text-[10px] font-black uppercase tracking-widest text-white/40 hover:text-white hover:bg-white/10 transition-all flex items-center gap-2"
+                                >
+                                    <Icons.settings size={14} /> Admin Hub
                                 </Link>
                             )}
-                            <Link href="/resources" className="btn btn-primary btn-sm" id="back-to-resources">
-                                📚 Resources
+                            <Link 
+                                href="/resources" 
+                                className="px-5 py-2.5 bg-indigo-600/10 border border-indigo-500/20 rounded-xl text-[10px] font-black uppercase tracking-widest text-indigo-400 hover:bg-indigo-500/20 transition-all flex items-center gap-2"
+                            >
+                                <Icons.database size={14} /> Global Resources
                             </Link>
-                        </div>
-                    </div>
-
-                    <div className="admin-header" style={{ marginBottom: 'var(--space-8)' }}>
-                        <div className="admin-title-group">
-                            <h1 className="admin-title">
-                                {isAdmin ? '➕ Add New Resource' : '💡 Suggest a Resource'}
-                            </h1>
-                            <p className="admin-subtitle">
-                                {isAdmin 
-                                    ? 'Fill in the details below to add a new resource to the collection.' 
-                                    : 'Share a valuable tool, article, or video with the community.'
-                                }
-                            </p>
                         </div>
                     </div>
 

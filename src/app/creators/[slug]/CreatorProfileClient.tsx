@@ -59,7 +59,7 @@ export default function CreatorProfileClient({ creator, initialResources, stats 
     const [currentBanner, setCurrentBanner] = useState(creator.bannerUrl);
     const [isAuthorized, setIsAuthorized] = useState(false);
     const [isUpdating, setIsUpdating] = useState(false);
-    const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+    const [viewMode, setViewMode] = useState<'grid' | 'list' | 'small'>('grid');
 
     const badge = profileTypeBadge(creator.profileType);
 
@@ -153,185 +153,153 @@ export default function CreatorProfileClient({ creator, initialResources, stats 
         .slice(0, 2);
 
     return (
-        <div className="min-h-screen bg-[#0a0a0f] text-white selection:bg-indigo-500/30">
+        <div className="page-wrapper dashboard-theme min-h-screen bg-[#0a0a0f] text-white">
             <Navbar />
             
-            <main className="container mx-auto px-4 py-12">
-                {/* ── CINEMATIC HERO SECTION ── */}
-                <section 
-                    className="relative rounded-[2.5rem] overflow-hidden mb-12 animate-fade-in group shadow-2xl border border-white/5"
-                    style={{
-                        backgroundImage: currentBanner
-                            ? `linear-gradient(to bottom, rgba(10, 10, 15, 0.2), rgba(10, 10, 15, 0.95)), url(${currentBanner})`
-                            : 'none',
-                        backgroundSize: 'cover',
-                        backgroundPosition: 'center',
-                        minHeight: '480px'
-                    }}
-                >
-                    {!currentBanner && (
-                        <div className="absolute inset-0 bg-gradient-to-br from-indigo-950/40 via-black/80 to-black pointer-events-none" />
+            {/* ── CINEMATIC HERO COVER ── */}
+            <div className="relative w-full h-auto overflow-hidden flex flex-col">
+                {/* Background Layer (Blurred Telemetry) */}
+                <div className="absolute inset-0 z-0">
+                    {currentBanner ? (
+                        <div className="relative w-full h-full">
+                            <img 
+                                src={currentBanner} 
+                                alt="" 
+                                className="w-full h-full object-cover scale-110 blur-3xl opacity-20" 
+                            />
+                            <div className="absolute inset-0 bg-gradient-to-b from-[#0a0a0f]/40 via-[#0a0a0f]/80 to-[#0a0a0f]" />
+                        </div>
+                    ) : (
+                        <div className="absolute inset-0 bg-gradient-to-br from-indigo-900/10 via-[#0a0a0f] to-[#0a0a0f]" />
                     )}
+                </div>
 
-                    {/* Ambient Glows */}
-                    <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-indigo-600/10 blur-[120px] rounded-full -translate-y-1/2 translate-x-1/2 pointer-events-none" />
-                    <div className="absolute bottom-0 left-0 w-[300px] h-[300px] bg-purple-600/10 blur-[100px] rounded-full translate-y-1/2 -translate-x-1/2 pointer-events-none" />
+                <div className="container relative z-10 flex flex-col gap-8 pt-8 pb-32">
+                    {/* Header Pathing */}
+                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-12">
+                        <div className="flex items-center gap-4">
+                            <Link href="/creators" className="p-3 bg-white/5 border border-white/10 rounded-2xl hover:bg-indigo-500/20 hover:border-indigo-500/30 transition-all group">
+                                <Icons.arrowLeft size={20} className="text-white/40 group-hover:text-indigo-400 group-hover:-translate-x-1 transition-all" />
+                            </Link>
+                            <div className="flex flex-col">
+                                <div className="text-[10px] font-black text-white/20 uppercase tracking-[0.3em] mb-1">
+                                    Registry Intelligence / Creators
+                                </div>
+                                <div className="flex items-center gap-2 text-xs font-bold text-white/60">
+                                    <span className="text-indigo-400/60 uppercase">Identity Profile</span>
+                                    <span className="opacity-20">/</span>
+                                    <span className="truncate max-w-[200px]">{creator.displayName}</span>
+                                </div>
+                            </div>
+                        </div>
 
-                    {isAuthorized && (
-                        <button 
-                            className="absolute top-8 right-8 z-30 flex items-center gap-2 px-5 py-2.5 bg-white/5 backdrop-blur-2xl rounded-2xl text-xs font-bold border border-white/10 hover:bg-white/10 hover:border-white/20 transition-all opacity-0 group-hover:opacity-100 shadow-2xl"
-                            onClick={() => setIsEditingHeader(true)}
-                            disabled={isUpdating}
-                        >
-                            <Icons.image size={14} className="text-indigo-400" />
-                            {isUpdating ? 'Updating...' : 'Elevate Cover'}
-                        </button>
-                    )}
-
-                    {/* Floating Profile Utilities */}
-                    <div className="absolute top-8 left-8 z-30 flex gap-3">
-                        {[
-                            { icon: <Icons.share size={18} />, action: handleSocialShare, color: 'hover:text-indigo-400', label: 'Share' },
-                            { icon: <Icons.copy size={18} />, action: handleCopyLink, color: 'hover:text-blue-400', label: 'Copy' },
-                            { icon: <Icons.download size={18} />, action: handleExport, color: 'hover:text-emerald-400', label: 'JSON' }
-                        ].map((tool, i) => (
+                        <div className="flex items-center gap-3">
                             <button 
-                                key={i}
-                                onClick={tool.action}
-                                className={`w-12 h-12 bg-white/5 backdrop-blur-2xl border border-white/10 rounded-2xl flex items-center justify-center text-white/60 transition-all hover:bg-white/10 hover:border-white/20 active:scale-95 shadow-2xl ${tool.color} group/tool`}
-                                title={tool.label}
+                                onClick={handleSocialShare}
+                                className="px-6 py-2.5 bg-white/5 border border-white/10 rounded-xl text-[10px] font-black uppercase tracking-widest text-white/40 hover:text-white transition-all flex items-center gap-2"
                             >
-                                <div className="group-hover/tool:scale-110 transition-transform">{tool.icon}</div>
+                                <Icons.share size={18} /> Share Profile
                             </button>
-                        ))}
+                            <div className="h-6 w-px bg-white/10 mx-2" />
+                            <Link href="/creators" className="px-6 py-2.5 bg-indigo-600 border border-indigo-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 shadow-lg shadow-indigo-600/20">
+                                <Icons.users size={18} /> Community Registry
+                            </Link>
+                        </div>
                     </div>
 
-                    <div className="absolute inset-x-0 bottom-0 p-8 md:p-16 bg-gradient-to-t from-[#0a0a0f] via-[#0a0a0f]/60 to-transparent">
-                        <div className="flex flex-col md:flex-row items-center md:items-end gap-8 md:gap-14">
-                            
-                            {/* Pioneer Identity Container */}
-                            <div className="relative group/avatar">
-                                <div className="w-32 h-32 md:w-48 md:h-48 rounded-[3rem] p-[2px] bg-gradient-to-br from-white/40 via-white/5 to-transparent backdrop-blur-3xl shadow-[0_0_50px_-12px_rgba(0,0,0,0.5)] overflow-hidden transform group-hover/avatar:scale-[1.02] transition-all duration-500">
-                                    <div className="w-full h-full rounded-[2.9rem] overflow-hidden bg-[#12121e]">
+                    {/* Identity Glass Card */}
+                    <div className="glass-card p-8 shadow-2xl relative overflow-hidden group">
+                        <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-indigo-500/5 rounded-full blur-[100px] -mr-48 -mt-48 group-hover:bg-indigo-500/10 transition-all duration-1000" />
+                        
+                        <div className="relative z-10 flex flex-col md:flex-row gap-10">
+                            {/* Visual Identity (Avatar) */}
+                            <div className="relative flex-shrink-0">
+                                <div className="w-32 h-32 md:w-48 md:h-48 rounded-[2.5rem] p-[2px] bg-gradient-to-br from-white/40 via-white/5 to-transparent backdrop-blur-3xl shadow-2xl overflow-hidden hover:scale-105 transition-transform duration-500">
+                                    <div className="w-full h-full rounded-[2.4rem] overflow-hidden bg-[#0a0a0f]">
                                         {creator.photoURL ? (
-                                            <img 
-                                                src={creator.photoURL} 
-                                                alt={creator.displayName} 
-                                                className="w-full h-full object-cover" 
-                                            />
+                                            <img src={creator.photoURL} alt={creator.displayName} className="w-full h-full object-cover" />
                                         ) : (
-                                            <div className="w-full h-full bg-gradient-to-br from-indigo-600 via-purple-700 to-indigo-900 flex items-center justify-center text-5xl font-black text-white">
+                                            <div className="w-full h-full bg-gradient-to-br from-indigo-600 to-purple-700 flex items-center justify-center text-5xl font-black text-white">
                                                 {initials}
                                             </div>
                                         )}
                                     </div>
                                 </div>
                                 {creator.isVerified && (
-                                    <div className="absolute -bottom-2 -right-2 w-12 h-12 bg-indigo-500 rounded-3xl flex items-center justify-center border-4 border-[#0a0a0f] shadow-2xl z-10" title="Verified Community Pioneer">
-                                        <Icons.check size={22} strokeWidth={4} className="text-white" />
+                                    <div className="absolute -bottom-2 -right-2 w-12 h-12 bg-indigo-500 rounded-2xl flex items-center justify-center border-4 border-[#12121e] shadow-2xl" title="Verified Pioneer">
+                                        <Icons.check size={22} strokeWidth={4} />
                                     </div>
                                 )}
-                                <div className="absolute inset-0 rounded-[3rem] bg-indigo-500/20 blur-2xl opacity-0 group-hover/avatar:opacity-100 transition-opacity pointer-events-none" />
+                                {isAuthorized && (
+                                    <button 
+                                        onClick={() => setIsEditingHeader(true)}
+                                        className="absolute -top-2 -right-2 p-3 bg-black/60 backdrop-blur-xl border border-white/10 rounded-xl text-white/40 hover:text-indigo-400 opacity-0 group-hover:opacity-100 transition-all shadow-xl"
+                                    >
+                                        <Icons.image size={18} />
+                                    </button>
+                                )}
                             </div>
 
-                            <div className="flex-1 text-center md:text-left">
-                                <div className="flex flex-col md:flex-row items-center md:items-center gap-4 md:gap-6 mb-6">
-                                    <h1 className="text-5xl md:text-7xl font-black tracking-tighter text-white drop-shadow-2xl">
-                                        {creator.displayName}
-                                    </h1>
-                                    <div className={`px-5 py-2 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] border shadow-2xl backdrop-blur-2xl ${badge.bgColor} ${badge.textColor} ${badge.borderColor} self-center`}>
+                            {/* Textual Identity */}
+                            <div className="flex-1 flex flex-col py-2">
+                                <div className="flex items-center gap-3 mb-4">
+                                    <span className="px-3 py-1 bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 rounded-lg text-[9px] font-black uppercase tracking-widest">
                                         {badge.label}
-                                    </div>
+                                    </span>
+                                    <span className="text-white/20 text-[9px] font-black uppercase tracking-[0.2em]">Pioneer ID: {creator.uid.slice(0, 8)}</span>
                                 </div>
-                                
+
+                                <h1 className="text-4xl md:text-6xl font-black tracking-tighter text-white mb-4 leading-none">
+                                    {creator.displayName}
+                                </h1>
+
                                 {creator.bio && (
-                                    <p className="text-xl text-white/60 max-w-3xl leading-relaxed font-medium mb-8">
+                                    <p className="text-white/50 max-w-2xl text-base font-medium leading-relaxed mb-4">
                                         {creator.bio}
                                     </p>
                                 )}
 
-                                {/* Premium Social Links */}
-                                {creator.socials && creator.socials.length > 0 && (
-                                    <div className="flex flex-wrap justify-center md:justify-start gap-3">
-                                        {creator.socials.map((s, i) => (
-                                            <a
-                                                key={i}
-                                                href={s.url}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                className="flex items-center gap-3 px-6 py-3 bg-white/5 hover:bg-white/10 backdrop-blur-3xl rounded-2xl border border-white/10 hover:border-white/20 transition-all text-sm font-bold text-white shadow-xl group/social active:scale-95"
-                                            >
-                                                <span className="text-indigo-400 group-hover/social:scale-110 transition-transform">
-                                                    {socialIcon(s.platform)}
-                                                </span>
-                                                <span className="capitalize opacity-80">{s.label || s.platform}</span>
-                                            </a>
-                                        ))}
-                                    </div>
-                                )}
+                                <div className="mt-auto flex flex-wrap gap-4">
+                                    {creator.socials?.map((s, i) => (
+                                        <a
+                                            key={i}
+                                            href={s.url}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="px-5 py-2.5 bg-white/5 border border-white/10 rounded-2xl hover:bg-white/10 hover:border-white/20 transition-all flex items-center gap-3 text-xs font-bold text-white/60 hover:text-white"
+                                        >
+                                            <span className="text-indigo-400">{socialIcon(s.platform)}</span>
+                                            <span className="capitalize tracking-tight">{s.label || s.platform}</span>
+                                        </a>
+                                    ))}
+                                    
+                                    {isAuthorized && (
+                                        <Link href="/dashboard/settings" className="p-2.5 bg-white/5 border border-white/10 rounded-2xl hover:bg-indigo-500/20 hover:border-indigo-500/30 transition-all text-white/40 hover:text-indigo-400">
+                                            <Icons.settings size={20} />
+                                        </Link>
+                                    )}
+                                </div>
                             </div>
                         </div>
                     </div>
-                </section>
+                </div>
+            </div>
 
+            <main className="container mx-auto px-4 -mt-28 pb-12 relative z-30">
                 {/* ── IMPACT GRID ── */}
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 mb-16">
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
                     {[
-                        { label: 'Authored Resources', value: stats.authoredCount, icon: <Icons.wand size={22} />, color: 'from-indigo-500/20 to-indigo-900/5', iconColor: 'text-indigo-400', border: 'border-indigo-500/20' },
-                        { label: 'Curated Assets', value: stats.curatedCount, icon: <Icons.grid size={22} />, color: 'from-emerald-500/20 to-emerald-900/5', iconColor: 'text-emerald-400', border: 'border-emerald-500/20' },
-                        { label: 'Categories Mastered', value: stats.categories.length, icon: <Icons.tag size={22} />, color: 'from-amber-500/20 to-amber-900/5', iconColor: 'text-amber-400', border: 'border-amber-500/20' },
-                        { label: 'Community Rating', value: stats.averageRating > 0 ? stats.averageRating.toFixed(1) : '—', icon: <Icons.sparkles size={22} />, color: 'from-rose-500/20 to-rose-900/5', iconColor: 'text-rose-400', border: 'border-rose-500/20' }
+                        { label: 'Authored Resources', value: stats.authoredCount, icon: <Icons.wand size={20} />, color: 'from-indigo-500/10 to-indigo-500/5' },
+                        { label: 'Curated Assets', value: stats.curatedCount, icon: <Icons.grid size={20} />, color: 'from-indigo-500/10 to-indigo-500/5' },
+                        { label: 'Categories Mastered', value: stats.categories.length, icon: <Icons.tag size={20} />, color: 'from-indigo-500/10 to-indigo-500/5' },
+                        { label: 'Community Rating', value: stats.averageRating > 0 ? stats.averageRating.toFixed(1) : '—', icon: <Icons.sparkles size={20} />, color: 'from-indigo-500/10 to-indigo-500/5' }
                     ].map((stat, i) => (
-                        <div key={i} className={`relative bg-gradient-to-br ${stat.color} border ${stat.border} p-8 rounded-[2rem] flex flex-col items-center gap-3 hover:scale-[1.02] transition-all group overflow-hidden`}>
-                            <div className={`${stat.iconColor} group-hover:rotate-12 transition-all duration-500 z-10 opacity-60`}>{stat.icon}</div>
-                            <div className="text-4xl font-black text-white relative z-10 tracking-tight">{stat.value}</div>
+                        <div key={i} className={`relative bg-gradient-to-br ${stat.color} border border-white/10 p-8 rounded-[2rem] flex flex-col items-center gap-3 hover:bg-white/5 transition-all group overflow-hidden`}>
+                            <div className="text-indigo-400 group-hover:scale-110 transition-transform duration-500 z-10 opacity-60">{stat.icon}</div>
+                            <div className="text-5xl font-black text-white relative z-10 tracking-tight">{stat.value}</div>
                             <div className="text-[10px] uppercase font-black tracking-[0.25em] text-white/30 text-center z-10 leading-tight">{stat.label}</div>
-                            <div className="absolute inset-0 bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity" />
                         </div>
                     ))}
-                </div>
-
-                {/* ── SOCIALS ACTION BAR ── */}
-                <div className="flex flex-wrap items-center justify-between gap-8 p-8 mb-20 bg-white/[0.02] border border-white/10 rounded-[2.5rem] backdrop-blur-3xl shadow-2xl relative overflow-hidden group">
-                    <div className="absolute inset-0 bg-indigo-500/5 opacity-0 group-hover:opacity-100 transition-opacity" />
-                    <div className="flex items-center gap-8 relative z-10">
-                        <div className="flex gap-3">
-                            <div className="w-14 h-14 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 shadow-inner">
-                                <Icons.share size={24} />
-                            </div>
-                            <div className="w-14 h-14 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 shadow-inner">
-                                <Icons.trophy size={24} />
-                            </div>
-                        </div>
-                        <div>
-                            <h3 className="text-xl font-black text-white leading-none mb-2 tracking-tight">Social Presence</h3>
-                            <p className="text-sm text-white/40 font-medium font-inter">Distribute this profile or anchor metadata records</p>
-                        </div>
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-4 relative z-10">
-                        <button 
-                            onClick={handleSocialShare}
-                            className="flex items-center gap-3 px-8 py-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-[1.25rem] font-black transition-all active:scale-95 shadow-2xl shadow-indigo-600/30 text-sm tracking-tight"
-                        >
-                            <Icons.share size={18} />
-                            <span>Share Profile</span>
-                        </button>
-                        <button 
-                            onClick={handleCopyLink}
-                            className="flex items-center gap-3 px-8 py-4 bg-white/5 hover:bg-white/10 border border-white/10 text-white rounded-[1.25rem] font-bold transition-all active:scale-95 text-sm"
-                        >
-                            <Icons.copy size={18} />
-                            <span>Copy Link</span>
-                        </button>
-                        <button 
-                            onClick={handleExport}
-                            className="flex items-center gap-3 px-8 py-4 bg-white/5 hover:bg-white/10 border border-white/10 text-white rounded-[1.25rem] font-bold transition-all active:scale-95 text-sm"
-                        >
-                            <Icons.download size={18} />
-                            <span>Export Data</span>
-                        </button>
-                    </div>
                 </div>
 
                 {/* ── RESOURCE EXPLORER ── */}
@@ -369,6 +337,13 @@ export default function CreatorProfileClient({ creator, initialResources, stats 
                                         <Icons.grid size={16} />
                                     </button>
                                     <button 
+                                        onClick={() => setViewMode('small')}
+                                        className={`p-1.5 rounded-lg transition-all ${viewMode === 'small' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-white/30 hover:text-white/60'}`}
+                                        title="Compact View"
+                                    >
+                                        <Icons.feed size={16} />
+                                    </button>
+                                    <button 
                                         onClick={() => setViewMode('list')}
                                         className={`p-1.5 rounded-lg transition-all ${viewMode === 'list' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-white/30 hover:text-white/60'}`}
                                         title="List View"
@@ -404,7 +379,11 @@ export default function CreatorProfileClient({ creator, initialResources, stats 
                         </div>
                     ) : (
                         <>
-                            <div className={viewMode === 'grid' ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12' : 'flex flex-col gap-6 mb-12'}>
+                            <div className={
+                                viewMode === 'grid' ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12' : 
+                                viewMode === 'small' ? 'grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 mb-12' :
+                                'flex flex-col gap-6 mb-12'
+                            }>
                                 {paginatedResources.map(resource => (
                                     <ResourceCard key={resource.id} resource={resource} viewMode={viewMode} />
                                 ))}
