@@ -1,13 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { stripe } from '@/lib/stripe';
+import { getStripe } from '@/lib/stripe';
 import { adminDb, toolDbAdmin, masterDbAdmin } from '@/lib/firebase-admin';
 import Stripe from 'stripe';
-
-const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+import { getSecret } from '@/lib/config-helper';
 
 export async function POST(req: NextRequest) {
     const body = await req.text();
     const signature = req.headers.get('stripe-signature') as string;
+
+    const stripe = await getStripe();
+    const webhookSecret = await getSecret('STRIPE_WEBHOOK_SECRET');
 
     let event: Stripe.Event;
 
@@ -47,7 +49,7 @@ export async function POST(req: NextRequest) {
                     
                     const access = product.metadata.suite_access; // e.g. "resources,studio"
                     if (access) {
-                        access.split(',').map(s => s.trim()).forEach(s => activeSuites.add(s));
+                        access.split(',').map((s: string) => s.trim()).forEach((s: string) => activeSuites.add(s));
                     }
                 }
 

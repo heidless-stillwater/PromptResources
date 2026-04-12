@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { stripe } from '@/lib/stripe';
+import { getStripe } from '@/lib/stripe';
 import { getAuthUser } from '@/lib/auth-server';
 
 export async function POST(req: NextRequest) {
     try {
+        const stripe = await getStripe();
         const decodedToken = await getAuthUser(req);
         if (!decodedToken) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

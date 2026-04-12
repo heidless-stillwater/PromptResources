@@ -1,6 +1,6 @@
 import { GoogleGenAI } from "@google/genai";
 
-const client = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
+import { getSecret } from './config-helper';
 
 export interface AIParsedMetadata {
     title?: string;
@@ -15,6 +15,12 @@ export async function enrichResourceMetadata(
     url: string, 
     context: { title?: string; description?: string; existingTags?: string[] }
 ): Promise<AIParsedMetadata> {
+    const apiKey = await getSecret('GEMINI_API_KEY');
+    if (!apiKey) {
+      throw new Error("GEMINI_API_KEY not configured");
+    }
+    const client = new GoogleGenAI({ apiKey });
+    
     const model = 'gemini-2.5-flash';
     
     const systemInstruction = `

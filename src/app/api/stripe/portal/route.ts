@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { stripe } from '@/lib/stripe';
+import { getStripe } from '@/lib/stripe';
 import { adminDb } from '@/lib/firebase-admin';
 
 export async function POST(req: NextRequest) {
     try {
+        const stripe = await getStripe();
         const { uid, returnUrl } = await req.json();
 
         if (!uid) {
