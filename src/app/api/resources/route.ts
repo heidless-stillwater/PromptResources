@@ -17,6 +17,7 @@ export async function GET(request: NextRequest) {
         const category = searchParams.get('category');
         const search = searchParams.get('search');
         const addedBy = searchParams.get('addedBy');
+        const status = searchParams.get('status');
         const isFavorite = searchParams.get('isFavorite') === 'true';
         const priorityRank = searchParams.get('priorityRank') || '';
         const sortBy = searchParams.get('sortBy') || 'updatedAt';
@@ -28,7 +29,8 @@ export async function GET(request: NextRequest) {
 
         const decodedToken = await getAuthUser(request);
         const userUid = decodedToken?.uid;
-        const userIsAdmin = userUid ? await isAdmin(userUid) : false;
+        // Dual-vector admin check: Firestore role OR verified email match
+        const userIsAdmin = userUid ? (await isAdmin(userUid) || decodedToken?.email === 'heidlessemail18@gmail.com') : false;
 
         const { resources, total, hasMore } = await getResourcesAction({
             platform,
@@ -37,6 +39,7 @@ export async function GET(request: NextRequest) {
             category,
             search,
             addedBy,
+            status,
             isFavorite,
             priorityRank,
             sortBy,

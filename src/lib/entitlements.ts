@@ -1,6 +1,6 @@
-import { adminDb } from './firebase-admin';
+import { toolDbAdmin } from './firebase-admin';
 
-export type AppSuiteType = 'resources' | 'studio' | 'registry';
+export type AppSuiteType = 'resources' | 'studio' | 'prompttool' | 'registry';
 
 export interface UserEntitlement {
     uid: string;
@@ -12,8 +12,7 @@ export interface UserEntitlement {
 
 /**
  * ENTITLEMENT HELPER
- * Checks if a user has access to a specific application in the suite.
- * This function can be copied to PromptTool and PromptMaster.
+ * Checks access against the global Identity Store (database: 'prompttool-db-0').
  * 
  * @param uid User ID
  * @param app The app being accessed
@@ -21,9 +20,8 @@ export interface UserEntitlement {
  */
 export async function checkAppAccess(uid: string, app: AppSuiteType): Promise<boolean> {
     try {
-        // ALWAYS query the '(default)' database for identity
-        // This ensures consistent state even if the app uses a different DB instance locally
-        const userDoc = await adminDb.collection('users').doc(uid).get();
+        // ALWAYS query the 'prompttool-db-0' database for identity across the suite
+        const userDoc = await toolDbAdmin.collection('users').doc(uid).get();
         
         if (!userDoc.exists) return false;
         const data = userDoc.data();
@@ -31,12 +29,30 @@ export async function checkAppAccess(uid: string, app: AppSuiteType): Promise<bo
         // 1. Admins have access to everything
         if (data?.role === 'admin' || data?.role === 'su') return true;
 
-        // 2. Check suite array
-        const activeSuites = data?.subscription?.activeSuites || [];
+        // 2. Read activeSuites from unified Firestore fields
+        const subscriptionObj =
+            data?.suiteSubscription ||
+            data?.subscriptionMetadata ||
+            (typeof data?.subscription === 'object' ? data?.subscription : null);
+
+        const activeSuites: string[] = subscriptionObj?.activeSuites || [];
+
+        // Direct match
         if (activeSuites.includes(app)) return true;
 
-        // 3. Special case for 'resources' (public discovery is usually free)
+        // 3. Special case for 'resources' (public discovery is usually free for members)
         if (app === 'resources' && data?.role === 'member') return true;
+
+        // 4. studio ↔ prompttool interchangeable logic (optional here, but keeps parity)
+        if (app === 'studio' && activeSuites.includes('prompttool')) return true;
+        if (app === 'prompttool' && activeSuites.includes('studio')) return true;
+
+        // 5. Legacy SubscriptionTier fallback
+        const tier = typeof data?.subscription === 'string' ? data.subscription : null;
+        if ((app === 'studio' || app === 'prompttool' || app === 'resources') &&
+            (tier === 'pro' || tier === 'standard')) {
+            return true;
+        }
 
         return false;
     } catch (error) {

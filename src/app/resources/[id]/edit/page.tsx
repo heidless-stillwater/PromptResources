@@ -5,7 +5,7 @@ import { useRouter, useParams } from 'next/navigation';
 import Navbar from '@/components/Navbar';
 import { useAuth } from '@/contexts/AuthContext';
 import { Attribution, Platform, ResourcePricing, ResourceType, MediaFormat, ResourceStatus, Resource, UserProfile } from '@/lib/types';
-import { db } from '@/lib/firebase';
+import { db, toolDb } from '@/lib/firebase';
 import { collection, query, where, getDocs, limit } from 'firebase/firestore';
 import { suggestCategories, suggestAttributions, getDefaultCategories, suggestDescription, suggestTags } from '@/lib/suggestions';
 import { extractYouTubeId, isYouTubeUrl, fetchYouTubeMetadata, isGenericYouTubeName, deduplicateAttributions } from '@/lib/youtube';
@@ -27,7 +27,7 @@ export default function EditResourcePage() {
     const [url, setUrl] = useState('');
     const [type, setType] = useState<ResourceType>('article');
     const [mediaFormat, setMediaFormat] = useState<MediaFormat>('webpage');
-    const [platform, setPlatform] = useState<Platform>('nanobanana');
+    const [platform, setPlatform] = useState<Platform>('gemini');
     const [pricing, setPricing] = useState<ResourcePricing>('free');
     const [pricingDetails, setPricingDetails] = useState('');
     const [tags, setTags] = useState('');
@@ -360,9 +360,9 @@ export default function EditResourcePage() {
 
                 // 1. Fetch Global Public Registry
                 try {
-                    const usersSnap = await getDocs(
-                        query(collection(db, 'users'), where('isPublicProfile', '==', true))
-                    );
+                        const usersSnap = await getDocs(
+                            query(collection(toolDb, 'users'), where('isPublicProfile', '==', true))
+                        );
                     usersSnap.docs.forEach(d => {
                         const data = d.data();
                         if (data.displayName) {

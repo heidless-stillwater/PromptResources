@@ -12,7 +12,7 @@ import {
     updateProfile,
 } from 'firebase/auth';
 import { doc, getDoc, setDoc, onSnapshot, serverTimestamp } from 'firebase/firestore';
-import { auth, db } from '@/lib/firebase';
+import { auth, db, toolDb } from '@/lib/firebase';
 import { UserProfile, UserRole } from '@/lib/types';
 
 interface AuthContextType {
@@ -28,6 +28,11 @@ interface AuthContextType {
     canSwitchRoles: boolean;
     isAdmin: boolean;
     isSu: boolean;
+    isAvVerified: boolean;
+    avRequired: boolean;
+    setAvVerified: (status: boolean) => void;
+    protection: { avEnabled: boolean; avStrictness: string };
+    moderation: { flaggingEnabled: boolean; aiScreening: boolean };
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -39,9 +44,88 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [profile, setProfile] = useState<UserProfile | null>(null);
     const [loading, setLoading] = useState(true);
     const [activeRole, setActiveRole] = useState<UserRole>('member');
+    const [isAvVerified, setIsAvVerified] = useState(false);
+    const [protection, setProtection] = useState<{ avEnabled: boolean; avStrictness: string }>({ avEnabled: false, avStrictness: 'soft' });
+    const [moderation, setModeration] = useState<{ flaggingEnabled: boolean; aiScreening: boolean }>({ flaggingEnabled: false, aiScreening: false });
+
+    // ──────────────────────────────────────────────────
+    // SOVEREIGN SENTINEL: Compliance Watcher
+    // ──────────────────────────────────────────────────
+    useEffect(() => {
+        // 1. Initial Cookie Check
+        const verified = document.cookie.includes('stillwater_av_verified=true');
+        setIsAvVerified(verified);
+
+        // 2. Real-time Protection Monitor
+        const protectionRef = doc(db, 'system_config', 'protection');
+        const unsubscribeProt = onSnapshot(protectionRef, (snap) => {
+            if (snap.exists()) {
+                const data = snap.data();
+                setProtection({
+                    avEnabled: !!data.avEnabled,
+                    avStrictness: data.avStrictness || 'soft'
+                });
+            }
+        }, (err) => {
+            console.error('[AuthContext] Protection monitor denied:', err.message);
+        });
+
+        // 3. Real-time Moderation Monitor
+        const moderationRef = doc(db, 'system_config', 'moderation');
+        const unsubscribeMod = onSnapshot(moderationRef, (snap) => {
+            if (snap.exists()) {
+                const data = snap.data();
+                setModeration({
+                    flaggingEnabled: !!data.flaggingEnabled,
+                    aiScreening: !!data.aiScreening
+                });
+            }
+        }, (err) => {
+            console.error('[AuthContext] Moderation monitor denied:', err.message);
+        });
+
+        return () => {
+            unsubscribeProt();
+            unsubscribeMod();
+        };
+    }, []);
+
+    const setAvVerified = async (status: boolean) => {
+        setIsAvVerified(status);
+        
+        // Log to central audit trail if becoming verified
+        if (status && user) {
+            try {
+                const token = await user.getIdToken();
+                await fetch('/api/audit/log', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                        action: 'AV_VERIFIED',
+                        targetType: 'user',
+                        targetId: user.uid,
+                        policySlug: 'online-safety-act',
+                        message: 'User successfully completed age verification challenge.',
+                        status: 'success'
+                    })
+                });
+            } catch (err) {
+                console.error('[AuthContext] Failed to log AV event:', err);
+            }
+        }
+    };
+
+    const isSystemAdmin = activeRole === 'admin' || activeRole === 'su';
+    const avRequired = 
+        protection.avEnabled && 
+        !isAvVerified && 
+        (protection.avStrictness === 'maximum' || !isSystemAdmin);
 
     const createNewProfile = useCallback(async (firebaseUser: User) => {
-        const userRef = doc(db, 'users', firebaseUser.uid);
+        const userRef = doc(toolDb, 'users', firebaseUser.uid);
         const isAdminUser = firebaseUser.email === ADMIN_EMAIL;
         const newProfileData: any = {
             uid: firebaseUser.uid,
@@ -73,7 +157,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             if (firebaseUser) {
                 try {
                     // Ensure the user document exists before subscribing
-                    const userRef = doc(db, 'users', firebaseUser.uid);
+                    const userRef = doc(toolDb, 'users', firebaseUser.uid);
                     const snap = await getDoc(userRef);
                     if (!snap.exists()) {
                         await createNewProfile(firebaseUser);
@@ -183,6 +267,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 canSwitchRoles,
                 isAdmin,
                 isSu,
+                isAvVerified,
+                avRequired,
+                setAvVerified,
+                protection,
+                moderation,
             }}
         >
             {children}

@@ -12,6 +12,7 @@ import { db, auth } from '@/lib/firebase';
 import { doc, updateDoc } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
 import { Icons } from '@/components/ui/Icons';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface Props {
     creator: UserProfile;
@@ -32,7 +33,7 @@ const socialIcon = (platform: CreatorSocial['platform']) => {
 
 const profileTypeBadge = (type?: string) => {
     const map: Record<string, { label: string; bgColor: string; textColor: string; borderColor: string }> = {
-        individual: { label: 'Creator', bgColor: 'bg-indigo-500/10', textColor: 'text-indigo-400', borderColor: 'border-indigo-500/20' },
+        individual: { label: 'Creator', bgColor: 'bg-primary/10', textColor: 'text-primary', borderColor: 'border-primary/20' },
         channel: { label: 'Channel', bgColor: 'bg-rose-500/10', textColor: 'text-rose-400', borderColor: 'border-rose-500/20' },
         organization: { label: 'Organization', bgColor: 'bg-teal-500/10', textColor: 'text-teal-400', borderColor: 'border-teal-500/20' },
     };
@@ -40,11 +41,13 @@ const profileTypeBadge = (type?: string) => {
 };
 
 export default function CreatorProfileClient({ creator, initialResources, stats }: Props) {
+    const { isAdmin } = useAuth();
     const authoredResources = initialResources.filter(r =>
-        r.attributions?.some(a => a.userId === creator.uid && a.role !== 'curator')
+        r.attributions?.some(a => (a.userId === creator.uid || a.name === creator.displayName) && a.role !== 'curator')
     );
     const curatedResources = initialResources.filter(r =>
-        r.addedBy === creator.uid || r.attributions?.some(a => a.userId === creator.uid && a.role === 'curator')
+        r.addedBy === creator.uid || 
+        r.attributions?.some(a => (a.userId === creator.uid || a.name === creator.displayName) && a.role === 'curator')
     );
 
     const defaultTab: 'authored' | 'curated' =
@@ -135,6 +138,20 @@ export default function CreatorProfileClient({ creator, initialResources, stats 
         downloadAnchorNode.remove();
     };
 
+    const handleUpdateStrikes = async (count: number) => {
+        try {
+            const userRef = doc(db, 'users', creator.uid);
+            await updateDoc(userRef, {
+                strikes: count,
+                updatedAt: new Date()
+            });
+            window.location.reload();
+        } catch (error) {
+            console.error('Error updating strikes:', error);
+            alert('Failed to update strikes.');
+        }
+    };
+
     const totalItems = filteredResources.length;
     const isAll = pageSize === 'all';
     const effectivePageSize = isAll ? totalItems : pageSize;
@@ -170,7 +187,7 @@ export default function CreatorProfileClient({ creator, initialResources, stats 
                             <div className="absolute inset-0 bg-gradient-to-b from-[#0a0a0f]/40 via-[#0a0a0f]/80 to-[#0a0a0f]" />
                         </div>
                     ) : (
-                        <div className="absolute inset-0 bg-gradient-to-br from-indigo-900/10 via-[#0a0a0f] to-[#0a0a0f]" />
+                        <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-[#0a0a0f] to-[#0a0a0f]" />
                     )}
                 </div>
 
@@ -178,15 +195,15 @@ export default function CreatorProfileClient({ creator, initialResources, stats 
                     {/* Header Pathing */}
                     <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-12">
                         <div className="flex items-center gap-4">
-                            <Link href="/creators" className="p-3 bg-white/5 border border-white/10 rounded-2xl hover:bg-indigo-500/20 hover:border-indigo-500/30 transition-all group">
-                                <Icons.arrowLeft size={20} className="text-white/40 group-hover:text-indigo-400 group-hover:-translate-x-1 transition-all" />
+                            <Link href="/creators" className="p-3 bg-white/5 border border-white/10 rounded-2xl hover:bg-primary/20 hover:border-primary/30 transition-all group">
+                                <Icons.arrowLeft size={20} className="text-white/40 group-hover:text-primary group-hover:-translate-x-1 transition-all" />
                             </Link>
                             <div className="flex flex-col">
                                 <div className="text-[10px] font-black text-white/20 uppercase tracking-[0.3em] mb-1">
                                     Registry Intelligence / Creators
                                 </div>
                                 <div className="flex items-center gap-2 text-xs font-bold text-white/60">
-                                    <span className="text-indigo-400/60 uppercase">Identity Profile</span>
+                                    <span className="text-primary/60 uppercase">Identity Profile</span>
                                     <span className="opacity-20">/</span>
                                     <span className="truncate max-w-[200px]">{creator.displayName}</span>
                                 </div>
@@ -201,7 +218,7 @@ export default function CreatorProfileClient({ creator, initialResources, stats 
                                 <Icons.share size={18} /> Share Profile
                             </button>
                             <div className="h-6 w-px bg-white/10 mx-2" />
-                            <Link href="/creators" className="px-6 py-2.5 bg-indigo-600 border border-indigo-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 shadow-lg shadow-indigo-600/20">
+                            <Link href="/creators" className="px-6 py-2.5 bg-primary border border-primary/50 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 shadow-lg shadow-primary/20">
                                 <Icons.users size={18} /> Community Registry
                             </Link>
                         </div>
@@ -209,7 +226,7 @@ export default function CreatorProfileClient({ creator, initialResources, stats 
 
                     {/* Identity Glass Card */}
                     <div className="glass-card p-8 shadow-2xl relative overflow-hidden group">
-                        <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-indigo-500/5 rounded-full blur-[100px] -mr-48 -mt-48 group-hover:bg-indigo-500/10 transition-all duration-1000" />
+                        <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-primary/5 rounded-full blur-[100px] -mr-48 -mt-48 group-hover:bg-primary/10 transition-all duration-1000" />
                         
                         <div className="relative z-10 flex flex-col md:flex-row gap-10">
                             {/* Visual Identity (Avatar) */}
@@ -219,21 +236,21 @@ export default function CreatorProfileClient({ creator, initialResources, stats 
                                         {creator.photoURL ? (
                                             <img src={creator.photoURL} alt={creator.displayName} className="w-full h-full object-cover" />
                                         ) : (
-                                            <div className="w-full h-full bg-gradient-to-br from-indigo-600 to-purple-700 flex items-center justify-center text-5xl font-black text-white">
+                                            <div className="w-full h-full bg-gradient-to-br from-primary to-accent flex items-center justify-center text-5xl font-black text-white">
                                                 {initials}
                                             </div>
                                         )}
                                     </div>
                                 </div>
                                 {creator.isVerified && (
-                                    <div className="absolute -bottom-2 -right-2 w-12 h-12 bg-indigo-500 rounded-2xl flex items-center justify-center border-4 border-[#12121e] shadow-2xl" title="Verified Pioneer">
+                                    <div className="absolute -bottom-2 -right-2 w-12 h-12 bg-primary rounded-2xl flex items-center justify-center border-4 border-[#12121e] shadow-2xl" title="Verified Pioneer">
                                         <Icons.check size={22} strokeWidth={4} />
                                     </div>
                                 )}
                                 {isAuthorized && (
                                     <button 
                                         onClick={() => setIsEditingHeader(true)}
-                                        className="absolute -top-2 -right-2 p-3 bg-black/60 backdrop-blur-xl border border-white/10 rounded-xl text-white/40 hover:text-indigo-400 opacity-0 group-hover:opacity-100 transition-all shadow-xl"
+                                        className="absolute -top-2 -right-2 p-3 bg-black/60 backdrop-blur-xl border border-white/10 rounded-xl text-white/40 hover:text-primary opacity-0 group-hover:opacity-100 transition-all shadow-xl"
                                     >
                                         <Icons.image size={18} />
                                     </button>
@@ -243,13 +260,13 @@ export default function CreatorProfileClient({ creator, initialResources, stats 
                             {/* Textual Identity */}
                             <div className="flex-1 flex flex-col py-2">
                                 <div className="flex items-center gap-3 mb-4">
-                                    <span className="px-3 py-1 bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 rounded-lg text-[9px] font-black uppercase tracking-widest">
+                                    <span className="px-3 py-1 bg-primary/10 border border-primary/20 text-primary rounded-lg text-[9px] font-black uppercase tracking-widest">
                                         {badge.label}
                                     </span>
                                     <span className="text-white/20 text-[9px] font-black uppercase tracking-[0.2em]">Pioneer ID: {creator.uid.slice(0, 8)}</span>
                                 </div>
 
-                                <h1 className="text-4xl md:text-6xl font-black tracking-tighter text-white mb-4 leading-none">
+                                <h1 className="text-4xl md:text-6xl font-black tracking-tighter text-white mb-4 leading-none group-hover:text-primary transition-colors">
                                     {creator.displayName}
                                 </h1>
 
@@ -268,13 +285,13 @@ export default function CreatorProfileClient({ creator, initialResources, stats 
                                             rel="noopener noreferrer"
                                             className="px-5 py-2.5 bg-white/5 border border-white/10 rounded-2xl hover:bg-white/10 hover:border-white/20 transition-all flex items-center gap-3 text-xs font-bold text-white/60 hover:text-white"
                                         >
-                                            <span className="text-indigo-400">{socialIcon(s.platform)}</span>
+                                            <span className="text-primary">{socialIcon(s.platform)}</span>
                                             <span className="capitalize tracking-tight">{s.label || s.platform}</span>
                                         </a>
                                     ))}
                                     
                                     {isAuthorized && (
-                                        <Link href="/dashboard/settings" className="p-2.5 bg-white/5 border border-white/10 rounded-2xl hover:bg-indigo-500/20 hover:border-indigo-500/30 transition-all text-white/40 hover:text-indigo-400">
+                                        <Link href="/dashboard/settings" className="p-2.5 bg-white/5 border border-white/10 rounded-2xl hover:bg-primary/20 hover:border-primary/30 transition-all text-white/40 hover:text-primary">
                                             <Icons.settings size={20} />
                                         </Link>
                                     )}
@@ -287,19 +304,45 @@ export default function CreatorProfileClient({ creator, initialResources, stats 
 
             <main className="container mx-auto px-4 -mt-28 pb-12 relative z-30">
                 {/* ── IMPACT GRID ── */}
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+                <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
                     {[
-                        { label: 'Authored Resources', value: stats.authoredCount, icon: <Icons.wand size={20} />, color: 'from-indigo-500/10 to-indigo-500/5' },
-                        { label: 'Curated Assets', value: stats.curatedCount, icon: <Icons.grid size={20} />, color: 'from-indigo-500/10 to-indigo-500/5' },
-                        { label: 'Categories Mastered', value: stats.categories.length, icon: <Icons.tag size={20} />, color: 'from-indigo-500/10 to-indigo-500/5' },
-                        { label: 'Community Rating', value: stats.averageRating > 0 ? stats.averageRating.toFixed(1) : '—', icon: <Icons.sparkles size={20} />, color: 'from-indigo-500/10 to-indigo-500/5' }
-                    ].map((stat, i) => (
-                        <div key={i} className={`relative bg-gradient-to-br ${stat.color} border border-white/10 p-8 rounded-[2rem] flex flex-col items-center gap-3 hover:bg-white/5 transition-all group overflow-hidden`}>
-                            <div className="text-indigo-400 group-hover:scale-110 transition-transform duration-500 z-10 opacity-60">{stat.icon}</div>
-                            <div className="text-5xl font-black text-white relative z-10 tracking-tight">{stat.value}</div>
-                            <div className="text-[10px] uppercase font-black tracking-[0.25em] text-white/30 text-center z-10 leading-tight">{stat.label}</div>
-                        </div>
-                    ))}
+                        { label: 'Authored Resources', value: stats.authoredCount, icon: <Icons.wand size={20} />, color: 'from-primary/10 to-primary/5' },
+                        { label: 'Curated Assets', value: stats.curatedCount, icon: <Icons.grid size={20} />, color: 'from-primary/10 to-primary/5' },
+                        { label: 'Categories Mastered', value: stats.categories.length, icon: <Icons.tag size={20} />, color: 'from-primary/10 to-primary/5' },
+                        { label: 'Community Rating', value: stats.averageRating > 0 ? stats.averageRating.toFixed(1) : '—', icon: <Icons.sparkles size={20} />, color: 'from-primary/10 to-primary/5' },
+                        { label: 'Safety Strikes', value: creator.strikes || 0, icon: <Icons.report size={20} />, color: (creator.strikes || 0) > 0 ? 'from-rose-500/10 to-rose-500/5 border-rose-500/20' : 'from-primary/10 to-primary/5' }
+                    ].map((stat, i) => {
+                        const isStrikeCard = stat.label === 'Safety Strikes';
+                        const hasStrikes = isStrikeCard && (creator.strikes || 0) > 0;
+                        
+                        return (
+                            <div key={i} className={`relative bg-gradient-to-br ${stat.color} border border-white/10 p-8 rounded-[2rem] flex flex-col items-center gap-3 hover:bg-white/5 transition-all group overflow-hidden`}>
+                                <div className={`${hasStrikes ? 'text-rose-400 animate-pulse' : 'text-primary'} group-hover:scale-110 transition-transform duration-500 z-10 opacity-60`}>{stat.icon}</div>
+                                <div className={`text-5xl font-black ${hasStrikes ? 'text-rose-400' : 'text-white'} relative z-10 tracking-tight`}>
+                                    {stat.value}
+                                    {isStrikeCard && isAdmin && (
+                                        <button 
+                                            onClick={(e) => {
+                                                e.preventDefault();
+                                                const newCount = prompt(`Update strikes for ${creator.displayName}:`, stat.value.toString());
+                                                if (newCount !== null) {
+                                                    const count = parseInt(newCount);
+                                                    if (!isNaN(count)) {
+                                                        handleUpdateStrikes(count);
+                                                    }
+                                                }
+                                            }}
+                                            className="absolute -right-6 top-1 p-1 bg-white/10 rounded-lg hover:bg-white/20 text-[10px] text-white/40 hover:text-white"
+                                            title="Admin Override"
+                                        >
+                                            ⚙️
+                                        </button>
+                                    )}
+                                </div>
+                                <div className="text-[10px] uppercase font-black tracking-[0.25em] text-white/30 text-center z-10 leading-tight">{stat.label}</div>
+                            </div>
+                        );
+                    })}
                 </div>
 
                 {/* ── RESOURCE EXPLORER ── */}
@@ -313,12 +356,12 @@ export default function CreatorProfileClient({ creator, initialResources, stats 
                                         key={tab}
                                         onClick={() => { setActiveTab(tab as any); setCurrentPage(1); }}
                                         className={`relative py-3 text-sm font-black uppercase tracking-widest transition-all ${
-                                            activeTab === tab ? 'text-indigo-400' : 'text-white/30 hover:text-white/70'
+                                            activeTab === tab ? 'text-primary' : 'text-white/30 hover:text-white/70'
                                         }`}
                                     >
                                         {tab === 'authored' ? 'Authored' : 'Curated'}
                                         {activeTab === tab && (
-                                            <div className="absolute bottom-0 left-0 right-0 h-1 bg-indigo-500 rounded-full shadow-[0_0_15px_rgba(99,102,241,1)]" />
+                                            <div className="absolute bottom-0 left-0 right-0 h-1 bg-primary rounded-full shadow-[0_0_15px_rgba(13,148,136,1)]" />
                                         )}
                                     </button>
                                 ))}
@@ -331,21 +374,21 @@ export default function CreatorProfileClient({ creator, initialResources, stats 
                                 <div className="flex bg-white/[0.03] p-1 rounded-xl border border-white/5">
                                     <button 
                                         onClick={() => setViewMode('grid')}
-                                        className={`p-1.5 rounded-lg transition-all ${viewMode === 'grid' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-white/30 hover:text-white/60'}`}
+                                        className={`p-1.5 rounded-lg transition-all ${viewMode === 'grid' ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'text-white/30 hover:text-white/60'}`}
                                         title="Gallery View"
                                     >
                                         <Icons.grid size={16} />
                                     </button>
                                     <button 
                                         onClick={() => setViewMode('small')}
-                                        className={`p-1.5 rounded-lg transition-all ${viewMode === 'small' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-white/30 hover:text-white/60'}`}
+                                        className={`p-1.5 rounded-lg transition-all ${viewMode === 'small' ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'text-white/30 hover:text-white/60'}`}
                                         title="Compact View"
                                     >
                                         <Icons.feed size={16} />
                                     </button>
                                     <button 
                                         onClick={() => setViewMode('list')}
-                                        className={`p-1.5 rounded-lg transition-all ${viewMode === 'list' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-white/30 hover:text-white/60'}`}
+                                        className={`p-1.5 rounded-lg transition-all ${viewMode === 'list' ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'text-white/30 hover:text-white/60'}`}
                                         title="List View"
                                     >
                                         <Icons.text size={16} />
@@ -413,7 +456,7 @@ export default function CreatorProfileClient({ creator, initialResources, stats 
                                                     }}
                                                     className={`w-10 h-10 rounded-full flex items-center justify-center text-xs font-black transition-all ${
                                                         safeCurrentPage === num 
-                                                            ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' 
+                                                            ? 'bg-primary text-white shadow-lg shadow-primary/20' 
                                                             : 'text-white/40 hover:bg-white/10'
                                                     }`}
                                                 >

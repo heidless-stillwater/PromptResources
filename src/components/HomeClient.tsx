@@ -17,6 +17,8 @@ interface Resource {
   description: string;
   tags?: string[];
   type?: string;
+  status?: string;
+  mediaFormat?: string;
   createdAt?: any;
 }
 
@@ -40,10 +42,10 @@ export default function HomeClient({ recentResources = [], featuredCreators = []
 
     // High quality dummy data based on user input (YouTube, inline resources, guides, business info)
     const dummyResources = [
-        { id: 1, type: 'youtube tutorial', title: 'High-Retention YouTube Documentaries', description: 'Step-by-step masterclass on automating 8K sleep documentaries with next-gen multimodal pipelines.' },
-        { id: 2, type: 'inline resource', title: 'Workflow Architecture Templates', description: 'Downloadable architectural diagrams for setting up asynchronous, multi-agent media engines.' },
-        { id: 3, type: 'guide', title: 'The Complete Guide to NextJS Serverless', description: 'Exclusive technical blueprint for scaling Firebase authentication alongside NextJS App Router.' },
-        { id: 4, type: 'business info', title: 'Founder Data: Monetizing Auto-Media', description: 'Verified business intelligence covering audience retention, AdSense optimizations, and channel growth.' }
+        { id: 1, type: 'youtube tutorial', title: 'High-Retention YouTube Documentaries', description: 'Step-by-step masterclass on automating 8K sleep documentaries with next-gen multimodal pipelines.', status: 'published' },
+        { id: 2, type: 'inline resource', title: 'Workflow Architecture Templates', description: 'Downloadable architectural diagrams for setting up asynchronous, multi-agent media engines.', status: 'published' },
+        { id: 3, type: 'guide', title: 'The Complete Guide to NextJS Serverless', description: 'Exclusive technical blueprint for scaling Firebase authentication alongside NextJS App Router.', status: 'published' },
+        { id: 4, type: 'business info', title: 'Founder Data: Monetizing Auto-Media', description: 'Verified business intelligence covering audience retention, AdSense optimizations, and channel growth.', status: 'published' }
     ];
 
     return (
@@ -84,7 +86,7 @@ export default function HomeClient({ recentResources = [], featuredCreators = []
                 <div className="relative z-10 w-full max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
                     <div className="space-y-8 animate-in fade-in slide-in-from-left-8 duration-1000">
                         <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 border border-white/10 backdrop-blur-md">
-                            <span className="w-2 h-2 rounded-full bg-stillwater-teal animate-pulse" />
+                            <span className="w-2 h-2 rounded-full bg-stillwater-teal animate-pulse-rose" />
                             <span className="text-[10px] font-black uppercase tracking-[0.2em] text-foreground/70">Library Management Protocol</span>
                         </div>
 
@@ -164,16 +166,20 @@ export default function HomeClient({ recentResources = [], featuredCreators = []
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                        {(dummyResources).map((resource: any, i) => (
-                            <div key={resource?.id || i} className="aspect-[3/4] rounded-3xl bg-white/[0.02] border border-white/10 overflow-hidden relative group cursor-pointer hover:bg-white/[0.05] transition-colors flex flex-col justify-end">
-                                <Image
-                                    src={`/assets/landing/community-${(i % 4) + 1}.png`}
-                                    alt={resource?.title || `Resource ${i + 1}`}
-                                    fill
-                                    sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 25vw"
-                                    className="object-cover opacity-60 group-hover:opacity-100 group-hover:scale-110 transition-all duration-700 grayscale-[50%] group-hover:grayscale-0"
-                                />
+                        {(recentResources && recentResources.length > 0 ? recentResources : dummyResources).map((resource: any, i: number) => (
+                            <Link 
+                                key={resource?.id || i} 
+                                href={`/resources/${resource.id}`}
+                                className="aspect-[3/4] rounded-3xl bg-white/[0.02] border border-white/10 overflow-hidden relative group cursor-pointer hover:bg-white/[0.05] transition-colors flex flex-col justify-end"
+                            >
                                 <div className="absolute inset-0 bg-gradient-to-t from-black via-black/80 to-transparent opacity-90 group-hover:opacity-100 transition-opacity" />
+                                <div className="absolute top-4 left-4 z-20 flex flex-col gap-2">
+                                    {resource?.status === 'flagged' && (
+                                        <div className="px-3 py-1 bg-rose-500/80 border border-rose-500/20 backdrop-blur-md rounded-full text-[8px] font-black uppercase tracking-[0.2em] text-white flex items-center gap-2 animate-pulse-rose shadow-lg shadow-rose-500/20">
+                                            <Icons.report size={10} /> Safety Concerns
+                                        </div>
+                                    )}
+                                </div>
                                 <div className="relative z-10 space-y-3 transform translate-y-4 group-hover:translate-y-0 transition-transform duration-500 p-6">
                                     <div className="flex items-center gap-2">
                                         <div className="w-5 h-5 rounded-full bg-primary/20 border border-primary/40 flex items-center justify-center text-[10px]">✨</div>
@@ -182,7 +188,7 @@ export default function HomeClient({ recentResources = [], featuredCreators = []
                                     <h3 className="text-lg font-bold text-white line-clamp-2 leading-tight drop-shadow-md">{resource?.title || `Resource ${i + 1}`}</h3>
                                     <p className="text-[10px] font-medium text-white/70 line-clamp-2 drop-shadow-sm">{resource?.description || 'No description provided.'}</p>
                                     <div className="flex gap-2 pt-2">
-                                        {resource?.type?.includes('video') || resource?.type?.includes('youtube') ? (
+                                        {resource?.type?.includes('video') || resource?.type?.includes('youtube') || resource?.mediaFormat === 'youtube' ? (
                                             <div className="px-2 py-1 rounded-md bg-white/10 text-[8px] font-black uppercase hover:bg-white/20 transition-colors backdrop-blur-md">Watch Now</div>
                                         ) : resource?.type?.includes('business') ? (
                                             <div className="px-2 py-1 rounded-md bg-white/10 text-[8px] font-black uppercase hover:bg-white/20 transition-colors backdrop-blur-md">View Data</div>
@@ -192,7 +198,7 @@ export default function HomeClient({ recentResources = [], featuredCreators = []
                                         <div className="px-2 py-1 rounded-md bg-white/5 text-[8px] font-black uppercase text-white/50 hover:bg-white/10 hover:text-white transition-colors backdrop-blur-md">Save</div>
                                     </div>
                                 </div>
-                            </div>
+                            </Link>
                         ))}
                     </div>
 

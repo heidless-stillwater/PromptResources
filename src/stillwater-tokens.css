@@ -4,40 +4,40 @@
    ============================================================================== */
 
 :root {
-  /* Core Colors */
-  --bg-primary: #0a0a0f;
-  --bg-secondary: #0d0d12;
-  --bg-card: #1c1c21;
-  --bg-input: #25252b;
+  /* Core Colors — PlanTune Teal/Emerald Analytics Palette */
+  --bg-primary: #0f172a; /* Slate 900 */
+  --bg-secondary: #1e293b; /* Slate 800 */
+  --bg-card: rgba(30, 41, 59, 0.7);
+  --bg-input: #334155; /* Slate 700 */
 
-  --text-primary: #f5f5f7;
-  --text-secondary: #a1a1aa;
-  --text-muted: #6b6b76;
+  --text-primary: #f8fafc; /* Slate 50 */
+  --text-secondary: #cbd5e1; /* Slate 300 */
+  --text-muted: #94a3b8; /* Slate 400 */
 
-  --accent-primary: #6366f1; /* Indigo */
-  --accent-secondary: #8b5cf6; /* Violet */
-  --brand-glow: rgba(99, 102, 241, 0.5);
+  --accent-primary: #0d9488; /* Teal-600 */
+  --accent-secondary: #10b981; /* Emerald-500 */
+  --brand-glow: rgba(13, 148, 136, 0.3);
 
   --success: #10b981;
   --warning: #f59e0b;
   --danger: #ef4444;
-  --info: #3b82f6;
+  --info: #06b6d4;
 
   --success-400: #34d399;
   --danger-400: #f87171;
   --warning-400: #fbbf24;
-  --info-400: #60a5fa;
+  --info-400: #22d3ee;
 
   /* Stillwater Branding Aliases */
   --primary: var(--accent-primary);
-  --primary-hover: #818cf8;
+  --primary-hover: #14b8a6;
   --accent: var(--accent-secondary);
-  --accent-hover: #a78bfa;
+  --accent-hover: #34d399;
   --background: var(--bg-primary);
   --background-secondary: var(--bg-secondary);
   --foreground: var(--text-primary);
   --foreground-muted: var(--text-secondary);
-  --border: rgba(255, 255, 255, 0.08);
+  --border: rgba(148, 163, 184, 0.25);
   --card: var(--bg-card);
   --error: var(--danger);
 
@@ -46,8 +46,9 @@
   --founder-gold: #fbbf24;
 
   /* Gradients */
-  --gradient-glass: linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.01) 100%);
+  --gradient-glass: linear-gradient(135deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0.03) 100%);
   --gradient-accent: linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-secondary) 100%);
+  --gradient-brand: linear-gradient(135deg, var(--primary), var(--accent));
 
   /* Typography Scales */
   --text-xs: 0.75rem;
@@ -63,20 +64,20 @@
   --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.3);
   --shadow-md: 0 4px 8px rgba(0, 0, 0, 0.4);
   --shadow-lg: 0 12px 24px rgba(0, 0, 0, 0.5);
-  --shadow-glow: 0 0 20px var(--brand-glow);
+  --shadow-glow: 0 0 40px var(--brand-glow);
 
   /* Kinetics */
   --transition-fast: 0.15s ease;
-  --transition-base: 0.25s ease;
+  --transition-base: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   --transition-slow: 0.5s cubic-bezier(0.4, 0, 0.2, 1);
 
   /* Glass Depth System */
-  --glass-surface: rgba(255, 255, 255, 0.01);
-  --glass-card: rgba(255, 255, 255, 0.03);
-  --glass-overlay: rgba(255, 255, 255, 0.08);
+  --glass-surface: rgba(30, 41, 59, 0.6);
+  --glass-card: rgba(30, 41, 59, 0.8);
+  --glass-overlay: rgba(15, 23, 42, 0.85);
   
   --glass-blur-sm: 4px;
-  --glass-blur-md: 12px;
+  --glass-blur-md: 16px;
   --glass-blur-lg: 24px;
 
   /* Spacing Scale */

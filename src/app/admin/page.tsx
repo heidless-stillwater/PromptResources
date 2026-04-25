@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import { useAuth } from '@/contexts/AuthContext';
-import { db } from '@/lib/firebase';
+import { db, toolDb } from '@/lib/firebase';
 import { collection, getDocs, doc, updateDoc, deleteDoc, setDoc } from 'firebase/firestore';
 import { UserProfile, Resource } from '@/lib/types';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -33,7 +33,7 @@ function AdminContent() {
     const queryClient = useQueryClient();
     const searchParams = useSearchParams();
     const defaultTab = (searchParams.get('tab') as any) || 'overview';
-    const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'resources' | 'creators' | 'suggestions' | 'categories'>(defaultTab);
+    const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'resources' | 'creators' | 'suggestions' | 'categories' | 'tainted'>(defaultTab);
     
     // Creator Explorer State
     const [isCreatingStub, setIsCreatingStub] = useState(false);
@@ -53,7 +53,7 @@ function AdminContent() {
     const { data: users = [], isLoading: usersLoading } = useQuery({
         queryKey: ['admin', 'users'],
         queryFn: async () => {
-            const usersSnap = await getDocs(collection(db, 'users'));
+            const usersSnap = await getDocs(collection(toolDb, 'users'));
             return usersSnap.docs.map((d) => ({
                 ...d.data(),
                 uid: d.id,
@@ -100,7 +100,7 @@ function AdminContent() {
 
     const updateRoleMutation = useMutation({
         mutationFn: async ({ uid, role }: { uid: string, role: string }) => {
-            await updateDoc(doc(db, 'users', uid), { role });
+            await updateDoc(doc(toolDb, 'users', uid), { role });
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
@@ -109,9 +109,30 @@ function AdminContent() {
 
     const updateSubMutation = useMutation({
         mutationFn: async ({ uid, subscriptionType }: { uid: string, subscriptionType: string }) => {
-            await updateDoc(doc(db, 'users', uid), { subscriptionType });
+            await updateDoc(doc(toolDb, 'users', uid), { subscriptionType });
         },
         onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
+        }
+    });
+
+    const reinstateResourceMutation = useMutation({
+        mutationFn: async ({ resourceId, resetStrike }: { resourceId: string, resetStrike: boolean }) => {
+            const token = await user?.getIdToken();
+            const res = await fetch('/api/admin/resources/reinstate', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ resourceId, resetStrike })
+            });
+            const result = await res.json();
+            if (!result.success) throw new Error(result.error);
+            return result;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['admin', 'resources'] });
             queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
         }
     });
@@ -133,9 +154,23 @@ function AdminContent() {
         updateSubMutation.mutate({ uid, subscriptionType: newSub });
     };
 
+    const handleReinstate = async (resourceId: string, title: string) => {
+        const resetStrike = confirm(`Reinstate "${title}"?\n\nClick OK to ALSO reset the contributor's safety strike.\nClick Cancel to reinstate WITHOUT resetting the strike.`);
+        
+        // This is a bit tricky since confirm only returns true/false.
+        // Let's use a more explicit confirm for the strike.
+        
+        const proceed = confirm(`Are you sure you want to reinstate "${title}"?`);
+        if (!proceed) return;
+
+        const shouldResetStrike = confirm(`Reset the contributor strike for this resource?`);
+        
+        reinstateResourceMutation.mutate({ resourceId, resetStrike: shouldResetStrike });
+    };
+
     useEffect(() => {
         const tab = searchParams.get('tab');
-        if (tab && ['overview', 'users', 'resources', 'creators', 'suggestions', 'categories'].includes(tab)) {
+        if (tab && ['overview', 'users', 'resources', 'creators', 'suggestions', 'categories', 'tainted'].includes(tab)) {
             setActiveTab(tab as any);
         }
     }, [searchParams]);
@@ -144,7 +179,7 @@ function AdminContent() {
     const { data: creators = [], isLoading: creatorsLoading } = useQuery({
         queryKey: ['admin', 'creators'],
         queryFn: async () => {
-            const usersSnap = await getDocs(collection(db, 'users'));
+            const usersSnap = await getDocs(collection(toolDb, 'users'));
             const list = usersSnap.docs.map((d) => ({
                 ...d.data(),
                 uid: d.id,
@@ -158,7 +193,7 @@ function AdminContent() {
         mutationFn: async (stubData: { name: string, slug: string, type: string, bio: string }) => {
             const { nanoid } = await import('nanoid');
             const id = 'stub_' + nanoid();
-            await setDoc(doc(db, 'users', id), {
+            await setDoc(doc(toolDb, 'users', id), {
                 uid: id,
                 displayName: stubData.name,
                 email: 'fake@directory.stub',
@@ -216,6 +251,7 @@ function AdminContent() {
     const freeCount = resources.filter((r) => r.pricing === 'free').length;
     const paidCount = resources.filter((r) => r.pricing === 'paid').length;
     const reviewCount = resources.filter((r) => r.status === 'pending' || r.status === 'suggested').length;
+    const taintedCount = resources.filter((r) => r.status === 'tainted').length;
     const creatorsCount = users.filter((u) => u.isPublicProfile || u.isStub).length;
 
     return (
@@ -282,6 +318,7 @@ function AdminContent() {
                                     { label: 'Total Users', value: users.length, icon: <Icons.users size={14} /> },
                                     { label: 'Resource Assets', value: resources.length, icon: <Icons.database size={14} /> },
                                     { label: 'Pending Review', value: reviewCount, icon: <Icons.sparkles size={14} />, color: 'text-indigo-400' },
+                                    { label: 'Tainted Assets', value: taintedCount, icon: <Icons.report size={14} />, color: 'text-rose-400' },
                                     { label: 'Active Creators', value: creatorsCount, icon: <Icons.user size={14} /> },
                                     { label: 'Free Assets', value: freeCount, icon: <Icons.zap size={14} /> }
                                 ].map((stat, i) => (
@@ -302,7 +339,7 @@ function AdminContent() {
             <main className="container mx-auto px-4 -mt-20 pb-20 relative z-30">
                 {/* Navigation Hub */}
                 <div className="flex flex-wrap items-center gap-2 p-2 bg-white/5 backdrop-blur-3xl border border-white/5 rounded-[2rem] w-fit mb-10">
-                    {(['overview', 'users', 'resources', 'creators', 'suggestions', 'categories'] as const).map((tab) => (
+                    {(['overview', 'users', 'resources', 'creators', 'suggestions', 'categories', 'tainted'] as const).map((tab) => (
                         <button
                             key={tab}
                             className={`px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] transition-all flex items-center gap-2 group ${
@@ -316,6 +353,11 @@ function AdminContent() {
                             {tab === 'suggestions' && reviewCount > 0 && (
                                 <span className="bg-rose-500 text-white text-[8px] min-w-[14px] h-[14px] flex items-center justify-center rounded-full px-1">
                                     {reviewCount}
+                                </span>
+                            )}
+                            {tab === 'tainted' && taintedCount > 0 && (
+                                <span className="bg-rose-500 text-white text-[8px] min-w-[14px] h-[14px] flex items-center justify-center rounded-full px-1">
+                                    {taintedCount}
                                 </span>
                             )}
                         </button>
@@ -474,7 +516,7 @@ function AdminContent() {
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-white/5">
-                                        {resources.filter(r => r.status !== 'pending' && r.status !== 'suggested').map((r) => (
+                                        {resources.filter(r => r.status !== 'pending' && r.status !== 'suggested' && r.status !== 'tainted').map((r) => (
                                             <tr key={r.id} className="hover:bg-white/[0.02] transition-colors">
                                                 <td className="p-6">
                                                     <Link href={`/resources/${r.id}`} className="text-sm font-bold hover:text-indigo-400 transition-colors">{r.title}</Link>
@@ -699,6 +741,69 @@ function AdminContent() {
                                     ))}
                                 </div>
                             </div>
+                        </div>
+                    )}
+
+                    {/* Tainted View */}
+                    {activeTab === 'tainted' && (
+                        <div className="glass-card overflow-hidden">
+                            <table className="w-full text-left">
+                                <thead>
+                                    <tr className="bg-white/5 border-b border-white/5">
+                                        <th className="p-6 text-[10px] font-black uppercase tracking-widest text-white/30">Suppressed Resource</th>
+                                        <th className="p-6 text-[10px] font-black uppercase tracking-widest text-white/30">Safety Concern</th>
+                                        <th className="p-6 text-[10px] font-black uppercase tracking-widest text-white/30">Contributor</th>
+                                        <th className="p-6 text-[10px] font-black uppercase tracking-widest text-white/30 text-right">Remediation</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-white/5">
+                                    {resources.filter(r => r.status === 'tainted').map((r) => (
+                                        <tr key={r.id} className="hover:bg-white/[0.02] transition-colors group">
+                                            <td className="p-6">
+                                                <div className="text-sm font-black mb-1 group-hover:text-rose-400 transition-colors">{r.title}</div>
+                                                <div className="text-[10px] text-white/30 font-mono tracking-tighter truncate max-w-[400px]">{r.url}</div>
+                                            </td>
+                                            <td className="p-6">
+                                                <span className="px-2 py-0.5 bg-rose-500/10 border border-rose-500/20 text-rose-400 text-[8px] font-black uppercase tracking-widest rounded">
+                                                    {r.reportType || 'General Safety'}
+                                                </span>
+                                            </td>
+                                            <td className="p-6">
+                                                <div className="flex flex-col gap-1">
+                                                    <div className="text-[10px] font-bold text-white/60">
+                                                        {users.find(u => u.uid === r.addedBy)?.displayName || 'Unknown Creator'}
+                                                    </div>
+                                                    <div className="text-[8px] font-black text-white/20 uppercase tracking-widest">
+                                                        Strikes: {users.find(u => u.uid === r.addedBy)?.strikes || 0}
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td className="p-6 text-right">
+                                                <div className="flex items-center justify-end gap-2">
+                                                    <button 
+                                                        className="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] font-black uppercase tracking-widest rounded-lg transition-all shadow-lg shadow-indigo-600/10"
+                                                        onClick={() => handleReinstate(r.id, r.title)}
+                                                    >
+                                                        Reinstate
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleDeleteResource(r.id)}
+                                                        className="p-2 bg-white/5 border border-white/10 rounded-lg hover:bg-rose-500/20 text-white/40 hover:text-rose-400 transition-all"
+                                                        title="Permanent Delete"
+                                                    >
+                                                        <Icons.trash size={14} />
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                    {resources.filter(r => r.status === 'tainted').length === 0 && (
+                                        <tr>
+                                            <td colSpan={4} className="p-20 text-center text-white/20 text-[10px] font-black uppercase tracking-widest">No tainted assets found in registry</td>
+                                        </tr>
+                                    )}
+                                </tbody>
+                            </table>
                         </div>
                     )}
                 </div>

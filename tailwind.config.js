@@ -8,33 +8,33 @@ module.exports = {
     theme: {
         extend: {
             colors: {
-                // Core Brand Palette
+                // Core Brand Palette — Teal Analytics
                 primary: {
-                    50: '#f0f9ff',
-                    100: '#e0f2fe',
-                    200: '#bae6fd',
-                    300: '#7dd3fc',
-                    400: '#38bdf8',
-                    500: '#6366f1', // Balanced with --primary
-                    600: '#4f46e5',
-                    700: '#4338ca',
-                    800: '#3730a3',
-                    900: '#312e81',
-                    950: '#1e1b4b',
+                    50: '#f0fdfa',
+                    100: '#ccfbf1',
+                    200: '#99f6e4',
+                    300: '#5eead4',
+                    400: '#2dd4bf',
+                    500: '#0d9488', 
+                    600: '#0f766e',
+                    700: '#115e59',
+                    800: '#134e4a',
+                    900: '#134e4a',
+                    950: '#042f2e',
                     DEFAULT: 'var(--primary)',
                 },
                 accent: {
-                    50: '#fdf4ff',
-                    100: '#fae8ff',
-                    200: '#f5d0fe',
-                    300: '#f0abfc',
-                    400: '#e879f9',
-                    500: '#d946ef',
-                    600: '#c026d3',
-                    700: '#a21caf',
-                    800: '#86198f',
-                    900: '#701a75',
-                    950: '#4a044e',
+                    50: '#ecfdf5',
+                    100: '#d1fae5',
+                    200: '#a7f3d0',
+                    300: '#6ee7b7',
+                    400: '#34d399',
+                    500: '#10b981',
+                    600: '#059669',
+                    700: '#047857',
+                    800: '#065f46',
+                    900: '#064e3b',
+                    950: '#022c22',
                     DEFAULT: 'var(--accent)',
                 },
                 background: {
@@ -59,6 +59,10 @@ module.exports = {
                 '3xl': '1.5rem',
                 '4xl': '2rem',
                 '5xl': '2.5rem',
+            },
+            fontFamily: {
+                outfit: ['var(--font-outfit)', 'sans-serif'],
+                inter: ['var(--font-inter)', 'sans-serif'],
             },
             backgroundImage: {
                 'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',

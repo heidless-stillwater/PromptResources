@@ -8,7 +8,7 @@
   },
   "hosting": [
     {
-      "target": "prompt-resources",
+      "site": "promptresources-v0",
       "source": ".",
       "ignore": [
         "firebase.json",

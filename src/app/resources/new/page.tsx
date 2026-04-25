@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Navbar from '@/components/Navbar';
 import Modal from '@/components/Modal';
-import { db } from '@/lib/firebase';
+import { db, toolDb } from '@/lib/firebase';
 import { collection, addDoc, serverTimestamp, query, where, getDocs, limit } from 'firebase/firestore';
 import { useAuth } from '@/contexts/AuthContext';
 import { Attribution, Platform, ResourcePricing, ResourceType, MediaFormat, ResourceStatus, UserProfile } from '@/lib/types';
@@ -26,7 +26,7 @@ export default function NewResourcePage() {
     const [url, setUrl] = useState('');
     const [type, setType] = useState<ResourceType>('article');
     const [mediaFormat, setMediaFormat] = useState<MediaFormat>('webpage');
-    const [platform, setPlatform] = useState<Platform>('nanobanana');
+    const [platform, setPlatform] = useState<Platform>('gemini');
     const [pricing, setPricing] = useState<ResourcePricing>('free');
     const [pricingDetails, setPricingDetails] = useState('');
     const [tags, setTags] = useState('');
@@ -378,9 +378,9 @@ export default function NewResourcePage() {
 
                 // 1. Fetch Global Public Registry
                 try {
-                    const usersSnap = await getDocs(
-                        query(collection(db, 'users'), where('isPublicProfile', '==', true))
-                    );
+                        const usersSnap = await getDocs(
+                            query(collection(toolDb, 'users'), where('isPublicProfile', '==', true))
+                        );
                     usersSnap.docs.forEach(d => {
                         const data = d.data();
                         if (data.displayName) {

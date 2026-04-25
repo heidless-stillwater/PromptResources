@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import { useAuth } from '@/contexts/AuthContext';
-import { db } from '@/lib/firebase';
+import { db, toolDb } from '@/lib/firebase';
 import { collection, getDocs, doc, updateDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { UserProfile } from '@/lib/types';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -57,7 +57,7 @@ function CreatorsAdminContent() {
     const { data: creators = [], isLoading } = useQuery({
         queryKey: ['admin', 'creators'],
         queryFn: async () => {
-            const usersSnap = await getDocs(collection(db, 'users'));
+            const usersSnap = await getDocs(collection(toolDb, 'users'));
             const list = usersSnap.docs.map((d) => ({
                 ...d.data(),
                 uid: d.id,
@@ -70,14 +70,14 @@ function CreatorsAdminContent() {
 
     const toggleFeaturedMutation = useMutation({
         mutationFn: async ({ uid, current }: { uid: string, current: boolean }) => {
-            await updateDoc(doc(db, 'users', uid), { isFeatured: !current });
+            await updateDoc(doc(toolDb, 'users', uid), { isFeatured: !current });
         },
         onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin', 'creators'] })
     });
 
     const toggleVerifiedMutation = useMutation({
         mutationFn: async ({ uid, current }: { uid: string, current: boolean }) => {
-            await updateDoc(doc(db, 'users', uid), { isVerified: !current });
+            await updateDoc(doc(toolDb, 'users', uid), { isVerified: !current });
         },
         onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin', 'creators'] })
     });
@@ -85,7 +85,7 @@ function CreatorsAdminContent() {
     const createStubMutation = useMutation({
         mutationFn: async (stubData: { name: string, slug: string, type: string, bio: string }) => {
             const id = 'stub_' + nanoid();
-            await setDoc(doc(db, 'users', id), {
+            await setDoc(doc(toolDb, 'users', id), {
                 uid: id,
                 displayName: stubData.name,
                 email: 'fake@directory.stub',
@@ -113,7 +113,7 @@ function CreatorsAdminContent() {
     const updateProfileMutation = useMutation({
         mutationFn: async (profileData: Partial<UserProfile>) => {
             if (!profileData.uid) return;
-            const docRef = doc(db, 'users', profileData.uid);
+            const docRef = doc(toolDb, 'users', profileData.uid);
             await updateDoc(docRef, {
                 ...profileData,
                 updatedAt: serverTimestamp()

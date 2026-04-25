@@ -1,7 +1,7 @@
 // API: GET /api/member/[uid] - Get member data
 // PLACEHOLDER: Uses API_SECRET_KEY for auth. Replace with proper auth in production.
 import { NextRequest, NextResponse } from 'next/server';
-import { adminDb } from '@/lib/firebase-admin';
+import { adminDb, toolDbAdmin } from '@/lib/firebase-admin';
 
 export async function GET(
     request: NextRequest,
@@ -21,8 +21,8 @@ export async function GET(
 
         const uid = params.uid;
 
-        // Fetch user profile
-        const userDoc = await adminDb.collection('users').doc(uid).get();
+        // Fetch user profile from Global Identity Store
+        const userDoc = await toolDbAdmin.collection('users').doc(uid).get();
         if (!userDoc.exists) {
             return NextResponse.json(
                 { success: false, error: 'Member not found' },

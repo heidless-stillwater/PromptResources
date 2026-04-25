@@ -3,6 +3,7 @@ import HomeClient from '@/components/HomeClient';
 import { adminDb } from '@/lib/firebase-admin';
 import { Resource, UserProfile } from '@/lib/types';
 import { getAllCreators } from '@/lib/creators-server';
+import { sanitize } from '@/lib/utils';
 
 // Revalidate every hour
 export const revalidate = 60;
@@ -24,6 +25,7 @@ export default async function HomePage() {
             const data = doc.data();
             return {
                 id: doc.id,
+                status: 'published', // Default for legacy data
                 ...data,
                 createdAt: data.createdAt?.toDate() || new Date(),
                 updatedAt: data.updatedAt?.toDate() || new Date(),
@@ -46,5 +48,5 @@ export default async function HomePage() {
         console.error('Error fetching data on server:', error);
     }
 
-    return <HomeClient recentResources={recentResources as any} featuredCreators={featuredCreators} />;
+    return <HomeClient recentResources={sanitize(recentResources)} featuredCreators={sanitize(featuredCreators)} />;
 }

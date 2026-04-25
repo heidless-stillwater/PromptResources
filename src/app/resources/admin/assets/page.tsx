@@ -17,9 +17,9 @@ import { Icons } from '@/components/ui/Icons';
 export default function AssetManagerPage() {
     return (
         <Suspense fallback={
-            <div className="page-wrapper dashboard-theme min-h-screen bg-[#0a0a0f] flex items-center justify-center">
+            <div className="page-wrapper dashboard-theme min-h-screen bg-background flex items-center justify-center">
                 <div className="flex flex-col items-center gap-4">
-                    <div className="w-12 h-12 border-4 border-indigo-500/20 border-t-indigo-500 rounded-full animate-spin" />
+                    <div className="w-12 h-12 border-4 border-primary/20 border-t-primary rounded-full animate-spin" />
                     <div className="text-[10px] font-black uppercase tracking-[0.3em] text-white/20">Initialising Asset Hub</div>
                 </div>
             </div>
@@ -301,9 +301,9 @@ function AssetManagerContent() {
 
     if (authLoading || !isAdmin) {
         return (
-            <div className="page-wrapper dashboard-theme min-h-screen bg-[#0a0a0f] flex items-center justify-center">
+            <div className="page-wrapper dashboard-theme min-h-screen bg-background flex items-center justify-center">
                 <div className="flex flex-col items-center gap-4">
-                    <div className="w-12 h-12 border-4 border-indigo-500/20 border-t-indigo-500 rounded-full animate-spin" />
+                    <div className="w-12 h-12 border-4 border-primary/20 border-t-primary rounded-full animate-spin" />
                     <div className="text-[10px] font-black uppercase tracking-[0.3em] text-white/20">Authorizing Access</div>
                 </div>
             </div>
@@ -311,15 +311,15 @@ function AssetManagerContent() {
     }
 
     return (
-        <div className="page-wrapper dashboard-theme min-h-screen bg-[#0a0a0f] text-white selection:bg-indigo-500/30">
+        <div className="page-wrapper dashboard-theme min-h-screen bg-background text-white selection:bg-primary/30">
             <Navbar />
 
             {/* Cinematic Hero */}
             <div className="relative w-full h-auto overflow-hidden flex flex-col">
                 {/* Background Layer */}
                 <div className="absolute inset-0 z-0">
-                    <div className="absolute inset-0 bg-gradient-to-br from-indigo-900/10 via-[#0a0a0f] to-[#0a0a0f]" />
-                    <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-indigo-500/5 rounded-full blur-[120px] -mr-48 -mt-48" />
+                    <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-background to-background" />
+                    <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-primary/5 rounded-full blur-[120px] -mr-48 -mt-48" />
                 </div>
 
                 <div className="container relative z-10 flex flex-col gap-8 pt-8 pb-32">
@@ -329,7 +329,7 @@ function AssetManagerContent() {
                                 Registry Intelligence / Systems / Assets
                             </div>
                             <h1 className="text-4xl md:text-7xl font-black tracking-tighter text-white leading-none">
-                                Asset <span className="text-indigo-400 font-black">Library</span>
+                                Asset <span className="text-primary font-black">Library</span>
                             </h1>
                             <p className="text-white/40 font-medium max-w-xl mt-4 leading-relaxed">
                                 Manage scenario-specific images generated with Nanobanana. Orchestrate visual representations across the discovery cloud.
@@ -350,11 +350,11 @@ function AssetManagerContent() {
                     {/* Control Bench */}
                     <div className="lg:col-span-2 space-y-8">
                         {/* AI Scenario Architect */}
-                        <div className="glass-card p-8 border-indigo-500/20 relative overflow-hidden group">
-                             <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/5 rounded-full blur-3xl -mr-32 -mt-32 group-hover:bg-indigo-500/10 transition-all duration-1000" />
+                        <div className="glass-card p-8 border-primary/20 relative overflow-hidden group bg-background-secondary/30">
+                             <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full blur-3xl -mr-32 -mt-32 group-hover:bg-primary/10 transition-all duration-1000" />
                              
                             <div className="flex items-center gap-4 mb-8 relative z-10">
-                                <div className="p-3 bg-indigo-500/10 rounded-2xl text-indigo-400 border border-indigo-500/20">
+                                <div className="p-3 bg-primary/10 rounded-2xl text-primary border border-primary/20">
                                     <Icons.zap size={20} />
                                 </div>
                                 <div className="flex flex-col">
@@ -367,7 +367,7 @@ function AssetManagerContent() {
                                 <div className="space-y-3">
                                     <label className="text-[10px] font-black uppercase text-white/30 tracking-widest pl-2">Scenario Objective</label>
                                     <textarea 
-                                        className="w-full bg-black/40 border border-white/10 rounded-2xl px-6 py-5 text-sm font-medium focus:border-indigo-500 outline-none transition-all min-h-[100px] leading-relaxed"
+                                        className="w-full bg-background/40 border border-white/10 rounded-2xl px-6 py-5 text-sm font-medium focus:border-primary outline-none transition-all min-h-[100px] leading-relaxed"
                                         placeholder="Describe the visual objective (e.g. A futuristic workspace showing a Gemini AI assistant drafting code with a clean blue aesthetic...)"
                                         value={scenarioDesc}
                                         onChange={(e) => setScenarioDesc(e.target.value)}
@@ -376,7 +376,7 @@ function AssetManagerContent() {
 
                                 <div className="flex flex-wrap items-center gap-4">
                                      <button 
-                                        className="px-10 py-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] transition-all shadow-xl shadow-indigo-600/20 active:scale-95 flex items-center gap-3 disabled:opacity-50"
+                                        className="px-10 py-4 bg-primary hover:bg-primary/80 text-white rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] transition-all shadow-xl shadow-primary/20 active:scale-95 flex items-center gap-3 disabled:opacity-50"
                                         onClick={handleGeneratePrompt}
                                         disabled={isGeneratingInspiration || !scenarioDesc}
                                     >
@@ -397,9 +397,9 @@ function AssetManagerContent() {
                                 </div>
 
                                 {generatedPrompt && (
-                                    <div className="p-6 bg-indigo-500/10 border border-indigo-500/20 rounded-2xl animate-in fade-in slide-in-from-top-4 duration-500">
+                                    <div className="p-6 bg-primary/10 border border-primary/20 rounded-2xl animate-in fade-in slide-in-from-top-4 duration-500">
                                         <div className="flex justify-between items-center mb-4">
-                                            <span className="text-[9px] font-black uppercase tracking-[0.3em] text-indigo-400">Recommended Nanobanana Prompt</span>
+                                            <span className="text-[9px] font-black uppercase tracking-[0.3em] text-primary">Recommended Nanobanana Prompt</span>
                                             <button 
                                                 className="text-[9px] font-black uppercase tracking-widest text-white/40 hover:text-white"
                                                 onClick={() => {
@@ -412,7 +412,7 @@ function AssetManagerContent() {
                                         </div>
                                         <p className="text-xs font-medium text-white/70 italic leading-relaxed">"{generatedPrompt}"</p>
                                         <div className="flex justify-end mt-6">
-                                            <button className="text-[9px] font-black uppercase tracking-widest text-indigo-400 hover:text-indigo-300 flex items-center gap-2" onClick={useArchitectedScenario}>
+                                            <button className="text-[9px] font-black uppercase tracking-widest text-primary hover:text-primary/80 flex items-center gap-2" onClick={useArchitectedScenario}>
                                                 <Icons.check size={10} strokeWidth={4} /> Populate Metadata
                                             </button>
                                         </div>
@@ -424,7 +424,7 @@ function AssetManagerContent() {
                         {/* Assets Grid */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             {assets.map((asset) => (
-                                <div key={asset.id} className="glass-card overflow-hidden group/card hover:border-indigo-500/30 transition-all">
+                                <div key={asset.id} className="glass-card overflow-hidden group/card hover:border-primary/30 transition-all bg-background-secondary/30">
                                     <div className="relative aspect-video overflow-hidden">
                                         <img 
                                             src={asset.url} 
@@ -441,7 +441,7 @@ function AssetManagerContent() {
                                             ) : (
                                                 <button 
                                                     onClick={() => handleSetDefault(asset)}
-                                                    className="px-3 py-1 bg-black/40 hover:bg-indigo-600/40 border border-white/10 text-white/40 hover:text-white text-[8px] font-black uppercase tracking-widest rounded-lg backdrop-blur-md opacity-0 group-hover/card:opacity-100 transition-all"
+                                                    className="px-3 py-1 bg-black/40 hover:bg-primary/40 border border-white/10 text-white/40 hover:text-white text-[8px] font-black uppercase tracking-widest rounded-lg backdrop-blur-md opacity-0 group-hover/card:opacity-100 transition-all"
                                                 >
                                                     Set Default
                                                 </button>
@@ -459,8 +459,8 @@ function AssetManagerContent() {
 
                                         <div className="absolute bottom-4 left-4 right-4 z-10">
                                             <div className="flex flex-col">
-                                                <div className="text-[10px] font-black uppercase tracking-widest text-indigo-400 mb-1">{asset.category}</div>
-                                                <h4 className="text-sm font-black text-white group-hover/card:text-indigo-400 transition-colors">{asset.title}</h4>
+                                                <div className="text-[10px] font-black uppercase tracking-widest text-primary mb-1">{asset.category}</div>
+                                                <h4 className="text-sm font-black text-white group-hover/card:text-primary transition-colors">{asset.title}</h4>
                                             </div>
                                         </div>
                                     </div>
@@ -479,9 +479,9 @@ function AssetManagerContent() {
                     {/* Sidebar Bench */}
                     <div className="space-y-8">
                         {/* Registrar Form */}
-                        <div className="glass-card p-8 bg-indigo-600/[0.03] border-indigo-500/20">
+                        <div className="glass-card p-8 bg-primary/[0.03] border-primary/20">
                             <h3 className="text-sm font-black uppercase tracking-[0.2em] text-white/30 mb-8 flex items-center gap-2">
-                                <Icons.plus size={14} className="text-indigo-400" /> Registrar
+                                <Icons.plus size={14} className="text-primary" /> Registrar
                             </h3>
                             
                             <div className="space-y-6">
@@ -489,7 +489,7 @@ function AssetManagerContent() {
                                     <label className="text-[10px] font-black uppercase text-white/20 tracking-widest pl-2">Asset Title</label>
                                     <input 
                                         type="text" 
-                                        className="w-full bg-black/40 border border-white/5 rounded-2xl px-5 py-4 text-xs font-bold focus:border-indigo-500 outline-none transition-all placeholder:text-white/10"
+                                        className="w-full bg-background/40 border border-white/5 rounded-2xl px-5 py-4 text-xs font-bold focus:border-primary outline-none transition-all placeholder:text-white/10"
                                         placeholder="e.g. Gemini Tutorial Dark"
                                         value={newTitle}
                                         onChange={e => setNewTitle(e.target.value)}
@@ -499,7 +499,7 @@ function AssetManagerContent() {
                                     <label className="text-[10px] font-black uppercase text-white/20 tracking-widest pl-2">Tags (Signals)</label>
                                     <input 
                                         type="text" 
-                                        className="w-full bg-black/40 border border-white/5 rounded-2xl px-5 py-4 text-xs font-bold focus:border-indigo-500 outline-none transition-all placeholder:text-white/10"
+                                        className="w-full bg-background/40 border border-white/5 rounded-2xl px-5 py-4 text-xs font-bold focus:border-primary outline-none transition-all placeholder:text-white/10"
                                         placeholder="tool, gemini, blue, workspace"
                                         value={newTags}
                                         onChange={e => setNewTags(e.target.value)}
@@ -507,7 +507,7 @@ function AssetManagerContent() {
                                 </div>
                                 
                                 <input type="file" id="asset-upload" hidden onChange={handleFileUpload} disabled={uploading} />
-                                <label htmlFor="asset-upload" className={`w-full py-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] transition-all shadow-xl shadow-indigo-600/20 cursor-pointer flex items-center justify-center gap-3 ${uploading ? 'opacity-50 pointer-events-none' : ''}`}>
+                                <label htmlFor="asset-upload" className={`w-full py-4 bg-primary hover:bg-primary/80 text-white rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] transition-all shadow-xl shadow-primary/20 cursor-pointer flex items-center justify-center gap-3 ${uploading ? 'opacity-50 pointer-events-none' : ''}`}>
                                     {uploading ? <Icons.spinner size={16} className="animate-spin" /> : <Icons.upload size={16} />}
                                     Commence Registration
                                 </label>
@@ -517,11 +517,11 @@ function AssetManagerContent() {
                         {/* Info Hub */}
                         <div className="glass-card p-8">
                             <div className="flex items-center gap-3 mb-6">
-                                <Icons.info size={14} className="text-indigo-400" />
+                                <Icons.info size={14} className="text-primary" />
                                 <span className="text-[10px] font-black uppercase tracking-widest text-white/40">Hub Protocols</span>
                             </div>
                             <p className="text-xs font-medium text-white/40 leading-relaxed">
-                                Assets registered here are used as visual proxies for non-video resources. The <span className="text-indigo-400">Scenario Architect</span> ensures thematic consistency across the registry.
+                                Assets registered here are used as visual proxies for non-video resources. The <span className="text-primary">Scenario Architect</span> ensures thematic consistency across the registry.
                             </p>
                         </div>
                     </div>
@@ -532,12 +532,12 @@ function AssetManagerContent() {
             {/* In-Hub Studio Modal */}
             {isStudioModalOpen && (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/90 backdrop-blur-3xl animate-in fade-in duration-300">
-                    <div className="bg-[#0a0a0f] border border-white/10 rounded-[3rem] p-12 max-w-2xl w-full text-center shadow-3xl relative overflow-hidden">
-                        <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl -mr-32 -mt-32" />
+                    <div className="bg-background-secondary border border-white/20 rounded-[3rem] p-12 max-w-2xl w-full text-center shadow-3xl relative overflow-hidden">
+                        <div className="absolute top-0 right-0 w-64 h-64 bg-primary/10 rounded-full blur-3xl -mr-32 -mt-32" />
                         
                         <div className="flex justify-between items-start mb-10">
                             <div className="text-left">
-                                <h2 className="text-3xl font-black uppercase tracking-widest">Studio <span className="text-indigo-400">Bridge</span></h2>
+                                <h2 className="text-3xl font-black uppercase tracking-widest">Studio <span className="text-primary">Bridge</span></h2>
                                 <p className="text-[10px] font-black uppercase tracking-[0.3em] text-white/20 mt-1">Nanobanana Execution Protocol</p>
                             </div>
                             <button className="w-12 h-12 bg-white/5 border border-white/10 rounded-2xl flex items-center justify-center text-white/40 hover:text-white transition-all" onClick={() => setIsStudioModalOpen(false)}>
@@ -548,8 +548,8 @@ function AssetManagerContent() {
                         <div className="bg-black/40 border border-white/5 rounded-3xl aspect-video relative overflow-hidden mb-10 flex items-center justify-center">
                             {isGeneratingInStudio ? (
                                 <div className="flex flex-col items-center gap-6">
-                                    <div className="w-12 h-12 border-4 border-indigo-500/20 border-t-indigo-500 rounded-full animate-spin" />
-                                    <div className="text-[10px] font-black uppercase tracking-[0.3em] text-indigo-400 animate-pulse">{studioProgress}</div>
+                                    <div className="w-12 h-12 border-4 border-primary/20 border-t-primary rounded-full animate-spin" />
+                                    <div className="text-[10px] font-black uppercase tracking-[0.3em] text-primary animate-pulse">{studioProgress}</div>
                                 </div>
                             ) : studioResult ? (
                                 <img src={studioResult.imageUrl} alt="Result" className="w-full h-full object-cover animate-in zoom-in-95 duration-500" />
@@ -574,7 +574,7 @@ function AssetManagerContent() {
                                 Terminate
                             </button>
                             <button 
-                                className="flex-[2] py-5 rounded-2xl font-black text-xs uppercase tracking-widest bg-indigo-600 hover:bg-indigo-500 transition-all shadow-xl shadow-indigo-600/30 flex items-center justify-center gap-2"
+                                className="flex-[2] py-5 rounded-2xl font-black text-xs uppercase tracking-widest bg-primary hover:bg-primary/80 transition-all shadow-xl shadow-primary/30 flex items-center justify-center gap-2"
                                 onClick={handleStudioGenerate}
                                 disabled={isGeneratingInStudio}
                             >

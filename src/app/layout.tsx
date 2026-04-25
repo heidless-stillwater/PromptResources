@@ -14,8 +14,11 @@ const outfit = Outfit({
   variable: '--font-outfit',
 });
 import { AuthProvider } from '@/contexts/AuthContext';
+import { ToastProvider } from '@/components/Toast';
 import ReactQueryProvider from '@/components/providers/ReactQueryProvider';
 import CommandPalette from '@/components/CommandPalette';
+import { SovereignSentinel } from '@/components/SovereignSentinel';
+import { SovereignConsole } from '@/components/SovereignConsole';
 
 export const metadata: Metadata = {
     title: 'Stillwater Resources | AI Education Hub',
@@ -36,10 +39,14 @@ export default function RootLayout({
         <html lang="en">
             <body className={`${inter.variable} ${outfit.variable}`}>
                 <AuthProvider>
-                    <ReactQueryProvider>
-                        <CommandPalette />
-                        {children}
-                    </ReactQueryProvider>
+                    <ToastProvider>
+                        <ReactQueryProvider>
+                            <SovereignSentinel />
+                            <SovereignConsole />
+                            <CommandPalette />
+                            {children}
+                        </ReactQueryProvider>
+                    </ToastProvider>
                 </AuthProvider>
                 {process.env.NODE_ENV === 'development' && <Agentation />}
             </body>

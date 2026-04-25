@@ -2,6 +2,7 @@ import { Metadata } from 'next';
 export const dynamic = 'force-dynamic';
 import { notFound } from 'next/navigation';
 import { getUserBySlug, getCreatorResources, getCreatorStats } from '@/lib/creators-server';
+import { sanitize } from '@/lib/utils';
 import CreatorProfileClient from './CreatorProfileClient';
 
 interface PageProps {
@@ -35,14 +36,17 @@ export default async function CreatorProfilePage({ params }: PageProps) {
 
     const [stats, resources] = await Promise.all([
         getCreatorStats(creator.uid),
-        getCreatorResources(creator.uid, { pageSize: 120 }) // Higher limit for profile page
+        getCreatorResources(creator.uid, { 
+            pageSize: 120, 
+            displayName: creator.displayName 
+        })
     ]);
 
     return (
         <CreatorProfileClient
-            creator={creator}
-            initialResources={resources.data || []}
-            stats={stats}
+            creator={sanitize(creator)}
+            initialResources={sanitize(resources.data || [])}
+            stats={sanitize(stats)}
         />
     );
 }

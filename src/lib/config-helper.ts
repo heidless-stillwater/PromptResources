@@ -42,7 +42,53 @@ export async function getSecret(key: string): Promise<string | undefined> {
   } catch (error) {
     console.warn(`Failed to fetch secret [${key}] from DB, falling back to ENV:`, error);
   }
-
+  
   // 5. Fallback to process.env
   return process.env[key];
+}
+
+// ────────────────────────────────────────────────────
+// PROTECTION CONFIG (Compliance & Gating)
+// ────────────────────────────────────────────────────
+
+interface ProtectionConfig {
+  avEnabled: boolean;
+  avStrictness: 'soft' | 'standard' | 'maximum';
+  lastUpdated?: number;
+}
+
+let protectionCache: { value: ProtectionConfig; expires: number } | null = null;
+
+/**
+ * Retrieves the compliance protection configuration.
+ * Gated by a 1-minute cache for real-time reactivity without DB hammering.
+ */
+export async function getProtectionConfig(): Promise<ProtectionConfig> {
+  const now = Date.now();
+
+  if (protectionCache && protectionCache.expires > now) {
+    return protectionCache.value;
+  }
+
+  const defaultSync: ProtectionConfig = { avEnabled: false, avStrictness: 'soft' };
+
+  try {
+    const doc = await adminDb.collection('system_config').doc('protection').get();
+    
+    if (doc.exists) {
+      const data = doc.data() as any;
+      const config: ProtectionConfig = {
+        avEnabled: !!data.avEnabled,
+        avStrictness: data.avStrictness || 'soft',
+        lastUpdated: now
+      };
+
+      protectionCache = { value: config, expires: now + 60000 }; // 1m TTL for policy reactivity
+      return config;
+    }
+  } catch (error) {
+    console.error('[ConfigHelper] Failed to fetch protection config:', error);
+  }
+
+  return defaultSync;
 }

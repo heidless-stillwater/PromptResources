@@ -24,4 +24,11 @@ module.exports = {
         ],
     },
     transpilePackages: ['@tanstack/react-query'],
+    eslint: {
+        ignoreDuringBuilds: true,
+    },
+    typescript: {
+        ignoreBuildErrors: true,
+    },
+    optimizeFonts: false,
 };

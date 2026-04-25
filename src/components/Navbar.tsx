@@ -3,11 +3,14 @@
 import React, { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
+import { usePathname } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { UserRole } from '@/lib/types';
+import { SuiteSwitcher } from './SuiteSwitcher';
 
 export default function Navbar() {
     const { user, profile, activeRole, signOut, switchRole, canSwitchRoles, isAdmin } = useAuth();
+    const pathname = usePathname();
     const [menuOpen, setMenuOpen] = useState(false);
     const menuRef = useRef<HTMLDivElement>(null);
 
@@ -24,12 +27,12 @@ export default function Navbar() {
     const roles: UserRole[] = ['su', 'admin', 'member'];
 
     return (
-        <nav className="fixed top-0 left-0 right-0 z-50 px-6 h-[72px] flex items-center border-b border-white/5 backdrop-blur-xl bg-[#0a0a0f]/80" id="main-navbar">
+        <nav className="fixed top-0 left-0 right-0 z-50 px-6 h-[72px] flex items-center border-b border-white/5 bg-background-secondary/40 backdrop-blur-xl shadow-lg shadow-black/20" id="main-navbar">
             <div className="max-w-7xl mx-auto w-full flex items-center justify-between">
                 <Link href="/" className="flex items-center gap-4 group cursor-pointer" id="nav-logo">
                     <div className="relative">
-                        <div className="absolute -inset-1 bg-gradient-to-r from-primary to-purple-600 rounded-xl blur opacity-25 group-hover:opacity-100 transition duration-500"></div>
-                        <div className="relative bg-black rounded-lg p-2 border border-white/10 group-hover:border-primary/50 transition-colors">
+                        <div className="absolute -inset-1 bg-gradient-to-r from-primary to-accent rounded-xl blur opacity-25 group-hover:opacity-100 transition duration-500"></div>
+                        <div className="relative bg-black/40 backdrop-blur-xl rounded-lg p-2 border border-white/10 group-hover:border-primary/50 transition-colors">
                             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-primary group-hover:animate-pulse">
                                 <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-0.5-5" />
                                 <path d="M12 11h4" />
@@ -45,12 +48,12 @@ export default function Navbar() {
                 </Link>
 
                 <div className="hidden lg:flex items-center gap-1.5 p-1 bg-white/[0.03] border border-white/5 rounded-2xl">
-                    <Link href="http://localhost:5173/" target="_blank" rel="noopener noreferrer" className="px-4 py-2 text-[10px] font-black uppercase tracking-widest text-primary hover:text-white hover:bg-primary/20 rounded-xl transition-all" id="nav-promptmaster-external">Prompt Master</Link>
+                    <SuiteSwitcher />
                     <div className="w-px h-4 bg-white/5 mx-1" />
-                    <Link href="/resources" className="px-4 py-2 text-[10px] font-black uppercase tracking-widest text-white/60 hover:text-white hover:bg-white/5 rounded-xl transition-all" id="nav-resources">Resources</Link>
-                    <Link href="/categories" className="px-4 py-2 text-[10px] font-black uppercase tracking-widest text-white/60 hover:text-white hover:bg-white/5 rounded-xl transition-all" id="nav-categories">Categories</Link>
-                    <Link href="/creators" className="px-4 py-2 text-[10px] font-black uppercase tracking-widest text-white/60 hover:text-white hover:bg-white/5 rounded-xl transition-all" id="nav-creators">Creators</Link>
-                    <Link href="/pricing" className="px-4 py-2 text-[10px] font-black uppercase tracking-widest text-white/60 hover:bg-white/5 border border-transparent rounded-xl hover:bg-primary/10 transition-all" id="nav-pricing">💎 Pricing</Link>
+                    <Link href="/dashboard" className={`px-4 py-2 text-[10px] font-black uppercase tracking-widest transition-all rounded-xl ${pathname === '/dashboard' ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'text-white/60 hover:text-white hover:bg-white/5'}`} id="nav-dashboard">Dashboard</Link>
+                    <Link href="/resources" className={`px-4 py-2 text-[10px] font-black uppercase tracking-widest transition-all rounded-xl ${pathname === '/resources' ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'text-white/60 hover:text-white hover:bg-white/5'}`} id="nav-resources">Resources</Link>
+                    <Link href="/creators" className={`px-4 py-2 text-[10px] font-black uppercase tracking-widest transition-all rounded-xl ${pathname === '/creators' ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'text-white/60 hover:text-white hover:bg-white/5'}`} id="nav-creators">Creators</Link>
+                    <Link href="/pricing" className={`px-4 py-2 text-[10px] font-black uppercase tracking-widest transition-all rounded-xl ${pathname === '/pricing' ? 'bg-primary/20 text-primary border border-primary/30' : 'text-white/60 hover:bg-white/5 border border-transparent hover:bg-primary/10'}`} id="nav-pricing">💎 Pricing</Link>
                 </div>
 
                 <div className="flex items-center gap-4">
@@ -58,7 +61,9 @@ export default function Navbar() {
                         <div className="hidden md:flex flex-col items-end mr-2">
                              <div className="text-[10px] font-black text-white leading-none uppercase tracking-tighter">{profile?.displayName || 'User'}</div>
                              <div className="text-[8px] font-bold text-primary/70 uppercase tracking-[0.2em] mt-1">
-                                {profile?.subscription?.status === 'active' ? (profile.subscription.bundleId || 'PRO Suite') : 'Basic Access'}
+                                {profile?.subscription?.status === 'active' 
+                                    ? (profile.subscription.bundleId || 'PRO Suite') 
+                                    : (profile?.subscriptionType === 'pro' ? 'PRO Plan' : 'Basic Access')}
                              </div>
                         </div>
                     )}
@@ -98,14 +103,14 @@ export default function Navbar() {
                             </button>
 
                             {menuOpen && (
-                                <div className="absolute right-0 mt-4 w-72 glass-panel bg-[#12121e]/98 border-white/10 p-5 shadow-2xl animate-fade-in-up" id="user-menu-dropdown">
-                                    <div className="flex items-center gap-4 pb-4 border-b border-white/5 mb-4">
-                                        <div className="w-12 h-12 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center text-xl">
+                                <div className="absolute right-0 mt-4 w-72 bg-[#1e293b] border border-white/20 p-5 shadow-[0_20px_50px_rgba(0,0,0,0.5)] rounded-2xl animate-fade-in-up" id="user-menu-dropdown">
+                                    <div className="flex items-center gap-4 pb-4 border-b border-white/5 mb-4 relative z-10">
+                                        <div className="w-12 h-12 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center text-xl text-white font-black shadow-inner">
                                             {profile?.displayName?.[0]?.toUpperCase() || '👤'}
                                         </div>
                                         <div>
-                                            <div className="text-sm font-black text-white leading-none">{profile?.displayName || 'User'}</div>
-                                            <div className="text-[10px] text-white/40 font-bold mt-1 truncate max-w-[160px]">{user.email}</div>
+                                            <div className="text-sm font-black text-white leading-none tracking-tight">{profile?.displayName || 'User'}</div>
+                                            <div className="text-[10px] text-white/50 font-bold mt-1.5 truncate max-w-[160px] uppercase tracking-wide">{user.email}</div>
                                         </div>
                                     </div>
 

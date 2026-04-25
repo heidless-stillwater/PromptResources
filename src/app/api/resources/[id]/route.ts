@@ -55,6 +55,26 @@ export async function GET(
                 console.error('Self-healing metadata enrichment failed:', err);
             }
         }
+        // --- SELF-HEALING ATTRIBUTIONS ---
+        // If resource has attributions but they haven't been resolved to User IDs, do it now in background
+        const needsAttributionResolution = resource.attributions?.length > 0 && (!resource.attributedUserIds || resource.attributedUserIds.length === 0);
+        
+        if (needsAttributionResolution) {
+            resolveAttributions(resource.attributions).then(async (resolved) => {
+                if (resolved.attributedUserIds?.length > 0) {
+                    await adminDb.collection('resources').doc(params.id).update({
+                        attributions: resolved.resolvedAttributions,
+                        attributedUserIds: resolved.attributedUserIds,
+                        updatedAt: new Date()
+                    });
+                    console.log(`Background attribution resolution success for resource ${params.id}`);
+                    
+                    // Sync stats for discovered creators
+                    Promise.all(resolved.attributedUserIds.map(uid => syncCreatorStats(uid)))
+                        .catch(e => console.error('Error syncing stats during healing:', e));
+                }
+            }).catch(e => console.error('Background attribution resolution failed:', e));
+        }
         // -------------------------
 
         return NextResponse.json({

@@ -1,4 +1,4 @@
-import { adminDb } from '@/lib/firebase-admin';
+import { adminDb, toolDbAdmin } from '@/lib/firebase-admin';
 import { Resource } from '@/lib/types';
 import { Filter } from 'firebase-admin/firestore';
 import { extractYouTubeId } from '@/lib/youtube';
@@ -10,6 +10,7 @@ export interface GetResourcesOptions {
     category?: string | null;
     search?: string | null;
     addedBy?: string | null;
+    status?: string | null;
     isFavorite?: boolean;
     priorityRank?: string;
     sortBy?: string;
@@ -21,6 +22,9 @@ export interface GetResourcesOptions {
     creators?: string[] | null;
 }
 
+import { cookies } from 'next/headers';
+import { getProtectionConfig } from './config-helper';
+
 export async function getResourcesAction(options: GetResourcesOptions) {
     const {
         platform,
@@ -29,6 +33,7 @@ export async function getResourcesAction(options: GetResourcesOptions) {
         category,
         search,
         addedBy,
+        status,
         isFavorite,
         priorityRank = '',
         sortBy = 'updatedAt',
@@ -41,15 +46,47 @@ export async function getResourcesAction(options: GetResourcesOptions) {
     } = options;
 
     try {
+        // ────────────────────────────────────────────────────
+        // SOVEREIGN GATE: Online Safety Act Enforcement
+        // ────────────────────────────────────────────────────
+        const protection = await getProtectionConfig();
+        const cookieStore = await cookies();
+        const isVerified = cookieStore.get('stillwater_av_verified')?.value === 'true';
+
+        // Apply gate if: AV is enabled AND (Strictness is Maximum OR User is NOT Admin)
+        // CRITICAL: Admins ALWAYS bypass the gate for metadata/counts to ensure Control Hub visibility
+        const gateActive = protection.avEnabled && !isVerified && !userIsAdmin && (protection.avStrictness === 'maximum' || !userIsAdmin);
+        
+        // Even if gated, we can still provide metadata like total counts
+        if (gateActive && !addedBy) {
+            console.log('[SovereignGate] Gating resource list: Age Verification Required.');
+            const countSnap = await adminDb.collection('resources').where('status', '==', 'published').count().get();
+            return {
+                resources: [],
+                total: countSnap.data().count,
+                hasMore: false,
+                complianceGated: true 
+            };
+        }
+
         let query: any = adminDb.collection('resources');
 
-        // Access Control Filtering
-        // Legacy Support: We allow all resources for now because many older items 
-        // lack a "status" field. Firestore equality filters on "status" would 
-        // hide these resources entirely.
-        if (!userIsAdmin) {
-            // For now, we are not strictly filtering by status until a migration is complete.
-            // If you want to hide a resource globally, use a rank of -1 or delete it.
+        // ────────────────────────────────────────────────────
+        // SOVEREIGN GATE: Content Visibility & Moderation
+        // ────────────────────────────────────────────────────
+        // ────────────────────────────────────────────────────
+        // SOVEREIGN GATE: Content Visibility & Moderation
+        // ────────────────────────────────────────────────────
+        if (status) {
+            const statusList = status.split(',').filter(Boolean);
+            if (statusList.length === 1) {
+                query = query.where('status', '==', statusList[0]);
+            } else if (statusList.length > 1) {
+                query = query.where('status', 'in', statusList);
+            }
+        } else if (!userIsAdmin) {
+            // Strictly exclude hidden content from public view if no specific status requested
+            query = query.where('status', 'not-in', ['hidden', 'draft', 'pending']);
         }
 
         // Apply specified filters
@@ -120,8 +157,37 @@ export async function getResourcesAction(options: GetResourcesOptions) {
         }
 
         // No search term or tokens: We can use Firestore for pagination
-        const countSnapshot = await query.count().get();
+        let countSnapshot = await query.count().get();
         total = countSnapshot.data().count;
+
+        // CRITICAL FALLBACK: If total is 0 and we are an admin querying the 'db-0' instance,
+        // try a one-time check of the '(default)' database to see if data exists there instead.
+        if (total === 0 && userIsAdmin && !search && !addedBy) {
+            try {
+                const { getDb } = await import('./firebase-admin');
+                const defaultDb = getDb('(default)');
+                if (defaultDb) {
+                    let fallbackQuery: any = defaultDb.collection('resources');
+                    if (status) {
+                         const statusList = status.split(',').filter(Boolean);
+                         if (statusList.length === 1) fallbackQuery = fallbackQuery.where('status', '==', statusList[0]);
+                         else if (statusList.length > 1) fallbackQuery = fallbackQuery.where('status', 'in', statusList);
+                    } else if (!userIsAdmin) {
+                         // For non-admins, only fallback to published content
+                         fallbackQuery = fallbackQuery.where('status', '==', 'published');
+                    }
+                    
+                    const fallbackCount = await fallbackQuery.count().get();
+                    if (fallbackCount.data().count > 0) {
+                        console.log(`[SovereignResolver] Data found in (default) database (${fallbackCount.data().count} items). Redirecting query...`);
+                        query = fallbackQuery;
+                        total = fallbackCount.data().count;
+                    }
+                }
+            } catch (e) {
+                console.error('[SovereignResolver] Fallback check failed:', e);
+            }
+        }
 
         const snapshot = await query
             .offset((page - 1) * pageSize)
@@ -130,6 +196,7 @@ export async function getResourcesAction(options: GetResourcesOptions) {
 
         finalResources = snapshot.docs.map((doc: any) => ({
             id: doc.id,
+            status: 'published', // Default for legacy data
             ...doc.data(),
             createdAt: doc.data().createdAt?.toDate()?.toISOString() || null,
             updatedAt: doc.data().updatedAt?.toDate()?.toISOString() || null,
@@ -142,7 +209,7 @@ export async function getResourcesAction(options: GetResourcesOptions) {
         if (userIds.length > 0) {
             // Using Promise.all to fetch missing user profiles in parallel
             await Promise.all(userIds.map(async (uid: any) => {
-                const userDoc = await adminDb.collection('users').doc(uid).get();
+                const userDoc = await toolDbAdmin.collection('users').doc(uid).get();
                 if (userDoc.exists) {
                     const userData = userDoc.data();
                     creatorProfiles[uid] = {
@@ -171,12 +238,34 @@ export async function getResourcesAction(options: GetResourcesOptions) {
 
 export async function getResourceById(id: string) {
     try {
+        const protection = await getProtectionConfig();
+        const cookieStore = await cookies();
+        const isVerified = cookieStore.get('stillwater_av_verified')?.value === 'true';
+
+        // Apply gate if: AV is enabled AND (Strictness is Maximum OR User is NOT Admin)
+        // Note: For getResourceById, we don't have userIsAdmin readily available from options, 
+        // so we check the protection status.
+        if (protection.avEnabled && !isVerified && protection.avStrictness === 'maximum') {
+            console.log(`[SovereignGate] Blocked access to resource ${id}: Age Verification Required (Maximum Strictness).`);
+            return null;
+        }
+
         const docRef = await adminDb.collection('resources').doc(id).get();
         if (!docRef.exists) return null;
 
         const data = docRef.data() as any;
+        
+        // Gating Check: If resource is hidden/draft/pending, only admins can view it
+        // Note: For now, we allow admins to see it. If you want to strictly hide it even from admins in this view, 
+        // you can change the condition.
+        if (data.status === 'hidden' || data.status === 'draft' || data.status === 'pending') {
+            // We return null to simulate 'not found' for public users
+            // You might want to pass a 'userIsAdmin' flag here in the future
+            return null;
+        }
         const resource = {
             id: docRef.id,
+            status: 'published', // Default for legacy data
             ...data,
             createdAt: data.createdAt?.toDate()?.toISOString() || null,
             updatedAt: data.updatedAt?.toDate()?.toISOString() || null,
@@ -184,7 +273,7 @@ export async function getResourceById(id: string) {
 
         // Fetch creator
         if (resource.addedBy) {
-            const userDoc = await adminDb.collection('users').doc(resource.addedBy).get();
+            const userDoc = await toolDbAdmin.collection('users').doc(resource.addedBy).get();
             if (userDoc.exists) {
                 const userData = userDoc.data();
                 resource.creator = {

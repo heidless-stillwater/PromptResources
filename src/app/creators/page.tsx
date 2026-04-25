@@ -1,5 +1,6 @@
 import { Metadata } from 'next';
 import { getAllCreators } from '@/lib/creators-server';
+import { sanitize } from '@/lib/utils';
 import CreatorsDirectoryClient from './CreatorsDirectoryClient';
 
 export const metadata: Metadata = {
@@ -13,5 +14,5 @@ export default async function CreatorsPage() {
         getAllCreators({ limit: 48 }),
     ]);
 
-    return <CreatorsDirectoryClient featured={featured} creators={all} />;
+    return <CreatorsDirectoryClient featured={sanitize(featured)} creators={sanitize(all)} />;
 }

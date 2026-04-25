@@ -1,4 +1,4 @@
-import { adminDb } from './firebase-admin';
+import { toolDbAdmin } from './firebase-admin';
 
 export interface UsageLimit {
     feature: string;
@@ -9,7 +9,7 @@ export interface UsageLimit {
 
 export async function checkFeatureUsage(uid: string, feature: string): Promise<{ allowed: boolean; usageCount: number; limit: number }> {
     // 1. Get user profile for subscription status
-    const userDoc = await adminDb.collection('users').doc(uid).get();
+    const userDoc = await toolDbAdmin.collection('users').doc(uid).get();
     const userData = userDoc.data();
     const isPro = userData?.subscriptionType === 'pro' || userData?.subscription?.status === 'active';
 
@@ -20,7 +20,7 @@ export async function checkFeatureUsage(uid: string, feature: string): Promise<{
 
     // 3. Get usage for today
     const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
-    const usageRef = adminDb.collection('users').doc(uid).collection('usage').doc(`${feature}_${today}`);
+    const usageRef = toolDbAdmin.collection('users').doc(uid).collection('usage').doc(`${feature}_${today}`);
     const usageSnap = await usageRef.get();
 
     const limit = 3; // Free limit
@@ -35,9 +35,9 @@ export async function checkFeatureUsage(uid: string, feature: string): Promise<{
 
 export async function incrementFeatureUsage(uid: string, feature: string) {
     const today = new Date().toISOString().split('T')[0];
-    const usageRef = adminDb.collection('users').doc(uid).collection('usage').doc(`${feature}_${today}`);
+    const usageRef = toolDbAdmin.collection('users').doc(uid).collection('usage').doc(`${feature}_${today}`);
     
-    await adminDb.runTransaction(async (transaction) => {
+    await toolDbAdmin.runTransaction(async (transaction) => {
         const doc = await transaction.get(usageRef);
         if (!doc.exists) {
             transaction.set(usageRef, { count: 1, lastUsed: new Date() });

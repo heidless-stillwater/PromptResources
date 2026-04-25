@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getStripe } from '@/lib/stripe';
-import { adminDb } from '@/lib/firebase-admin';
+import { toolDbAdmin } from '@/lib/firebase-admin';
 
 export async function POST(req: NextRequest) {
     try {
@@ -11,8 +11,8 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'User ID is required' }, { status: 400 });
         }
 
-        // 1. Fetch user from Firestore to get stripeCustomerId
-        const userDoc = await adminDb.collection('users').doc(uid).get();
+        // 1. Fetch user from Global Identity Store to get stripeCustomerId
+        const userDoc = await toolDbAdmin.collection('users').doc(uid).get();
         if (!userDoc.exists) {
             return NextResponse.json({ error: 'User not found' }, { status: 404 });
         }

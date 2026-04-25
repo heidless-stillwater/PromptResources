@@ -3,6 +3,8 @@ import { adminDb } from '@/lib/firebase-admin';
 import { getAuthUser, isAdmin } from '@/lib/auth-server';
 import { syncCreatorStats } from '@/lib/creators-server';
 
+export const dynamic = 'force-dynamic';
+
 export async function POST(request: NextRequest) {
     try {
         const decodedToken = await getAuthUser(request);

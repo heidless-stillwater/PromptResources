@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState, useRef } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
@@ -19,11 +19,17 @@ import Rating from '@/components/Rating';
 import CommentSection from '@/components/CommentSection';
 import ThumbnailPicker from '@/components/ThumbnailPicker';
 import { Icons } from '@/components/ui/Icons';
+import { FlagModal } from '@/components/FlagModal';
+import { useToast } from '@/components/Toast';
 
 export default function ResourceDetailPage() {
     const params = useParams();
     const router = useRouter();
+    const searchParams = useSearchParams();
+    const ticketId = searchParams.get('ticketId');
+    const returnUrl = searchParams.get('returnUrl');
     const { user, isAdmin, activeRole } = useAuth();
+    const { addToast } = useToast();
     const queryClient = useQueryClient();
     const [deleting, setDeleting] = useState(false);
     const [copyStatus, setCopyStatus] = useState('Copy Link');
@@ -78,6 +84,9 @@ export default function ResourceDetailPage() {
     // Generic URL Extraction State
     const [isUrlInputOpen, setIsUrlInputOpen] = useState(false);
     const [extractUrl, setExtractUrl] = useState('');
+
+    // Compliance / Reporting State
+    const [isFlagModalOpen, setIsFlagModalOpen] = useState(false);
 
     const resourceId = params.id as string;
 
@@ -240,6 +249,52 @@ export default function ResourceDetailPage() {
     const [newTag, setNewTag] = useState('');
     const [isCategoryInputOpen, setIsCategoryInputOpen] = useState(false);
     const allCategories = getDefaultCategories();
+
+    const [resolving, setResolving] = useState<string | null>(null);
+
+    const handleResolution = async (action: 'reinstate' | 'archive') => {
+        if (!ticketId) return;
+        setResolving(action);
+        try {
+            const token = await user?.getIdToken();
+            const response = await fetch('/api/moderation/resolve', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                    resourceId,
+                    ticketId,
+                    action
+                })
+            });
+
+            const result = await response.json();
+            if (result.success) {
+                addToast(
+                    action === 'reinstate' 
+                        ? 'Resource reinstated and strike removed.' 
+                        : 'Resource archived as tainted.', 
+                    'success'
+                );
+                
+                // Redirect back to Accreditation if returnUrl provided
+                if (returnUrl) {
+                    window.location.href = returnUrl;
+                } else {
+                    queryClient.invalidateQueries({ queryKey: ['resource', resourceId] });
+                }
+            } else {
+                throw new Error(result.error || 'Resolution failed');
+            }
+        } catch (error: any) {
+            console.error('Resolution Error:', error);
+            addToast(error.message, 'error');
+        } finally {
+            setResolving(null);
+        }
+    };
 
     const handleRemoveTag = async (tagToRemove: string) => {
         if (!isAdmin && resource?.addedBy !== user?.uid) return;
@@ -611,156 +666,103 @@ export default function ResourceDetailPage() {
         <div className="page-wrapper dashboard-theme min-h-screen bg-[#0a0a0f] text-white">
             <Navbar />
             
-            {/* ── CINEMATIC HERO COVER ── */}
-            <div className="relative w-full h-auto overflow-hidden flex flex-col">
-                {/* Background Layer (Blurred Telemetry) */}
+            {/* ── PREMIUM CINEMATIC COVER ── */}
+            <div className="relative w-full overflow-hidden flex flex-col border-b border-white/5 bg-[#0a0a0f]">
+                {/* Background Layer (Stillwater Brand Glow) */}
                 <div className="absolute inset-0 z-0">
-                    {r.thumbnailUrl || r.youtubeVideoId ? (
-                        <div className="relative w-full h-full">
-                            <img 
-                                src={r.thumbnailUrl || `https://img.youtube.com/vi/${r.youtubeVideoId}/maxresdefault.jpg`} 
-                                alt="" 
-                                className="w-full h-full object-cover scale-110 blur-3xl opacity-20" 
-                            />
-                            <div className="absolute inset-0 bg-gradient-to-b from-[#0a0a0f]/40 via-[#0a0a0f]/80 to-[#0a0a0f]" />
-                        </div>
-                    ) : (
-                        <div className="absolute inset-0 bg-gradient-to-br from-indigo-900/10 via-[#0a0a0f] to-[#0a0a0f]" />
-                    )}
+                    <div className="w-full h-full">
+                        <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-transparent to-accent/10 opacity-60" />
+                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[400px] bg-primary/10 rounded-full blur-[120px]" />
+                        {r.thumbnailUrl && (
+                            <div className="absolute inset-0 opacity-10">
+                                <img src={r.thumbnailUrl} alt="" className="w-full h-full object-cover blur-3xl scale-110" />
+                                <div className="absolute inset-0 bg-black/60" />
+                            </div>
+                        )}
+                    </div>
                 </div>
 
-                <div className="container relative z-10 flex flex-col gap-8 pt-8 pb-32">
-                    {/* Header Pathing */}
-                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-12">
-                        <div className="flex items-center gap-4">
-                            <Link href="/resources" className="p-3 bg-white/5 border border-white/10 rounded-2xl hover:bg-indigo-500/20 hover:border-indigo-500/30 transition-all group">
-                                <Icons.arrowLeft size={20} className="text-white/40 group-hover:text-indigo-400 group-hover:-translate-x-1 transition-all" />
-                            </Link>
-                            <div className="flex flex-col">
-                                <div className="text-[10px] font-black text-white/20 uppercase tracking-[0.3em] mb-1">
-                                    Registry Intelligence / Assets
-                                </div>
-                                <div className="flex items-center gap-2 text-xs font-bold text-white/60">
-                                    <span className="text-indigo-400/60 uppercase">Resource Detail</span>
-                                    <span className="opacity-20">/</span>
-                                    <span className="truncate max-w-[200px]">{r.title}</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="flex items-center gap-3">
-                            <button 
-                                onClick={handleSave}
-                                className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 border ${
-                                    isSaved 
-                                    ? 'bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-600/20' 
-                                    : 'bg-white/5 border-white/10 text-white/40 hover:text-white hover:bg-white/10'
-                                }`}
-                            >
-                                {isSaved ? '★ Saved to Library' : '☆ Save Asset'}
-                            </button>
-                            <div className="h-6 w-px bg-white/10 mx-2" />
-                            <button onClick={() => setShareOpen(!shareOpen)} className="p-3 bg-white/5 border border-white/10 rounded-xl text-white/40 hover:text-white transition-all">
-                                <Icons.share size={18} />
-                                {shareOpen && (
-                                    <div className="absolute top-full right-0 mt-4 z-50 share-menu animate-in fade-in slide-in-from-top-2">
-                                        <button className="share-menu-item" onClick={handleCopyLink}>
-                                            {copyStatus === 'Copy Link' ? '🔗 ' + copyStatus : '✅ ' + copyStatus}
-                                        </button>
-                                        <button className="share-menu-item" onClick={handleShareTwitter}>🐦 X / Twitter</button>
-                                    </div>
-                                )}
-                            </button>
-                        </div>
+                <div className="container relative z-10 pt-12 pb-40">
+                    {/* Pathing breadcrumbs */}
+                    <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.4em] text-white/30 mb-8">
+                        <Link href="/" className="hover:text-primary transition-colors">Registry</Link>
+                        <Icons.chevronRight size={10} className="text-white/10" />
+                        <Link href="/resources" className="hover:text-primary transition-colors">Resources</Link>
+                        <Icons.chevronRight size={10} className="text-white/10" />
+                        <span className="text-primary">{r.title}</span>
                     </div>
 
-                    {/* Identity Glass Card */}
-                    <div className="glass-card p-8 shadow-2xl relative overflow-hidden group">
-                        <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-indigo-500/5 rounded-full blur-[100px] -mr-48 -mt-48 group-hover:bg-indigo-500/10 transition-all duration-1000" />
-                        
-                        <div className="relative z-10 flex flex-col md:flex-row gap-10">
-                            {/* Visual Representative */}
-                            <div className="w-full md:w-[480px] aspect-video rounded-3xl overflow-hidden border border-white/10 bg-black/40 shadow-inner group/media relative">
-                                {ytId ? (
-                                    <iframe
-                                        src={getYouTubeEmbedUrl(ytId)}
-                                        title={r.title}
-                                        className="w-full h-full"
-                                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                                        allowFullScreen
-                                    />
-                                ) : r.thumbnailUrl ? (
-                                    <img src={r.thumbnailUrl} alt={r.title} className="w-full h-full object-cover" />
-                                ) : (
-                                    <div className="w-full h-full flex flex-col items-center justify-center text-white/10">
-                                        <Icons.database size={64} strokeWidth={1} />
-                                        <span className="text-[10px] font-black uppercase tracking-widest mt-4">Static Documentation</span>
-                                    </div>
-                                )}
-                                {(isAdmin || (user && r.addedBy === user.uid)) && (
-                                    <button 
-                                        onClick={() => setIsPickerOpen(true)}
-                                        className="absolute bottom-4 right-4 p-2 bg-black/60 backdrop-blur-xl border border-white/10 rounded-xl text-white/40 hover:text-white opacity-0 group-hover/media:opacity-100 transition-all"
-                                    >
-                                        <Icons.edit size={14} />
-                                    </button>
+                    <div className="flex flex-col md:flex-row gap-10">
+                        {/* Identity & Key Data */}
+                        <div className="flex-1 flex flex-col justify-center py-4">
+                            <div className="flex flex-wrap items-center gap-3 mb-6">
+                                <span className="px-3 py-1 bg-primary text-white rounded-lg text-[10px] font-black uppercase tracking-widest flex items-center gap-2 shadow-lg shadow-primary/20">
+                                    <Icons.database size={12} /> {r.type}
+                                </span>
+                                <div className="h-4 w-px bg-white/10" />
+                                <span className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest border border-white/10 backdrop-blur-md ${
+                                    r.pricing === 'free' ? 'text-emerald-400 bg-emerald-500/5' : 
+                                    r.pricing === 'paid' ? 'text-amber-500 bg-amber-500/5' : 
+                                    'text-primary bg-primary/5'
+                                }`}>
+                                    {r.pricing}
+                                </span>
+                                {r.isFavorite && (
+                                    <>
+                                        <div className="h-4 w-px bg-white/10" />
+                                        <div className="flex items-center gap-2 px-3 py-1 bg-amber-500/10 border border-amber-500/20 text-amber-500 rounded-lg text-[10px] font-black uppercase tracking-widest">
+                                            <Icons.sparkles size={12} /> Featured
+                                        </div>
+                                    </>
                                 )}
                             </div>
 
-                            {/* Textual Identity */}
-                            <div className="flex-1 flex flex-col py-2">
-                                <div className="flex items-center gap-3 mb-4">
-                                    <span className={`px-3 py-1 bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 rounded-lg text-[9px] font-black uppercase tracking-widest`}>
-                                        {r.type}
-                                    </span>
-                                    {r.isFavorite && (
-                                        <div className="flex items-center gap-1.5 px-3 py-1 bg-amber-500/10 border border-amber-500/20 text-amber-500 rounded-lg text-[9px] font-black uppercase tracking-widest">
-                                            <Icons.sparkles size={10} /> Featured
-                                        </div>
-                                    )}
-                                </div>
-
-                                <h1 className="text-4xl md:text-6xl font-black tracking-tighter text-white mb-4 leading-none">
+                            <div className="mb-8">
+                                <h2 className="text-sm font-black text-white/30 uppercase tracking-[0.4em] mb-2">Architectural Asset</h2>
+                                <h1 className="text-4xl md:text-7xl font-black tracking-tighter text-white mb-6 leading-[0.9]">
                                     {r.title}
                                 </h1>
-
-                                <div className="flex flex-wrap items-center gap-6 mb-8 text-white/40">
-                                    <div className="flex items-center gap-3">
-                                        <Rating value={r.averageRating || 0} count={r.reviewCount || 0} />
-                                    </div>
+                                <div className="flex flex-wrap items-center gap-6 text-white/40">
+                                    <Rating value={r.averageRating || 0} count={r.reviewCount || 0} />
                                     <div className="h-4 w-px bg-white/10" />
                                     <div className="flex items-center gap-2">
                                         <span className="text-lg">🌐</span>
-                                        <span className="text-xs font-black uppercase tracking-widest">{r.platform}</span>
+                                        <span className="text-[10px] font-black uppercase tracking-[0.4em]">{r.platform}</span>
                                     </div>
                                     <div className="h-4 w-px bg-white/10" />
-                                    <div className="flex items-center gap-3">
-                                        <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest border ${
-                                            r.pricing === 'free' ? 'border-emerald-500/20 text-emerald-400 bg-emerald-500/5' : 
-                                            r.pricing === 'paid' ? 'border-amber-500/20 text-amber-500 bg-amber-500/5' : 
-                                            'border-indigo-500/20 text-indigo-400 bg-indigo-500/5'
-                                        }`}>
-                                            {r.pricing}
-                                        </span>
-                                    </div>
-                                </div>
-
-                                <div className="mt-auto flex gap-4">
-                                    <a 
-                                        href={r.url} 
-                                        target="_blank" 
-                                        rel="noopener noreferrer"
-                                        className="flex-1 md:flex-none px-10 py-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl font-black text-sm transition-all flex items-center justify-center gap-3 shadow-xl shadow-indigo-600/20"
+                                    <button 
+                                        onClick={handleSave}
+                                        className={`flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.3em] transition-all ${isSaved ? 'text-primary' : 'text-white/20 hover:text-white'}`}
                                     >
-                                        Execute Command <Icons.external size={18} />
-                                    </a>
-                                    
-                                    {(isAdmin || (user && r.addedBy === user.uid)) && (
-                                        <Link href={`/resources/${r.id}/edit`} className="p-4 bg-white/5 border border-white/10 rounded-2xl hover:bg-white/10 transition-all text-white/40 hover:text-white">
-                                            <Icons.edit size={20} />
-                                        </Link>
-                                    )}
+                                        {isSaved ? '★ Saved' : '☆ Save to Library'}
+                                    </button>
                                 </div>
+                            </div>
+
+                            <div className="flex flex-wrap items-center gap-4">
+                                <a 
+                                    href={r.url} 
+                                    target="_blank" 
+                                    rel="noopener noreferrer"
+                                    className="flex-1 md:flex-none px-12 py-4 bg-gradient-to-r from-primary to-accent text-white rounded-2xl font-black text-sm transition-all flex items-center justify-center gap-3 shadow-2xl shadow-primary/30 hover:scale-[1.02] active:scale-95"
+                                >
+                                    Launch Interface <Icons.external size={18} strokeWidth={3} />
+                                </a>
+                                
+                                <button 
+                                    onClick={() => setIsFlagModalOpen(true)}
+                                    className="flex-1 md:flex-none px-8 py-4 bg-white/5 border border-white/10 rounded-2xl text-white/40 hover:bg-rose-500 hover:text-white hover:border-rose-400 transition-all flex items-center justify-center gap-3 group font-black text-[10px] uppercase tracking-widest"
+                                    title="Report Compliance Breach"
+                                >
+                                    <Icons.report size={18} />
+                                    Security Check
+                                </button>
+
+                                {(isAdmin || (user && r.addedBy === user.uid)) && (
+                                    <Link href={`/resources/${r.id}/edit`} className="p-4 bg-white/5 border border-white/10 rounded-2xl hover:bg-primary hover:text-white hover:border-primary transition-all text-white/40 group">
+                                        <Icons.edit size={20} />
+                                    </Link>
+                                )}
                             </div>
                         </div>
                     </div>
@@ -769,11 +771,72 @@ export default function ResourceDetailPage() {
 
             <div className="main-content -mt-28 overflow-visible">
                 <main className="container mx-auto px-4 pt-0 pb-20 relative z-30">
+                    
+                    {/* ── SOVEREIGN MODERATION PANELS ── */}
+                    {r.status === 'flagged' && (
+                        <div className="mb-10 p-8 bg-rose-500/10 border border-rose-500/30 rounded-[2.5rem] flex flex-col md:flex-row items-center gap-8 animate-in fade-in slide-in-from-top-4 duration-700 backdrop-blur-xl">
+                            <div className="w-20 h-20 rounded-[2rem] bg-rose-500/20 flex items-center justify-center text-rose-500 shrink-0 shadow-inner">
+                                <Icons.report size={40} className="animate-pulse" />
+                            </div>
+                            <div className="flex-1 text-center md:text-left">
+                                <h3 className="text-2xl font-black uppercase tracking-tighter text-rose-400 mb-2">Safety Review Active</h3>
+                                <p className="text-sm text-rose-300/70 font-medium leading-relaxed max-w-4xl">
+                                    This architectural asset has been flagged by the community for <span className="font-bold text-rose-400 italic">
+                                        {r.reportType === 'illegal' ? 'Safety Concerns' : 
+                                         r.reportType === 'harmful_children' ? 'Minor Protection' :
+                                         r.reportType === 'harassment' ? 'Community Standards' :
+                                         r.reportType === 'hate_speech' ? 'Inclusivity' :
+                                         r.reportType === 'misinformation' ? 'Quality Verification' :
+                                         r.reportType === 'spam' ? 'Platform Integrity' : 'Community Review'}
+                                    </span>. Access restricted during clinical verification.
+                                </p>
+                            </div>
+                            <div className="px-8 py-3 bg-rose-500/20 border border-rose-500/30 rounded-2xl text-xs font-black uppercase tracking-widest text-rose-400">
+                                Under Investigation
+                            </div>
+                        </div>
+                    )}
+
+                    {isAdmin && ticketId && (
+                        <div className="mb-10 p-8 rounded-[2.5rem] bg-primary/10 border border-primary/20 backdrop-blur-xl animate-in fade-in slide-in-from-top-4 duration-500">
+                            <div className="flex flex-col md:flex-row items-center justify-between gap-8">
+                                <div className="flex items-center gap-6">
+                                    <div className="w-16 h-16 rounded-[2rem] bg-primary/20 flex items-center justify-center text-primary shadow-inner">
+                                        <Icons.report size={32} className="animate-pulse" />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-xl font-black text-white tracking-tight">Clinical Resolution Active</h3>
+                                        <p className="text-sm text-primary/70 font-medium tracking-wide">Reviewing Asset against Compliance Ticket #{ticketId.slice(-6)}</p>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-4">
+                                    <button 
+                                        className="px-8 py-4 bg-rose-500/10 border border-rose-500/20 text-rose-400 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-rose-500 hover:text-white transition-all disabled:opacity-50"
+                                        onClick={() => handleResolution('archive')}
+                                        disabled={!!resolving}
+                                    >
+                                        {resolving === 'archive' ? 'Archiving...' : '⚠️ Archive Tainted'}
+                                    </button>
+                                    <button 
+                                        className="px-10 py-4 bg-primary text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-primary/80 transition-all shadow-2xl shadow-primary/30 disabled:opacity-50"
+                                        onClick={() => handleResolution('reinstate')}
+                                        disabled={!!resolving}
+                                    >
+                                        {resolving === 'reinstate' ? 'Reinstating...' : '✅ Reinstate Asset'}
+                                    </button>
+                                </div>
+                            </div>
+                            <div className="mt-6 pt-6 border-t border-white/5 flex items-center gap-3 text-[10px] text-white/30 uppercase tracking-[0.3em] font-black">
+                                <Icons.info size={12} /> Sovereign Moderation Protocol 15.2.2 Active
+                            </div>
+                        </div>
+                    )}
+
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
                         {/* Main Stream */}
                         <div className="lg:col-span-2 space-y-10">
                                 <div className="bg-[#12121e]/90 border border-white/10 rounded-3xl p-6 md:p-8 backdrop-blur-xl shadow-2xl relative overflow-hidden group mb-8">
-                                    <div className="absolute top-0 right-0 p-8 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none group-hover:bg-indigo-500/20 transition-all duration-700"></div>
+                                    <div className="absolute top-0 right-0 p-8 w-64 h-64 bg-primary/10 rounded-full blur-3xl pointer-events-none group-hover:bg-primary/20 transition-all duration-700"></div>
                                 {isEditingTitle ? (
                                     <div className="animate-in fade-in zoom-in duration-200" style={{ width: '100%', marginBottom: 'var(--space-4)' }}>
                                         <input 
@@ -993,9 +1056,31 @@ export default function ResourceDetailPage() {
                             </div>
 
                              <div className="bg-[#12121e]/50 border border-white/5 rounded-3xl p-6 md:p-8 mb-8 hover:bg-[#12121e]/70 transition-colors">
-                                <div className="flex items-center gap-3 mb-6">
-                                    <div className="w-8 h-8 rounded-xl bg-indigo-500/10 flex items-center justify-center text-indigo-400">📄</div>
-                                    <h3 className="text-sm font-black uppercase tracking-[0.2em] text-white/50">Technical Description</h3>
+                                <div className="flex flex-col gap-8 mb-8">
+                                    <div className="flex items-center gap-6">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary shrink-0">📄</div>
+                                            {r.thumbnailUrl && (
+                                                <div className="w-16 h-16 rounded-2xl overflow-hidden border border-white/10 shadow-xl shrink-0">
+                                                    <img src={r.thumbnailUrl} alt="" className="w-full h-full object-cover" />
+                                                </div>
+                                            )}
+                                        </div>
+                                        <h3 className="text-sm font-black uppercase tracking-[0.2em] text-white/50">Technical Description</h3>
+                                    </div>
+
+                                    {/* Inline Media Player */}
+                                    {ytId && (
+                                        <div className="relative aspect-video rounded-3xl overflow-hidden border border-white/10 shadow-2xl bg-black/40">
+                                            <iframe
+                                                src={getYouTubeEmbedUrl(ytId)}
+                                                title={r.title}
+                                                className="w-full h-full"
+                                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                                allowFullScreen
+                                            />
+                                        </div>
+                                    )}
                                 </div>
                                 <div className="text-white/70 leading-loose text-sm">
                                     {r.description}
@@ -1266,7 +1351,7 @@ export default function ResourceDetailPage() {
                             {/* Access Control */}
                             <div className="glass-card p-8">
                                 <div className="flex items-center gap-3 mb-6">
-                                    <div className="w-8 h-8 rounded-lg bg-indigo-500/10 flex items-center justify-center text-indigo-400">
+                                    <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
                                         <Icons.external size={16} />
                                     </div>
                                     <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-white/40">Access Protocol</h3>
@@ -1280,10 +1365,18 @@ export default function ResourceDetailPage() {
                                 >
                                     <div className="flex justify-between items-center">
                                         <div className="min-w-0">
-                                            <div className="text-white font-bold truncate">{new URL(r.url).hostname}</div>
+                                            <div className="text-white font-bold truncate">
+                                                {(() => {
+                                                    try {
+                                                        return r.url ? new URL(r.url).hostname : 'External Interface';
+                                                    } catch (e) {
+                                                        return r.url || 'External Interface';
+                                                    }
+                                                })()}
+                                            </div>
                                             <div className="text-[10px] text-white/30 uppercase tracking-widest mt-1">Direct Interface</div>
                                         </div>
-                                        <Icons.external size={16} className="text-white/20 group-hover/link:text-indigo-400 group-hover/link:translate-x-0.5 group-hover/link:-translate-y-0.5 transition-all" />
+                                        <Icons.external size={16} className="text-white/20 group-hover/link:text-primary group-hover/link:translate-x-0.5 group-hover/link:-translate-y-0.5 transition-all" />
                                     </div>
                                 </a>
 
@@ -1298,7 +1391,7 @@ export default function ResourceDetailPage() {
                             {/* Classification */}
                             <div className="glass-card p-8">
                                 <div className="flex items-center gap-3 mb-6">
-                                    <div className="w-8 h-8 rounded-lg bg-indigo-500/10 flex items-center justify-center text-indigo-400">
+                                    <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
                                         <Icons.rows size={16} />
                                     </div>
                                     <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-white/40">Classification</h3>
@@ -1309,7 +1402,7 @@ export default function ResourceDetailPage() {
                                         {(isAdmin || (user && r.addedBy === user.uid)) ? (
                                             <>
                                                 <select 
-                                                    className={`px-3 py-1.5 bg-indigo-500/5 border border-indigo-500/10 rounded-lg text-[10px] font-bold text-indigo-400/80 outline-none cursor-pointer hover:bg-indigo-500/10 transition-all appearance-none`}
+                                                    className={`px-3 py-1.5 bg-primary/5 border border-primary/10 rounded-lg text-[10px] font-bold text-primary/80 outline-none cursor-pointer hover:bg-primary/10 transition-all appearance-none`}
                                                     value={r.pricing} 
                                                     onChange={(e) => handleUpdateField('pricing', e.target.value)}
                                                 >
@@ -1325,7 +1418,7 @@ export default function ResourceDetailPage() {
                                             </>
                                         ) : (
                                             <>
-                                                <span className={`px-3 py-1.5 bg-indigo-500/5 border border-indigo-500/10 rounded-lg text-[10px] font-bold text-indigo-400/80 uppercase`}>{r.pricing}</span>
+                                                <span className={`px-3 py-1.5 bg-primary/5 border border-primary/10 rounded-lg text-[10px] font-bold text-primary/80 uppercase`}>{r.pricing}</span>
                                                 <span className="px-3 py-1.5 bg-white/5 border border-white/10 rounded-lg text-[10px] font-bold text-white/60 uppercase">{r.platform}</span>
                                             </>
                                         )}
@@ -1338,7 +1431,7 @@ export default function ResourceDetailPage() {
                                                 <button
                                                     key={cat}
                                                     onClick={() => {(isAdmin || (user && r.addedBy === user.uid)) ? handleRemoveCategory(cat) : null}}
-                                                    className={`px-3 py-1.5 bg-indigo-500/5 border border-indigo-500/10 rounded-lg text-[10px] font-bold text-indigo-400/80 transition-all ${ (isAdmin || (user && r.addedBy === user.uid)) ? 'hover:border-red-500/40 hover:text-red-400' : ''}`}
+                                                    className={`px-3 py-1.5 bg-primary/5 border border-primary/10 rounded-lg text-[10px] font-bold text-primary/80 transition-all ${ (isAdmin || (user && r.addedBy === user.uid)) ? 'hover:border-red-500/40 hover:text-red-400' : ''}`}
                                                 >
                                                     {cat}
                                                 </button>
@@ -1356,7 +1449,7 @@ export default function ResourceDetailPage() {
                                                 <button 
                                                     key={tag} 
                                                     onClick={() => {(isAdmin || (user && r.addedBy === user.uid)) ? handleRemoveTag(tag) : null}}
-                                                    className={`text-[10px] font-bold text-white/30 italic hover:text-indigo-400 transition-colors`}
+                                                    className={`text-[10px] font-bold text-white/30 italic hover:text-primary transition-colors`}
                                                 >
                                                     #{tag}
                                                 </button>
@@ -1371,17 +1464,17 @@ export default function ResourceDetailPage() {
 
                             {/* Management Protocol (Curator Only) */}
                             {(isAdmin || (user && r.addedBy === user.uid)) && (
-                                <div className="glass-card p-8 border-indigo-500/20 bg-indigo-500/5">
+                                <div className="glass-card p-8 border-primary/20 bg-primary/5">
                                     <div className="flex items-center gap-3 mb-6">
-                                        <div className="w-8 h-8 rounded-lg bg-indigo-500/20 flex items-center justify-center text-indigo-400">
+                                        <div className="w-8 h-8 rounded-lg bg-primary/20 flex items-center justify-center text-primary">
                                             <Icons.settings size={16} />
                                         </div>
-                                        <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-indigo-400">Curation Workbench</h3>
+                                        <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">Curation Workbench</h3>
                                     </div>
                                     <div className="space-y-3">
                                         <Link href={`/resources/${r.id}/edit`} className="flex items-center justify-between p-4 bg-white/5 border border-white/10 rounded-2xl hover:bg-white/10 transition-all group/edit">
                                             <span className="text-[10px] font-black uppercase tracking-widest text-white/60 group-hover/edit:text-white">Hard Refactor</span>
-                                            <Icons.edit size={14} className="text-white/20 group-hover/edit:text-indigo-400" />
+                                            <Icons.edit size={14} className="text-white/20 group-hover/edit:text-primary" />
                                         </Link>
                                         <button 
                                             onClick={handleDelete}
@@ -1398,26 +1491,40 @@ export default function ResourceDetailPage() {
                             {/* Attribution Stats */}
                             <div className="glass-card p-8">
                                 <div className="flex items-center gap-3 mb-6">
-                                    <div className="w-8 h-8 rounded-lg bg-indigo-500/10 flex items-center justify-center text-indigo-400">
+                                    <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
                                         <Icons.user size={16} />
                                     </div>
                                     <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-white/40">Intelligence Origin</h3>
                                 </div>
                                 <div className="space-y-3">
                                     {deduplicateAttributions(r.attributions || []).map((attr, idx) => (
-                                        <div key={idx} className="flex items-center justify-between p-3 bg-white/5 border border-white/5 rounded-xl">
+                                        <div key={idx} className="flex items-center justify-between p-3 bg-white/5 border border-white/5 rounded-xl group/attr">
                                             <div className="flex items-center gap-3">
-                                                <div className="w-8 h-8 rounded-lg bg-indigo-500 text-white flex items-center justify-center font-black text-xs">
+                                                <div className="w-8 h-8 rounded-lg bg-primary text-white flex items-center justify-center font-black text-xs shadow-lg shadow-primary/20">
                                                     {attr.name.charAt(0)}
                                                 </div>
                                                 <div className="min-w-0">
-                                                    <div className="text-xs font-bold text-white truncate">{attr.name}</div>
+                                                    {attr.userId ? (
+                                                        <Link href={`/creators/${attr.userId}`} className="text-xs font-bold text-white hover:text-primary transition-colors truncate block">
+                                                            {attr.name}
+                                                        </Link>
+                                                    ) : attr.url ? (
+                                                        <a href={attr.url} target="_blank" rel="noopener noreferrer" className="text-xs font-bold text-white hover:text-primary transition-colors truncate block">
+                                                            {attr.name}
+                                                        </a>
+                                                    ) : (
+                                                        <div className="text-xs font-bold text-white truncate">{attr.name}</div>
+                                                    )}
                                                     <div className="text-[8px] font-black uppercase text-white/20">{attr.role || 'Contributor'}</div>
                                                 </div>
                                             </div>
-                                            {attr.userId && (
-                                                <Link href={`/creators/${attr.userId}`} className="p-2 text-white/20 hover:text-indigo-400 transition-all">
-                                                    <Icons.arrowRight size={14} />
+                                            {(attr.userId || attr.url) && (
+                                                <Link 
+                                                    href={attr.userId ? `/creators/${attr.userId}` : attr.url!} 
+                                                    className="p-2 text-white/20 hover:text-primary transition-all group-hover/attr:translate-x-1"
+                                                    target={attr.userId ? undefined : "_blank"}
+                                                >
+                                                    {attr.userId ? <Icons.arrowRight size={14} /> : <Icons.external size={14} />}
                                                 </Link>
                                             )}
                                         </div>
@@ -1700,11 +1807,28 @@ export default function ResourceDetailPage() {
                 <p style={{ color: 'var(--text-secondary)' }}>{confirmModal.message}</p>
             </Modal>
 
-            <ThumbnailPicker 
+            <ThumbnailPicker
                 isOpen={isPickerOpen}
+                onSelect={(url) => {
+                    handleUpdateField('thumbnailUrl', url);
+                    setIsPickerOpen(false);
+                }}
                 onClose={() => setIsPickerOpen(false)}
-                onSelect={(url) => handleUpdateField('thumbnailUrl', url)}
             />
+
+            {isFlagModalOpen && (
+                <FlagModal
+                    resourceId={resourceId}
+                    resourceTitle={r.title}
+                    onClose={() => setIsFlagModalOpen(false)}
+                    onSuccess={() => {
+                        setIsFlagModalOpen(false);
+                        // Force real-time refresh of resource status
+                        queryClient.invalidateQueries({ queryKey: ['resource', resourceId] });
+                        addToast('Report submitted successfully. Regulatory review pending.', 'success');
+                    }}
+                />
+            )}
 
             <Footer />
         </div>

@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { getAllCreators } from '@/lib/creators-server';
 import { adminAuth } from '@/lib/firebase-admin';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: Request) {
     try {
         const { searchParams } = new URL(request.url);

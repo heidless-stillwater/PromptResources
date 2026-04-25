@@ -1,9 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser, isAdmin } from '@/lib/auth-server';
 import * as assetsServer from '@/lib/assets-server';
+import { ComplianceService } from '@/lib/services/compliance-service';
 
 export async function GET(request: NextRequest) {
     try {
+        // Active Compliance Gating
+        const gate = await ComplianceService.verifySovereignGate();
+        if (gate.gated) {
+             return NextResponse.json({ 
+                success: false, 
+                error: gate.message,
+                gated: true 
+            }, { status: 403 });
+        }
+
         const { searchParams } = new URL(request.url);
         const tags = searchParams.get('tags')?.split(',').filter(Boolean);
         
@@ -16,6 +27,16 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
     try {
+        // Active Compliance Gating
+        const gate = await ComplianceService.verifySovereignGate();
+        if (gate.gated) {
+             return NextResponse.json({ 
+                success: false, 
+                error: gate.message,
+                gated: true 
+            }, { status: 403 });
+        }
+
         const decodedToken = await getAuthUser(request);
         if (!decodedToken) return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
         

@@ -6,8 +6,10 @@ export type ResourcePricing = 'free' | 'paid' | 'freemium';
 export type ResourceType = 'video' | 'article' | 'tool' | 'course' | 'book' | 'tutorial' | 'other';
 export type MediaFormat = 'youtube' | 'webpage' | 'pdf' | 'image' | 'audio' | 'other';
 export type Platform = 'gemini' | 'nanobanana' | 'chatgpt' | 'claude' | 'midjourney' | 'general' | 'other';
-export type ResourceStatus = 'published' | 'draft' | 'pending' | 'suggested';
+export type ResourceStatus = 'published' | 'draft' | 'pending' | 'suggested' | 'flagged' | 'hidden' | 'tainted';
 export type ProgressStatus = 'new' | 'in-progress' | 'completed';
+export type FlagStatus = 'pending' | 'reviewed' | 'resolved' | 'dismissed';
+export type FlagReason = 'illegal' | 'harmful_children' | 'harassment' | 'hate_speech' | 'misinformation' | 'spam' | 'other';
 
 export type AttributionRole = 'creator' | 'author' | 'presenter' | 'curator' | 'contributor' | 'source';
 export type CreatorType = 'individual' | 'channel' | 'organization';
@@ -57,6 +59,7 @@ export interface UserProfile {
         expiresAt?: any;
     };
     
+    strikes?: number;
     createdAt: Date;
     updatedAt: Date;
 }
@@ -85,6 +88,7 @@ export interface Resource {
     createdAt: Date;
     updatedAt: Date;
     status: ResourceStatus;
+    reportType?: FlagReason;
     isFavorite?: boolean | null;
     rank?: number | null;
     prompts?: string[];
@@ -155,3 +159,39 @@ export interface ThumbnailAsset {
     addedBy: string;
     isDefault?: boolean;
 }
+
+export interface Flag {
+    id: string;
+    resourceId: string;
+    userId: string;
+    userName?: string;
+    reason: FlagReason;
+    details?: string;
+    status: FlagStatus;
+    createdAt: Date;
+    updatedAt: Date;
+}
+
+export interface ModerationConfig {
+    flaggingEnabled: boolean;
+    aiScreening: boolean;
+    autoLockThreshold?: number;
+}
+
+export interface ProtectionConfig {
+    avEnabled: boolean;
+    avStrictness: 'soft' | 'hard' | 'maximum';
+    geoGating?: string[];
+}
+
+export interface SecurityConfig {
+    securityHeadersEnabled: boolean;
+    hstsEnabled: boolean;
+}
+
+export interface SystemConfig {
+    moderation: ModerationConfig;
+    protection: ProtectionConfig;
+    security: SecurityConfig;
+}
+

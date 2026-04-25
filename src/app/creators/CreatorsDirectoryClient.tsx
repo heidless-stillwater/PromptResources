@@ -27,12 +27,12 @@ export default function CreatorsDirectoryClient({ featured, creators }: Props) {
     const [sortBy, setSortBy] = useState<'authored' | 'curated' | 'total' | 'newest' | 'name'>('authored');
     const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
     const [showVerifiedOnly, setShowVerifiedOnly] = useState(false);
-    const [viewMode, setViewMode] = useState<'grid' | 'list' | 'table' | 'small'>('grid');
+    const [viewMode, setViewMode] = useState<'grid' | 'wide' | 'list' | 'table' | 'small'>('grid');
 
     // Preference Persistence
     useEffect(() => {
         const savedMode = localStorage.getItem('creators_view_mode');
-        if (savedMode && ['grid', 'list', 'table', 'small'].includes(savedMode)) {
+        if (savedMode && ['grid', 'wide', 'list', 'table', 'small'].includes(savedMode)) {
             setViewMode(savedMode as any);
         }
     }, []);
@@ -104,11 +104,11 @@ export default function CreatorsDirectoryClient({ featured, creators }: Props) {
                     <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 mb-12 mt-2" id="listing-action-hub">
                         <div className="hero-section text-left">
                             <div className="flex items-center gap-3 mb-4">
-                                <div className="p-3 bg-indigo-500/10 rounded-2xl border border-indigo-500/20">
-                                    <Icons.users className="w-8 h-8 text-indigo-400" />
+                                <div className="p-3 bg-primary/10 rounded-2xl border border-primary/20">
+                                    <Icons.users className="w-8 h-8 text-primary" />
                                 </div>
                                 <h1 className="text-4xl md:text-6xl font-black tracking-tighter bg-gradient-to-r from-white via-white/90 to-white/40 bg-clip-text text-transparent">
-                                    Community <span className="text-indigo-400">Registry</span>
+                                    Community <span className="text-primary">Registry</span>
                                 </h1>
                             </div>
                             <p className="text-white/40 max-w-xl text-lg font-medium leading-relaxed">
@@ -120,13 +120,13 @@ export default function CreatorsDirectoryClient({ featured, creators }: Props) {
                     {/* ── REGISTRY STATS ── */}
                     <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 mb-4">
                         {[
-                            { label: 'Total Pioneers', value: creators.length, icon: <Icons.users size={20} />, color: 'from-indigo-500/10 to-indigo-500/5' },
+                            { label: 'Total Pioneers', value: creators.length, icon: <Icons.users size={20} />, color: 'from-primary/10 to-primary/5' },
                             { label: 'Verified leaders', value: creators.filter(c => c.isVerified).length, icon: <Icons.check size={20} />, color: 'from-white/10 to-transparent' },
-                            { label: 'Global impact', value: creators.reduce((acc, c) => acc + (c.resourceCount || 0), 0), icon: <Icons.sparkles size={20} />, color: 'from-indigo-500/10 to-transparent' },
+                            { label: 'Global impact', value: creators.reduce((acc, c) => acc + (c.resourceCount || 0), 0), icon: <Icons.sparkles size={20} />, color: 'from-primary/10 to-transparent' },
                             { label: 'Registry rank', value: creators.filter(c => c.rank).length, icon: <Icons.trophy size={20} />, color: 'from-white/10 to-transparent' }
                         ].map((stat, i) => (
                             <div key={i} className={`relative bg-gradient-to-br ${stat.color} border border-white/10 p-8 rounded-[2rem] flex flex-col items-center gap-3 hover:bg-white/5 transition-all group overflow-hidden`}>
-                                <div className="text-indigo-400 group-hover:scale-110 transition-transform duration-500 z-10 opacity-60">{stat.icon}</div>
+                                <div className="text-primary group-hover:scale-110 transition-transform duration-500 z-10 opacity-60">{stat.icon}</div>
                                 <div className="text-5xl font-black text-white relative z-10 tracking-tight">{stat.value}</div>
                                 <div className="text-[10px] uppercase font-black tracking-[0.25em] text-white/30 text-center z-10 leading-tight">{stat.label}</div>
                             </div>
@@ -142,7 +142,7 @@ export default function CreatorsDirectoryClient({ featured, creators }: Props) {
                                 <input 
                                     type="text" 
                                     placeholder="Search pioneers by name or expertise..."
-                                    className="w-full bg-black/40 border border-white/5 rounded-2xl pl-12 pr-4 py-3 text-sm focus:outline-none focus:border-indigo-500/50 transition-all font-medium"
+                                    className="w-full bg-black/40 border border-white/5 rounded-2xl pl-12 pr-4 py-3 text-sm focus:outline-none focus:border-primary/50 transition-all font-medium"
                                     value={search}
                                     onChange={(e) => setSearch(e.target.value)}
                                     id="creators-search"
@@ -159,6 +159,13 @@ export default function CreatorsDirectoryClient({ featured, creators }: Props) {
                                     title="Grid View"
                                 >
                                     <Icons.grid size={18} />
+                                </button>
+                                <button 
+                                    onClick={() => setViewMode('wide')}
+                                    className={`p-2 rounded-lg transition-all ${viewMode === 'wide' ? 'bg-white/10 text-white shadow-inner' : 'text-white/20 hover:text-white/40'}`}
+                                    title="Wide View (2 per row)"
+                                >
+                                    <Icons.stack size={18} />
                                 </button>
                                 <button 
                                     onClick={() => setViewMode('small')}
@@ -200,8 +207,8 @@ export default function CreatorsDirectoryClient({ featured, creators }: Props) {
                                 ))}
                             </div>
 
-                            <div className="px-4 py-2 bg-indigo-500/10 border border-indigo-500/20 rounded-xl hidden sm:block">
-                                <span className="text-xs font-black text-indigo-400 uppercase tracking-widest">{filtered.length} Discovered</span>
+                            <div className="px-4 py-2 bg-primary/10 border border-primary/20 rounded-xl hidden sm:block">
+                                <span className="text-xs font-black text-primary uppercase tracking-widest">{filtered.length} Discovered</span>
                             </div>
 
                             {hasFilters && (
@@ -216,7 +223,7 @@ export default function CreatorsDirectoryClient({ featured, creators }: Props) {
 
                             <div className="h-8 w-px bg-white/5"></div>
 
-                            <button onClick={handleShare} className="p-2 text-white/20 hover:text-indigo-400 transition-all">
+                            <button onClick={handleShare} className="p-2 text-white/20 hover:text-primary transition-all">
                                 <Icons.share size={18} />
                             </button>
                         </div>
@@ -235,8 +242,8 @@ export default function CreatorsDirectoryClient({ featured, creators }: Props) {
                             {featured.length > 0 && !search && filterType === 'all' && viewMode === 'grid' && (
                                 <section>
                                     <div className="flex items-center gap-4 mb-8">
-                                        <h2 className="text-[11px] font-black uppercase tracking-[0.4em] text-indigo-400">Featured Pioneers</h2>
-                                        <div className="flex-1 h-px bg-gradient-to-r from-indigo-500/25 to-transparent" />
+                                        <h2 className="text-[11px] font-black uppercase tracking-[0.4em] text-primary">Featured Pioneers</h2>
+                                        <div className="flex-1 h-px bg-gradient-to-r from-primary/25 to-transparent" />
                                     </div>
                                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                                         {featured.map(c => <CreatorCard key={c.uid} creator={c} featured viewMode="grid" />)}
@@ -269,17 +276,17 @@ export default function CreatorsDirectoryClient({ featured, creators }: Props) {
                                                     <tr key={c.uid} className="hover:bg-white/[0.03] transition-colors group">
                                                         <td className="px-8 py-4">
                                                             <Link href={`/creators/${c.slug || c.uid}`} className="flex items-center gap-4">
-                                                                <div className="w-10 h-10 rounded-xl overflow-hidden bg-indigo-600/20 flex-shrink-0">
+                                                                <div className="w-10 h-10 rounded-xl overflow-hidden bg-primary/20 flex-shrink-0">
                                                                     {c.photoURL ? (
                                                                         <img src={c.photoURL} alt="" className="w-full h-full object-cover" />
                                                                     ) : (
-                                                                        <div className="w-full h-full flex items-center justify-center font-black text-indigo-400 text-xs uppercase">
+                                                                        <div className="w-full h-full flex items-center justify-center font-black text-primary text-xs uppercase">
                                                                             {c.displayName[0]}
                                                                         </div>
                                                                     )}
                                                                 </div>
                                                                 <div>
-                                                                    <div className="text-sm font-bold text-white flex items-center gap-2 group-hover:text-indigo-400 transition-colors">
+                                                                    <div className="text-sm font-bold text-white flex items-center gap-2 group-hover:text-primary transition-colors">
                                                                         {c.displayName}
                                                                         {c.isVerified && <Icons.check size={12} className="text-emerald-500" strokeWidth={4} />}
                                                                     </div>
@@ -303,7 +310,7 @@ export default function CreatorsDirectoryClient({ featured, creators }: Props) {
                                                             <span className="text-sm font-black text-white/60">{c.curatedCount || 0}</span>
                                                         </td>
                                                         <td className="px-8 py-4 text-right">
-                                                            <Link href={`/creators/${c.slug || c.uid}`} className="inline-flex items-center gap-2 text-[10px] font-black uppercase text-indigo-400 hover:text-indigo-300 transition-colors bg-indigo-400/10 px-4 py-2 rounded-lg">
+                                                            <Link href={`/creators/${c.slug || c.uid}`} className="inline-flex items-center gap-2 text-[10px] font-black uppercase text-primary hover:text-primary/80 transition-colors bg-primary/10 px-4 py-2 rounded-lg">
                                                                 Profile <Icons.chevronRight size={12} />
                                                             </Link>
                                                         </td>
@@ -315,6 +322,7 @@ export default function CreatorsDirectoryClient({ featured, creators }: Props) {
                                 ) : (
                                     <div className={`grid gap-6 ${
                                         viewMode === 'grid' ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3' : 
+                                        viewMode === 'wide' ? 'grid-cols-1 md:grid-cols-2' :
                                         viewMode === 'small' ? 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5' :
                                         'grid-cols-1'
                                     }`}>
@@ -331,7 +339,7 @@ export default function CreatorsDirectoryClient({ featured, creators }: Props) {
     );
 }
 
-function CreatorCard({ creator, featured = false, viewMode = 'grid' }: { creator: UserProfile; featured?: boolean, viewMode?: 'grid' | 'list' | 'table' | 'small' }) {
+function CreatorCard({ creator, featured = false, viewMode = 'grid' }: { creator: UserProfile; featured?: boolean, viewMode?: 'grid' | 'wide' | 'list' | 'table' | 'small' }) {
     const initials = creator.displayName
         .split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
 
@@ -339,7 +347,7 @@ function CreatorCard({ creator, featured = false, viewMode = 'grid' }: { creator
         return (
             <Link
                 href={`/creators/${creator.slug || creator.uid}`}
-                className="group flex flex-col p-4 rounded-2xl bg-white/[0.03] border border-white/10 hover:border-indigo-500/30 hover:bg-white/[0.05] transition-all h-full relative"
+                className="group flex flex-col p-4 rounded-2xl bg-white/[0.03] border border-white/10 hover:border-primary/30 hover:bg-white/[0.05] transition-all h-full relative"
             >
                  {/* Quick Actions (Hover Only) */}
                 <div className="absolute top-2 right-2 z-20 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -350,7 +358,7 @@ function CreatorCard({ creator, featured = false, viewMode = 'grid' }: { creator
                             navigator.clipboard.writeText(`${window.location.origin}/creators/${creator.slug || creator.uid}`);
                             alert(`Link copied!`);
                         }}
-                        className="p-1.5 bg-black/60 backdrop-blur-xl border border-white/10 rounded-lg text-white/40 hover:text-white hover:bg-indigo-600 transition-all"
+                        className="p-1.5 bg-black/60 backdrop-blur-xl border border-white/10 rounded-lg text-white/40 hover:text-white hover:bg-primary transition-all"
                     >
                         <Icons.share size={10} />
                     </button>
@@ -361,7 +369,7 @@ function CreatorCard({ creator, featured = false, viewMode = 'grid' }: { creator
                         {creator.photoURL ? (
                             <img src={creator.photoURL} alt="" className="w-full h-full object-cover" />
                         ) : (
-                            <div className="w-full h-full bg-indigo-600/20 flex items-center justify-center text-xs font-black text-indigo-400">
+                            <div className="w-full h-full bg-primary/20 flex items-center justify-center text-xs font-black text-primary">
                                 {initials}
                             </div>
                         )}
@@ -372,21 +380,21 @@ function CreatorCard({ creator, featured = false, viewMode = 'grid' }: { creator
                         )}
                     </div>
                     <div className="min-w-0">
-                        <h3 className="text-xs font-bold text-white group-hover:text-indigo-400 transition-colors truncate">{creator.displayName}</h3>
+                        <h3 className="text-xs font-bold text-white group-hover:text-primary transition-colors truncate">{creator.displayName}</h3>
                         <div className="text-[9px] text-white/20 font-black uppercase tracking-tighter truncate">/{creator.slug || 'user'}</div>
                     </div>
                 </div>
 
                 <div className="mt-auto flex items-center justify-between pt-3 border-t border-white/5">
                     <div className="flex items-center gap-1.5">
-                        <Icons.wand size={10} className="text-indigo-400/50" />
+                        <Icons.wand size={10} className="text-primary/50" />
                         <span className="text-[10px] font-black text-white/60">{creator.authoredCount || 0}</span>
                     </div>
                     <div className="flex items-center gap-1.5">
                         <Icons.grid size={10} className="text-emerald-400/50" />
                         <span className="text-[10px] font-black text-white/60">{creator.curatedCount || 0}</span>
                     </div>
-                    <div className="flex items-center gap-1.5 text-indigo-400/40">
+                    <div className="flex items-center gap-1.5 text-primary/40">
                          {profileTypeIcon(creator.profileType, 10)}
                     </div>
                 </div>
@@ -400,7 +408,7 @@ function CreatorCard({ creator, featured = false, viewMode = 'grid' }: { creator
                 href={`/creators/${creator.slug || creator.uid}`}
                 className={`flex items-center gap-6 p-5 rounded-2xl border transition-all duration-300 group ${
                     featured
-                        ? 'bg-indigo-600/[0.08] border-indigo-500/30 hover:border-indigo-400/50'
+                        ? 'bg-primary/5 border-primary/30 hover:border-primary/50'
                         : 'bg-white/[0.03] border-white/10 hover:border-white/20 hover:bg-white/[0.05]'
                 }`}
                 style={{ textDecoration: 'none' }}
@@ -414,12 +422,12 @@ function CreatorCard({ creator, featured = false, viewMode = 'grid' }: { creator
                             className="w-20 h-20 rounded-2xl object-cover ring-2 ring-white/5 shadow-2xl"
                         />
                     ) : (
-                        <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-indigo-600 to-purple-700 flex items-center justify-center text-2xl font-black text-white ring-2 ring-white/5 shadow-2xl">
+                        <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-primary to-accent flex items-center justify-center text-2xl font-black text-white ring-2 ring-white/5 shadow-2xl">
                             {initials}
                         </div>
                     )}
                     {creator.isVerified && (
-                        <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-emerald-500 rounded-full flex items-center justify-center border-2 border-[#0f0f15] shadow-lg">
+                        <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-accent rounded-full flex items-center justify-center border-2 border-[#0f0f15] shadow-lg">
                             <Icons.check size={12} strokeWidth={4} />
                         </div>
                     )}
@@ -428,8 +436,8 @@ function CreatorCard({ creator, featured = false, viewMode = 'grid' }: { creator
                 {/* Identity & Bio */}
                 <div className="flex-grow min-w-0">
                     <div className="flex items-center gap-3 mb-1.5">
-                        <h3 className="text-xl font-extrabold text-white group-hover:text-indigo-400 transition-colors tracking-tight">{creator.displayName}</h3>
-                        <span className="text-indigo-400/40">{profileTypeIcon(creator.profileType, 16)}</span>
+                        <h3 className="text-xl font-extrabold text-white group-hover:text-primary transition-colors tracking-tight">{creator.displayName}</h3>
+                        <span className="text-primary/40">{profileTypeIcon(creator.profileType, 16)}</span>
                         {creator.isStub && (
                             <span className="text-[8px] uppercase tracking-[0.2em] text-white/30 font-black bg-white/5 px-2 py-0.5 rounded-md">Registry</span>
                         )}
@@ -474,7 +482,7 @@ function CreatorCard({ creator, featured = false, viewMode = 'grid' }: { creator
                                     alert(`Link copied!`);
                                 }
                             }}
-                            className="w-8 h-8 flex items-center justify-center rounded-lg bg-white/5 border border-white/5 text-white/20 hover:text-white hover:bg-indigo-600/30 hover:border-indigo-500/30 transition-all opacity-0 group-hover:opacity-100"
+                            className="w-8 h-8 flex items-center justify-center rounded-lg bg-white/5 border border-white/5 text-white/20 hover:text-white hover:bg-primary/30 hover:border-primary/30 transition-all opacity-0 group-hover:opacity-100"
                             title="Share Profile"
                         >
                             <Icons.share size={14} />
@@ -486,7 +494,7 @@ function CreatorCard({ creator, featured = false, viewMode = 'grid' }: { creator
                                 navigator.clipboard.writeText(`${window.location.origin}/creators/${creator.slug || creator.uid}`);
                                 alert(`Link copied!`);
                             }}
-                            className="w-8 h-8 flex items-center justify-center rounded-lg bg-white/5 border border-white/5 text-white/20 hover:text-white hover:bg-indigo-600/30 hover:border-indigo-500/30 transition-all opacity-0 group-hover:opacity-100"
+                            className="w-8 h-8 flex items-center justify-center rounded-lg bg-white/5 border border-white/5 text-white/20 hover:text-white hover:bg-primary/30 hover:border-primary/30 transition-all opacity-0 group-hover:opacity-100"
                             title="Copy Link"
                         >
                             <Icons.copy size={13} />
@@ -521,7 +529,7 @@ function CreatorCard({ creator, featured = false, viewMode = 'grid' }: { creator
                     </div>
                 </div>
 
-                <div className="text-white/10 group-hover:text-indigo-400 group-hover:translate-x-1.5 transition-all">
+                <div className="text-white/10 group-hover:text-primary group-hover:translate-x-1.5 transition-all">
                     <Icons.chevronRight size={24} />
                 </div>
             </Link>
@@ -532,15 +540,15 @@ function CreatorCard({ creator, featured = false, viewMode = 'grid' }: { creator
     // Premium Grid Mode
     return (
         <div
-            className={`group glass-card relative overflow-hidden transition-all duration-300 flex flex-col hover:border-indigo-500/30 shadow-2xl ${
-                featured ? 'bg-indigo-500/5 ring-1 ring-indigo-500/20' : ''
+            className={`group glass-card relative overflow-hidden transition-all duration-300 flex flex-col hover:border-primary/30 shadow-2xl ${
+                featured ? 'bg-primary/5 ring-1 ring-primary/20' : ''
             }`}
         >
             {/* Quick Utility Overlay */}
             <div className="absolute top-4 right-4 z-20 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                 <button 
                     onClick={(e) => { e.preventDefault(); e.stopPropagation(); navigator.clipboard.writeText(`${window.location.origin}/creators/${creator.slug || creator.uid}`); alert('Link copied!'); }}
-                    className="p-2 bg-black/60 backdrop-blur-xl border border-white/10 rounded-xl text-white/40 hover:text-white hover:bg-indigo-600 transition-all"
+                    className="p-2 bg-black/60 backdrop-blur-xl border border-white/10 rounded-xl text-white/40 hover:text-white hover:bg-primary transition-all"
                 >
                     <Icons.copy size={12} />
                 </button>
@@ -554,21 +562,21 @@ function CreatorCard({ creator, featured = false, viewMode = 'grid' }: { creator
                                 {creator.photoURL ? (
                                     <img src={creator.photoURL} alt={creator.displayName} className="w-full h-full object-cover" />
                                 ) : (
-                                    <div className="w-full h-full bg-gradient-to-br from-indigo-600 to-purple-700 flex items-center justify-center font-black text-white text-xl">
+                                    <div className="w-full h-full bg-gradient-to-br from-primary to-accent flex items-center justify-center font-black text-white text-xl">
                                         {initials}
                                     </div>
                                 )}
                             </div>
                         </div>
                         {creator.isVerified && (
-                            <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-indigo-500 rounded-lg flex items-center justify-center border-2 border-[#12121e]">
+                            <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-primary rounded-lg flex items-center justify-center border-2 border-[#12121e]">
                                 <Icons.check size={10} strokeWidth={4} />
                             </div>
                         )}
                     </div>
                     
                     <div className="min-w-0 flex-1 pt-1">
-                        <h3 className="text-lg font-bold text-white group-hover:text-indigo-400 transition-all truncate leading-tight">
+                        <h3 className="text-lg font-bold text-white group-hover:text-primary transition-all truncate leading-tight">
                             {creator.displayName}
                         </h3>
                         <div className="text-[10px] font-black text-white/20 uppercase tracking-widest mt-1">
@@ -595,7 +603,7 @@ function CreatorCard({ creator, featured = false, viewMode = 'grid' }: { creator
                 {creator.tags && creator.tags.length > 0 && (
                     <div className="flex flex-wrap gap-2 mt-4">
                         {creator.tags.slice(0, 2).map(tag => (
-                            <span key={tag} className="text-[9px] text-indigo-400/60 font-bold italic">#{tag}</span>
+                            <span key={tag} className="text-[9px] text-primary/60 font-bold italic">#{tag}</span>
                         ))}
                     </div>
                 )}

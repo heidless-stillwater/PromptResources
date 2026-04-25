@@ -46,6 +46,16 @@ export default function ResourceCard({ resource, savedIds = new Set(), onToggleS
         other: '📖'
     };
 
+    const reportLabels: Record<string, string> = {
+        illegal: 'Safety Concern',
+        harmful_children: 'Protecting Minors',
+        harassment: 'Community Respect',
+        hate_speech: 'Inclusivity Check',
+        misinformation: 'Quality Verification',
+        spam: 'Platform Integrity',
+        other: 'General Feedback'
+    };
+
     const platformIcons: Record<string, string> = {
         gemini: '♊',
         nanobanana: '🍌',
@@ -66,40 +76,45 @@ export default function ResourceCard({ resource, savedIds = new Set(), onToggleS
         return (
             <div
                 id={`resource-card-${resource.id}`}
-                className="group bg-[#12121a]/60 border border-white/10 rounded-xl overflow-hidden hover:border-indigo-500/30 transition-all flex flex-col h-full cursor-pointer shadow-md"
+                className="group glass-card bg-white/[0.03] border border-white/10 rounded-2xl overflow-hidden hover:border-primary/30 transition-all flex flex-col h-full cursor-pointer shadow-md font-inter"
                 onClick={handleCardClick}
             >
-                <div className="relative aspect-video overflow-hidden shrink-0">
+                <div className="relative aspect-video overflow-hidden shrink-0 m-2 rounded-xl">
                     {resource.thumbnailUrl || resource.youtubeVideoId ? (
                         <NextImage
                             src={resource.thumbnailUrl || `https://img.youtube.com/vi/${resource.youtubeVideoId}/mqdefault.jpg`}
                             alt={resource.title}
                             fill
                             sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-                            className="object-cover transition-transform duration-500 group-hover:scale-110"
+                            className="object-cover transition-transform duration-700 group-hover:scale-110"
                         />
                     ) : (
                         <div className="w-full h-full flex items-center justify-center bg-white/5 text-2xl opacity-20">
                             {typeIcons[resource.type as keyof typeof typeIcons] || typeIcons.other}
                         </div>
                     )}
-                    <div className="absolute top-2 left-2 flex gap-1">
-                         <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded bg-black/60 text-white/80 border border-white/5 backdrop-blur-sm flex items-center gap-1`}>
+                    <div className="absolute top-2 left-2 flex gap-1 z-10">
+                         <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-lg bg-black/60 text-white/80 border border-white/5 backdrop-blur-sm flex items-center gap-1`}>
                             <span>{pricingIcons[resource.pricing] || '💰'}</span>
                             {resource.pricing}
                         </span>
+                        {resource.status === 'flagged' && (
+                            <span className="text-[8px] font-black uppercase px-2 py-0.5 rounded-lg bg-rose-500 text-white border border-white/20 backdrop-blur-sm flex items-center gap-1 animate-pulse-rose whitespace-nowrap z-30 shadow-lg">
+                                <Icons.report size={8} /> {resource.reportType ? reportLabels[resource.reportType] : 'Safety'}
+                            </span>
+                        )}
                     </div>
                 </div>
-                <div className="p-3 flex flex-col flex-grow">
-                    <h3 className="text-sm font-black tracking-tight text-white group-hover:text-indigo-400 transition-colors line-clamp-1 mb-2">
+                <div className="px-4 pb-4 flex flex-col flex-grow">
+                    <h3 className="text-xs font-black font-outfit tracking-tighter text-white group-hover:text-primary transition-colors line-clamp-1 mb-3">
                         {resource.title}
                     </h3>
-                    <div className="mt-auto flex items-center justify-between gap-2 pt-4 border-t border-white/5">
-                    <span className="text-[10px] font-black uppercase tracking-widest text-white/20 truncate flex items-center gap-1">
-                        <span>{platformIcons[resource.platform] || '🌐'}</span>
-                        {resource.platform}
-                    </span>
-     <Rating value={resource.averageRating || 0} size="sm" showLabel={false} />
+                    <div className="mt-auto flex items-center justify-between gap-2 pt-3 border-t border-white/5">
+                        <div className="flex items-center gap-1.5">
+                            <Icons.grid size={10} className="text-primary/50" />
+                            <span className="text-[9px] font-black uppercase tracking-widest text-white/30 truncate">{resource.platform}</span>
+                        </div>
+                        <Rating value={resource.averageRating || 0} size="sm" showLabel={false} />
                     </div>
                 </div>
             </div>
@@ -110,11 +125,16 @@ export default function ResourceCard({ resource, savedIds = new Set(), onToggleS
         return (
             <div
                 id={`resource-card-${resource.id}`}
-                className="flex flex-col sm:flex-row gap-6 p-4 rounded-2xl border border-white/10 bg-[#12121a]/60 backdrop-blur-md hover:border-indigo-500/30 transition-all duration-300 group cursor-pointer"
+                className="flex flex-col md:flex-row gap-6 p-5 rounded-[2rem] border border-white/10 bg-white/[0.03] backdrop-blur-xl hover:border-primary/30 transition-all duration-500 group cursor-pointer shadow-2xl relative overflow-hidden font-inter"
                 onClick={handleCardClick}
             >
+                {/* Featured Glow */}
+                {resource.isFavorite && (
+                    <div className="absolute top-0 right-0 p-12 w-64 h-64 bg-primary/5 rounded-full blur-3xl pointer-events-none" />
+                )}
+
                 {/* Thumbnail Side */}
-                <div className="relative w-full sm:w-60 h-40 sm:h-auto aspect-video sm:aspect-auto rounded-xl overflow-hidden flex-shrink-0">
+                <div className="relative w-full md:w-72 aspect-video md:aspect-auto rounded-2xl overflow-hidden flex-shrink-0 border border-white/5">
                     {resource.thumbnailUrl || resource.youtubeVideoId ? (
                         <NextImage
                             src={resource.thumbnailUrl || `https://img.youtube.com/vi/${resource.youtubeVideoId}/mqdefault.jpg`}
@@ -128,123 +148,75 @@ export default function ResourceCard({ resource, savedIds = new Set(), onToggleS
                             {typeIcons[resource.type as keyof typeof typeIcons] || typeIcons.other}
                         </div>
                     )}
-                    <div className="absolute top-2 left-2 z-[5]">
-                        <span className={`badge badge-${resource.pricing} text-[8px] px-2 py-0.5`}>
+                    <div className="absolute top-3 left-3 z-[10] flex flex-col gap-2">
+                        <span className={`px-3 py-1 bg-black/60 backdrop-blur-xl border border-white/10 rounded-xl text-[9px] font-black uppercase tracking-widest text-white/90 flex items-center gap-2`}>
+                            <span>{pricingIcons[resource.pricing] || '💰'}</span>
                             {resource.pricing}
                         </span>
+                        {resource.status === 'flagged' && (
+                            <span className="bg-rose-500 text-white border border-white/20 rounded-xl px-3 py-1 text-[9px] font-black uppercase tracking-widest flex items-center gap-2 animate-pulse-rose whitespace-nowrap z-30 shadow-lg">
+                                <Icons.report size={10} /> Security Review Active
+                            </span>
+                        )}
                     </div>
                 </div>
 
                 {/* Content Side */}
-                <div className="resource-card-content flex flex-col flex-grow p-5 pt-4">
-                <div className="flex justify-between items-start gap-3 mb-2">
-                    <h3 className="resource-card-title text-base font-black tracking-tight leading-snug text-white/90 group-hover:text-indigo-400 transition-colors">
-                        <Link href={`/resources/${resource.id}`} onClick={(e) => e.stopPropagation()}>
-                            {resource.title}
-                        </Link>
-                    </h3>
-    <div className="flex items-center gap-2 shrink-0">
-                            {/* Resource Utilities */}
-                            <div className="flex gap-1.5 mr-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                <div className="flex flex-col flex-grow min-w-0 pt-2">
+                    <div className="flex justify-between items-start gap-4 mb-3">
+                        <div className="min-w-0 flex-1">
+                            <h3 className="text-2xl font-black font-outfit tracking-tighter leading-tight text-white group-hover:text-primary transition-all mb-2">
+                                <Link href={`/resources/${resource.id}`} onClick={(e) => e.stopPropagation()}>
+                                    {resource.title}
+                                </Link>
+                            </h3>
+                            <div className="flex items-center gap-4 text-[10px] font-black uppercase tracking-[0.2em] text-white/30 mb-4">
+                                <Rating value={resource.averageRating || 0} size="sm" showLabel={false} />
+                                <span className="flex items-center gap-1.5">
+                                    <span className="text-white/10">{platformIcons[resource.platform] || '🌐'}</span>
+                                    {resource.platform}
+                                </span>
+                                {resource.rank && <span className="text-amber-500">🏆 #{resource.rank} Rank</span>}
+                            </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 shrink-0">
+                            {/* Utility Toolbar */}
+                            <div className="flex gap-1.5 opacity-0 group-hover:opacity-100 transition-all">
                                 <button 
-                                    onClick={async (e) => {
-                                        e.stopPropagation();
-                                        const url = `${window.location.origin}/resources/${resource.id}`;
-                                        if (navigator.share) {
-                                            try {
-                                                await navigator.share({
-                                                    title: resource.title,
-                                                    text: resource.description,
-                                                    url: url,
-                                                });
-                                            } catch (err) { /* focus */ }
-                                        } else {
-                                            navigator.clipboard.writeText(url);
-                                            alert('Link copied!');
-                                        }
-                                    }}
-                                    className="p-2 bg-white/5 border border-white/10 rounded-xl text-white/30 hover:text-white hover:bg-indigo-600/30 transition-all"
-                                    title="Share Resource"
-                                >
-                                    <Icons.share size={14} />
-                                </button>
-                                <button 
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        navigator.clipboard.writeText(`${window.location.origin}/resources/${resource.id}`);
-                                        alert('Resource link copied!');
-                                    }}
-                                    className="p-2 bg-white/5 border border-white/10 rounded-xl text-white/30 hover:text-white hover:bg-indigo-600/30 transition-all"
-                                    title="Copy Link"
+                                    onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(`${window.location.origin}/resources/${resource.id}`); alert('Link copied!'); }}
+                                    className="p-2.5 bg-white/5 border border-white/10 rounded-xl text-white/20 hover:text-white hover:bg-primary/30 transition-all"
+                                    title="Copy Registry Path"
                                 >
                                     <Icons.copy size={14} />
                                 </button>
-                                <button 
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(resource, null, 2));
-                                        const downloadAnchorNode = document.createElement('a');
-                                        downloadAnchorNode.setAttribute("href", dataStr);
-                                        downloadAnchorNode.setAttribute("download", `resource_${resource.id}.json`);
-                                        document.body.appendChild(downloadAnchorNode);
-                                        downloadAnchorNode.click();
-                                        downloadAnchorNode.remove();
-                                    }}
-                                    className="p-2 bg-white/5 border border-white/10 rounded-xl text-white/30 hover:text-white hover:bg-emerald-600/30 transition-all"
-                                    title="Export Data"
-                                >
-                                    <Icons.download size={14} />
-                                </button>
+                                {canEdit && (
+                                    <Link 
+                                        href={`/resources/${resource.id}/edit`} 
+                                        onClick={(e) => e.stopPropagation()}
+                                        className="p-2.5 bg-white/5 border border-white/10 rounded-xl text-white/20 hover:text-white hover:bg-primary transition-all"
+                                        title="Modify Asset"
+                                    >
+                                        <Icons.edit size={14} />
+                                    </Link>
+                                )}
                             </div>
-
-                            {resource.isFavorite && (
-                                <span className="bg-amber-500/10 border border-amber-500/20 text-amber-500 p-1.5 rounded-lg" title="Featured Resource">
-                                    <Icons.sparkles size={14} />
-                                </span>
-                            )}
-                            {canEdit && (
-                                <button
-                                    className="flex items-center gap-2 px-4 py-2 rounded-xl border border-indigo-500/30 bg-indigo-600 shadow-lg shadow-indigo-600/20 text-white hover:bg-indigo-500 transition-all active:scale-95 group/edit"
-                                    onClick={(e) => {
-                                        e.preventDefault();
-                                        e.stopPropagation();
-                                        router.push(`/resources/${resource.id}/edit`);
-                                    }}
-                                    title="Edit Resource"
-                                >
-                                    <span className="text-[12px]">✏️</span>
-                                    <span className="text-[10px] font-black uppercase tracking-tighter">Edit Details</span>
-                                </button>
-                            )}
                             <button
-                                className={`p-2 rounded-xl border transition-all active:scale-95 ${isSaved ? 'bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-600/20' : 'bg-white/5 border-white/10 text-white/40 hover:text-white'}`}
+                                className={`p-3 rounded-xl border transition-all active:scale-95 ${isSaved ? 'bg-primary border-primary text-white shadow-xl shadow-primary/20' : 'bg-white/5 border-white/10 text-white/20 hover:text-white'}`}
                                 onClick={(e) => onToggleSave?.(e, resource.id)}
-                                title={isSaved ? 'Remove from saved' : 'Save resource'}
+                                title={isSaved ? 'Remove from Vault' : 'Secure to Vault'}
                             >
                                 {isSaved ? '★' : '☆'}
                             </button>
                         </div>
                     </div>
 
-                    <div className="flex items-center gap-3 mb-3">
-                        <Rating value={resource.averageRating || 0} size="sm" showLabel={false} />
-                        <span className="text-[10px] uppercase font-black tracking-widest text-white/20 flex items-center gap-1.5">
-                            <span className="text-sm">{platformIcons[resource.platform] || '🌐'}</span>
-                            {resource.platform}
-                        </span>
-                        <span className="text-[10px] uppercase font-black tracking-widest text-white/20 flex items-center gap-1.5">
-                            <span className="text-sm">{pricingIcons[resource.pricing] || '💰'}</span>
-                            {resource.pricing}
-                        </span>
-                        {resource.rank && <span className="text-[10px] font-black text-amber-500">🏆 #{resource.rank}</span>}
-                    </div>
+                    <p className="text-sm font-medium text-white/40 line-clamp-2 leading-relaxed mb-6 max-w-3xl">{resource.description}</p>
 
-                    <p className="text-sm font-medium text-white/40 line-clamp-2 leading-relaxed mb-4 max-w-3xl">{resource.description}</p>
-
-                    <div className="mt-auto flex flex-wrap items-center justify-between gap-4 pt-4 border-t border-white/5">
+                    <div className="mt-auto flex flex-wrap items-center justify-between gap-6 pt-5 border-t border-white/5">
                         <div className="flex gap-2">
-                            {resource.categories?.slice(0, 3).map(cat => (
-                                <span key={cat} className="badge badge-primary text-[9px] lowercase opacity-60">/{cat}</span>
+                            {resource.tags?.slice(0, 3).map(tag => (
+                                <span key={tag} className="text-[9px] font-black uppercase tracking-widest text-primary/40 italic">#{tag}</span>
                             ))}
                         </div>
                         <div className="flex items-center gap-4">
@@ -259,171 +231,120 @@ export default function ResourceCard({ resource, savedIds = new Set(), onToggleS
         );
     }
 
-    // Default Grid Mode
+    // Default Grid Mode (Synchronized with CreatorCard Premium Grid)
     return (
         <div
             id={`resource-card-${resource.id}`}
-            className="resource-card group hover-glow bg-[#12121a]/60 backdrop-blur-md flex flex-col h-full shadow-2xl"
+            className={`group glass-card relative overflow-hidden transition-all duration-500 flex flex-col h-full hover:border-primary/40 shadow-2xl rounded-3xl bg-white/[0.03] font-inter ${
+                resource.isFavorite ? 'bg-primary/[0.04] ring-1 ring-primary/20' : ''
+            }`}
             onClick={handleCardClick}
             style={{ cursor: 'pointer' }}
         >
-            <Link href={`/resources/${resource.id}`} className="resource-card-thumb relative block overflow-hidden shrink-0" onClick={(e) => e.stopPropagation()}>
-                {resource.thumbnailUrl ? (
-                    <div className="relative w-full h-full">
-                        <NextImage
-                            src={resource.thumbnailUrl}
-                            alt={resource.title}
-                            fill
-                            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-                            className="object-cover transition-transform duration-700 group-hover:scale-110"
-                            priority={!!resource.isFavorite}
-                        />
-                    </div>
-                ) : resource.youtubeVideoId ? (
-                    <div className="relative w-full h-full">
-                        <NextImage
-                            src={`https://img.youtube.com/vi/${resource.youtubeVideoId}/mqdefault.jpg`}
-                            alt={resource.title}
-                            fill
-                            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-                            className="object-cover transition-transform duration-700 group-hover:scale-110"
-                            priority={!!resource.isFavorite}
-                        />
-                    </div>
+            {/* Quick Utility Overlay */}
+            <div className="absolute top-5 right-5 z-20 flex gap-2 opacity-0 group-hover:opacity-100 transition-all duration-300 transform translate-y-2 group-hover:translate-y-0">
+                <button 
+                    onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(`${window.location.origin}/resources/${resource.id}`); alert('Registry link copied!'); }}
+                    className="p-2.5 bg-black/60 backdrop-blur-xl border border-white/10 rounded-2xl text-white/40 hover:text-white hover:bg-primary transition-all"
+                >
+                    <Icons.copy size={12} />
+                </button>
+                <button
+                    className={`p-2.5 rounded-2xl border transition-all active:scale-95 backdrop-blur-xl ${isSaved ? 'bg-primary border-primary text-white shadow-xl shadow-primary/20' : 'bg-black/60 border-white/10 text-white/40 hover:text-white hover:bg-primary'}`}
+                    onClick={(e) => onToggleSave?.(e, resource.id)}
+                    title={isSaved ? 'Remove from vault' : 'Secure in vault'}
+                >
+                    {isSaved ? '★' : '☆'}
+                </button>
+            </div>
+
+            {/* Thumbnail Header */}
+            <div className="relative aspect-video m-4 rounded-[1.5rem] overflow-hidden border border-white/5 shadow-2xl">
+                {resource.thumbnailUrl || resource.youtubeVideoId ? (
+                    <NextImage
+                        src={resource.thumbnailUrl || `https://img.youtube.com/vi/${resource.youtubeVideoId}/mqdefault.jpg`}
+                        alt={resource.title}
+                        fill
+                        sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                        className="object-cover transition-transform duration-700 group-hover:scale-110"
+                        priority={!!resource.isFavorite}
+                    />
                 ) : (
-                    <div className="resource-card-placeholder flex items-center justify-center bg-gradient-to-br from-white/5 to-white/[0.02]">
-                        <span className="text-4xl text-white/20 group-hover:scale-110 transition-transform duration-500">
-                             {typeIcons[resource.type as keyof typeof typeIcons] || typeIcons.other}
-                        </span>
+                    <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-white/5 to-transparent text-5xl">
+                         {typeIcons[resource.type as keyof typeof typeIcons] || typeIcons.other}
                     </div>
                 )}
                 
-                <div className="absolute top-3 left-3 z-[5] flex flex-col gap-2">
-                    <span className={`badge badge-${resource.pricing} text-[9px] flex items-center gap-1.5`}>
+                {/* Branding Overlays */}
+                <div className="absolute top-3 left-3 z-[10] flex flex-col gap-2">
+                    <span className={`px-3 py-1 bg-black/60 backdrop-blur-xl border border-white/10 rounded-xl text-[9px] font-black uppercase tracking-widest text-white/90 flex items-center gap-2`}>
                         <span>{pricingIcons[resource.pricing] || '💰'}</span>
                         {resource.pricing}
                     </span>
-                    <span className="px-2 py-0.5 bg-black/60 backdrop-blur-md border border-white/10 rounded-full text-[9px] font-black uppercase tracking-widest text-white/80 flex items-center gap-1.5">
-                        <span>{platformIcons[resource.platform] || '🌐'}</span>
+                    {resource.status === 'flagged' && (
+                        <span className="px-3 py-1 bg-rose-500 border border-white/20 rounded-xl text-[9px] font-black uppercase tracking-widest text-white flex items-center gap-2 animate-pulse shadow-xl">
+                            <Icons.report size={12} /> Security Review
+                        </span>
+                    )}
+                </div>
+            </div>
+
+            <div className="px-7 pb-7 pt-2 flex flex-col flex-grow">
+                <div className="flex justify-between items-start gap-4 mb-4">
+                    <h3 className="text-xl font-black font-outfit tracking-tighter leading-tight text-white group-hover:text-primary transition-all line-clamp-2">
+                        {resource.title}
+                    </h3>
+                    {resource.isFavorite && (
+                        <div className="w-8 h-8 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-500 flex items-center justify-center shrink-0 shadow-lg shadow-amber-500/5">
+                            <Icons.sparkles size={14} />
+                        </div>
+                    )}
+                </div>
+                
+                <div className="flex items-center gap-4 text-[10px] font-black uppercase tracking-[0.2em] text-white/30 mb-6">
+                    <Rating value={resource.averageRating || 0} size="sm" showLabel={false} />
+                    <span className="flex items-center gap-1.5">
+                        <span className="text-white/10">{platformIcons[resource.platform] || '🌐'}</span>
                         {resource.platform}
                     </span>
                 </div>
 
-                <div className="absolute bottom-3 right-3 flex gap-2 z-[5] opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                    {canEdit && (
-                        <button
-                            className="p-2 rounded-xl bg-indigo-600/80 hover:bg-indigo-600 text-white border border-indigo-500/30 backdrop-blur-md transition-all active:scale-95"
-                            onClick={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                router.push(`/resources/${resource.id}/edit`);
-                            }}
-                            title="Edit Resource"
-                        >
-                            <span className="text-[14px]">✏️</span>
-                        </button>
-                    )}
-                    {canEdit && onDelete && (
-                        <button
-                            className="p-2 rounded-xl bg-rose-500/80 hover:bg-rose-500 text-white border border-rose-500/20 backdrop-blur-md transition-all active:scale-95"
-                            onClick={(e) => onDelete(e, resource.id)}
-                            title="Delete resource"
-                        >
-                            <Icons.close size={14} />
-                        </button>
-                    )}
-                    <button
-                        className={`p-2 px-3 rounded-xl border transition-all active:scale-95 backdrop-blur-md ${isSaved ? 'bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-600/20' : 'bg-black/60 border-white/10 text-white/70 hover:text-white'}`}
-                        onClick={(e) => onToggleSave?.(e, resource.id)}
-                        title={isSaved ? 'Remove from saved' : 'Save resource'}
-                        id={`save-${resource.id}`}
-                    >
-                        {isSaved ? '★' : '☆'}
-                    </button>
-                </div>
-            </Link>
-
-            <div className="resource-card-body p-5 space-y-3 flex-grow border-x border-white/5">
-                <div className="resource-card-title flex justify-between items-start gap-2">
-                    <Link href={`/resources/${resource.id}`} className="text-base font-bold leading-tight hover:text-indigo-400 transition-colors line-clamp-2" onClick={(e) => e.stopPropagation()}>
-                        {resource.title}
-                    </Link>
-                    {(resource.isFavorite || canEdit) && (
-                        <div 
-                            className={`flex items-center gap-1.5 px-2 py-0.5 rounded-lg border transition-all shrink-0 ${resource.isFavorite ? 'bg-amber-500/10 border-amber-500/20 text-amber-500' : 'bg-white/5 border-white/10 text-white/30 hover:text-white/60'} ${canEdit ? 'cursor-pointer' : ''}`}
-                            onClick={(e) => {
-                                if (canEdit && onToggleFavorite) {
-                                    onToggleFavorite(e, resource.id, resource.isFavorite || false);
-                                }
-                            }}
-                        >
-                            <Icons.sparkles size={10} />
-                            {resource.isFavorite && <span className="premium-label text-[8px] font-black uppercase">Featured</span>}
-                        </div>
-                    )}
-                </div>
-                
-                <div className="flex items-center">
-                    <Rating value={resource.averageRating || 0} size="sm" showLabel={false} />
-                </div>
-
-                <p className="resource-card-description text-sm font-medium text-white/40 line-clamp-2 leading-relaxed mb-4 flex-grow">
+                <p className="text-sm font-medium text-white/40 line-clamp-2 leading-relaxed mb-6">
                     {resource.description}
                 </p>
                 
+                {/* Tag Belt */}
                 {resource.tags && resource.tags.length > 0 && (
-                    <div className="flex flex-wrap gap-2 pt-1 font-bold italic">
+                    <div className="flex flex-wrap gap-3 mb-8">
                         {resource.tags.slice(0, 3).map((tag) => (
-                            <span key={tag} className="text-[9px] text-indigo-400/60">#{tag}</span>
+                            <span key={tag} className="text-[9px] font-black uppercase tracking-widest text-primary/40 italic">#{tag}</span>
                         ))}
                     </div>
                 )}
 
-                <div className="flex flex-wrap gap-2 pt-2">
-                    {resource.categories?.slice(0, 2).map((cat) => (
-                        <span key={cat} className="badge badge-primary scale-90">{cat}</span>
-                    ))}
-                </div>
-            </div>
-
-            <div className="mt-auto border border-white/5 bg-black/20 p-4 rounded-b-2xl space-y-3">
-                <div className="flex items-center">
-                    {(() => {
-                        const primaryAttr = resource.attributions?.find(a => !!a.userId) || resource.attributions?.[0];
-                        return primaryAttr ? <CreatorChip attribution={primaryAttr} size="sm" showExternalIcon={false} /> : null;
-                    })()}
-                </div>
-                <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-widest text-white/20">
-                    <div className="flex items-center gap-2">
-                        <span className="text-white/20">Curated by</span>
-                        {resource.creator?.photoURL && (
-                            <NextImage 
-                                src={resource.creator.photoURL} 
-                                alt={resource.creator.displayName} 
-                                width={14} 
-                                height={14} 
-                                className="rounded-full ring-1 ring-white/10"
-                            />
-                        )}
-                        <span className="text-white/40">{resource.creator?.displayName || 'Community'}</span>
+                {/* Footer Sync */}
+                <div className="mt-auto pt-6 border-t border-white/5 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                        {(() => {
+                            const primaryAttr = resource.attributions?.find(a => !!a.userId) || resource.attributions?.[0];
+                            return primaryAttr ? <CreatorChip attribution={primaryAttr} size="sm" showExternalIcon={false} /> : null;
+                        })()}
                     </div>
-                    {resource.rank && (
-                        <div className="flex items-center gap-1.5 text-amber-500">
-                            🏆 #{resource.rank}
+                    
+                    <div className="flex items-center gap-3">
+                        {canEdit && (
+                            <Link 
+                                href={`/resources/${resource.id}/edit`} 
+                                onClick={(e) => e.stopPropagation()}
+                                className="w-9 h-9 rounded-xl bg-white/5 border border-white/10 text-white/20 hover:text-white hover:bg-primary hover:border-primary transition-all flex items-center justify-center"
+                            >
+                                <Icons.edit size={14} />
+                            </Link>
+                        )}
+                        <div className="text-white/10 group-hover:text-primary group-hover:translate-x-1.5 transition-all">
+                            <Icons.chevronRight size={24} />
                         </div>
-                    )}
-                    {isAdmin && (
-                        <button
-                            className="flex items-center gap-1.5 px-3 py-1 bg-indigo-500 text-white rounded-lg text-[9px] font-black uppercase tracking-tighter hover:bg-indigo-400 transition-all shadow-lg shadow-indigo-500/10"
-                            onClick={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                router.push(`/resources/${resource.id}/edit`);
-                            }}
-                        >
-                            ✏️ Edit
-                        </button>
-                    )}
+                    </div>
                 </div>
             </div>
         </div>

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import * as Icons from 'lucide-react';
+import { Icons } from '@/components/ui/Icons';
 
 interface ContextShell {
     name: string;
@@ -58,8 +58,7 @@ const FilterBar: React.FC<FilterBarProps> = ({
     initialCategories
 }) => {
     const types = ['prompt', 'workflow', 'system', 'agent', 'template'];
-    const platforms = ['youtube', 'twitter', 'website', 'course', 'community'];
-
+    
     // Console Persistence & Discovery
     const [showDiscovery, setShowDiscovery] = useState(false);
     const [creatorSearch, setCreatorSearch] = useState('');
@@ -84,11 +83,11 @@ const FilterBar: React.FC<FilterBarProps> = ({
                           [...(s.filters.selectedCreators || [])].sort().join(',') === [...(selectedCreators || [])].sort().join(',');
             return match;
         });
-    }, [platformFilter, typeFilter, categoryFilter, featuredOnly, priorityRank, selectedCreators, registryActive, shells]);
+    }, [platformFilter, typeFilter, categoryFilter, priorityRank, selectedCreators, registryActive, shells]);
 
     const filteredCreators = useMemo(() => {
         return creators
-            .filter(c => c.displayName.toLowerCase().includes(creatorSearch.toLowerCase()))
+            .filter(c => (c.displayName || '').toLowerCase().includes(creatorSearch.toLowerCase()))
             .sort((a, b) => {
                 if (creatorSortBy === 'resources') return (b.resourceCount || 0) - (a.resourceCount || 0);
                 return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
@@ -97,11 +96,8 @@ const FilterBar: React.FC<FilterBarProps> = ({
 
     const toggleCreator = (uid: string) => {
         const current = selectedCreators || [];
-        if (current.includes(uid)) {
-            setSelectedCreators(current.filter(id => id !== uid));
-        } else {
-            setSelectedCreators([...current, uid]);
-        }
+        if (current.includes(uid)) setSelectedCreators(current.filter(id => id !== uid));
+        else setSelectedCreators([...current, uid]);
     };
 
     const saveCurrentShell = () => {
@@ -132,7 +128,7 @@ const FilterBar: React.FC<FilterBarProps> = ({
         setCategoryFilter(shell.filters.category);
         setFeaturedOnly(shell.filters.featuredOnly);
         setPriorityRank(shell.filters.priorityRank);
-        setRegistryActive(false);
+        setRegistryActive(true);
         setSelectedCreators(shell.filters.selectedCreators);
     };
 
@@ -142,96 +138,89 @@ const FilterBar: React.FC<FilterBarProps> = ({
         localStorage.setItem('context-shells-v2', JSON.stringify(updated));
     };
 
-    // Style helper for dark mode selects
-    const selectStyle = "h-10 bg-[#0f0f1b] border border-white/10 rounded-xl px-2 text-[10px] font-black uppercase text-white/70 outline-none hover:bg-white/10 transition-all cursor-pointer min-w-[110px] appearance-none text-center shadow-inner hover:border-indigo-500/30";
+    const selectStyle = "h-11 bg-black/40 border border-white/5 rounded-xl px-3 text-[10px] font-black font-outfit uppercase text-white/40 outline-none hover:bg-white/5 hover:border-primary/30 transition-all cursor-pointer min-w-[120px] appearance-none text-center tracking-widest";
 
     return (
-        <div id="filter-console" className="flex flex-col gap-px bg-white/5 border border-white/10 rounded-3xl overflow-hidden transition-all duration-500 shadow-2xl">
+        <div id="filter-console" className="flex flex-col gap-px bg-white/[0.02] border border-white/5 rounded-[2rem] overflow-hidden transition-all duration-500 shadow-2xl font-inter">
             
             {/* STICKY CONTROL BELT */}
-            <div className="flex flex-wrap items-center gap-3 p-3 bg-[#0a0a0f]/90 backdrop-blur-3xl border-b border-white/5">
+            <div className="flex flex-wrap items-center gap-4 p-4 bg-black/40 backdrop-blur-3xl">
                 
-                {/* 1. Attributes Belt (Refactored: Rank instead of Platform) */}
-                <div className="flex items-center gap-3">
+                {/* 1. Attribute Selectors */}
+                <div className="flex items-center gap-2">
                     <button
-                        className={`w-10 h-10 flex items-center justify-center rounded-xl border transition-all ${featuredOnly ? 'bg-indigo-600 border-indigo-500 shadow-lg shadow-indigo-600/30 text-white' : 'bg-white/5 border-white/10 text-white/40 hover:text-white hover:bg-white/10'}`}
+                        className={`w-11 h-11 flex items-center justify-center rounded-xl border transition-all ${featuredOnly ? 'bg-primary border-primary text-white shadow-lg' : 'bg-white/5 border-white/5 text-white/20 hover:text-white'}`}
                         onClick={() => setFeaturedOnly(!featuredOnly)}
                         title="Featured Only"
                     >
-                        {featuredOnly ? '⭐' : '☆'}
+                        <Icons.star size={18} fill={featuredOnly ? "currentColor" : "none"} />
                     </button>
 
-                    {/* RANK SELECTOR (Replacing Platform) */}
-                    <div className="relative group/sel">
+                    <div className="relative flex items-center group">
                         <select 
                             value={priorityRank} 
                             onChange={e => setPriorityRank(e.target.value)} 
                             className={selectStyle}
                         >
-                            <option value="" className="bg-[#0a0a0f] text-white">Rankings</option>
-                            <option value="any" className="bg-[#0a0a0f] text-white">Ranked Only</option>
-                            {[1,2,3,4,5,10,25,50,100].map(r => (
-                                <option key={r} value={r.toString()} className="bg-[#0a0a0f] text-white">Top {r}</option>
-                            ))}
+                            <option value="">Ranking</option>
+                            <option value="any">Ranked Only</option>
+                            {[1,3,5,10,25].map(r => <option key={r} value={r.toString()}>Top {r}</option>)}
                         </select>
-                        <Icons.ChevronDown size={10} className="absolute right-3 top-1/2 -translate-y-1/2 text-white/20 pointer-events-none group-hover/sel:text-indigo-400 transition-colors" />
+                        <Icons.chevronDown size={12} className="absolute right-3 text-white/10 pointer-events-none group-hover:text-primary transition-colors" />
                     </div>
 
-                    {/* CATEGORY SELECTOR */}
-                    <div className="relative group/sel">
+                    <div className="relative flex items-center group">
                         <select 
                             value={categoryFilter} 
                             onChange={e => setCategoryFilter(e.target.value)} 
                             className={selectStyle}
                         >
-                            <option value="" className="bg-[#0a0a0f] text-white">All Categories</option>
-                            {initialCategories.map(c => <option key={c.id} value={c.id} className="bg-[#0a0a0f] text-white">{c.name}</option>)}
+                            <option value="">Domains</option>
+                            {initialCategories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                         </select>
-                        <Icons.ChevronDown size={10} className="absolute right-3 top-1/2 -translate-y-1/2 text-white/20 pointer-events-none group-hover/sel:text-indigo-400 transition-colors" />
+                        <Icons.chevronDown size={12} className="absolute right-3 text-white/10 pointer-events-none group-hover:text-primary transition-colors" />
                     </div>
 
-                    {/* TYPE SELECTOR */}
-                    <div className="relative group/sel">
+                    <div className="relative flex items-center group">
                         <select 
                             value={typeFilter} 
                             onChange={e => setTypeFilter(e.target.value)} 
                             className={selectStyle}
                         >
-                            <option value="" className="bg-[#0a0a0f] text-white">All Types</option>
-                            {types.map(t => <option key={t} value={t} className="bg-[#0a0a0f] text-white">{t}</option>)}
+                            <option value="">Asset Type</option>
+                            {types.map(t => <option key={t} value={t}>{t}</option>)}
                         </select>
-                        <Icons.ChevronDown size={10} className="absolute right-3 top-1/2 -translate-y-1/2 text-white/20 pointer-events-none group-hover/sel:text-indigo-400 transition-colors" />
+                        <Icons.chevronDown size={12} className="absolute right-3 text-white/10 pointer-events-none group-hover:text-primary transition-colors" />
                     </div>
                 </div>
 
-                <div className="h-6 w-px bg-white/10 hidden md:block" />
+                <div className="h-6 w-px bg-white/5 hidden md:block" />
 
-                {/* 2. THE WORKSPACE INDICATOR (Aura Indicator) */}
-                <div className="flex-1 flex items-center gap-3 overflow-hidden">
+                {/* 2. Workspace Status Indicator */}
+                <div className="flex-1 flex items-center gap-4 min-w-[200px]">
                     <button 
                         onClick={() => setRegistryActive(!registryActive)}
-                        className={`group relative flex items-center justify-center transition-all ${registryActive ? 'scale-110' : 'grayscale opacity-50 hover:grayscale-0 hover:opacity-100'}`}
-                        title={registryActive ? "Deactivate Workspace" : "Activate Workspace"}
+                        className={`group relative flex items-center justify-center transition-all ${registryActive ? 'scale-110' : 'opacity-20 hover:opacity-100 grayscale hover:grayscale-0'}`}
                     >
-                        <div className={`w-3 h-3 rounded-full transition-all duration-500 ${activeShell ? 'bg-emerald-400 shadow-[0_0_12px_#34d399]' : (selectedCreators?.length || 0) > 0 ? 'bg-indigo-400 shadow-[0_0_12px_#818cf8]' : 'bg-white/10'}`} />
-                        {!registryActive && <div className="absolute inset-0 flex items-center justify-center text-[8px] text-white font-bold">✕</div>}
+                        <div className={`w-3.5 h-3.5 rounded-full transition-all duration-700 ${activeShell ? 'bg-primary shadow-[0_0_15px_#14b8a6]' : (selectedCreators?.length || 0) > 0 ? 'bg-primary/40' : 'bg-white/10'}`} />
+                        {!registryActive && <Icons.close size={8} className="absolute text-white font-black" />}
                     </button>
                     <div className="flex flex-col min-w-0">
                         <span 
                             onClick={() => setRegistryActive(!registryActive)}
-                            className={`text-[10px] font-black uppercase tracking-[0.2em] truncate cursor-pointer transition-colors ${!registryActive ? 'text-white/20' : activeShell ? 'text-emerald-400' : (selectedCreators?.length || 0) > 0 ? 'text-indigo-300' : 'text-white/20'}`}
+                            className={`text-[10px] font-black font-outfit uppercase tracking-[0.25em] truncate cursor-pointer transition-colors ${!registryActive ? 'text-white/10' : activeShell ? 'text-primary' : 'text-white/40'}`}
                         >
-                            {!registryActive ? 'Registry Bypassed' : activeShell ? activeShell.name : (selectedCreators?.length || 0) > 0 ? 'Workspace Draft' : 'Context Builder'}
+                            {!registryActive ? 'Registry Bypassed' : activeShell ? activeShell.name : (selectedCreators?.length || 0) > 0 ? 'Workspace Active' : 'Sovereign Console'}
                         </span>
-                        <div className={`flex items-center gap-1.5 overflow-x-auto no-scrollbar transition-all ${!registryActive ? 'opacity-20 pointer-events-none blur-[1px]' : 'opacity-100'}`}>
+                        <div className={`flex items-center gap-2 overflow-x-auto no-scrollbar transition-all ${!registryActive ? 'opacity-0 h-0' : 'opacity-100 h-4 mt-1'}`}>
                             {selectedCreators?.length === 0 ? (
-                                <span className="text-[8px] font-bold text-white/5 uppercase italic">No curators captured</span>
+                                <span className="text-[8px] font-bold text-white/5 uppercase italic">Zero Pioneers Captivated</span>
                             ) : (
                                 selectedCreators.map(uid => {
                                     const c = creators.find(cr => cr.uid === uid);
                                     if (!c) return null;
                                     return (
-                                        <span key={uid} onClick={() => toggleCreator(uid)} className="text-[8px] font-bold text-white/40 hover:text-red-400 cursor-pointer whitespace-nowrap bg-white/5 px-2 py-0.5 rounded-full border border-white/5 transition-all">
+                                        <span key={uid} onClick={() => toggleCreator(uid)} className="text-[8px] font-black text-white/20 hover:text-rose-500 cursor-pointer whitespace-nowrap bg-white/5 px-2.5 py-0.5 rounded-full border border-white/5 transition-all uppercase tracking-tighter">
                                             {c.displayName}
                                         </span>
                                     );
@@ -241,56 +230,58 @@ const FilterBar: React.FC<FilterBarProps> = ({
                     </div>
                 </div>
 
-                {/* 3. ACTIONS */}
+                {/* 3. Global Actions */}
                 <div className="flex items-center gap-2">
                     <button 
                         onClick={() => setIsSaving(!isSaving)}
-                        className={`h-9 px-4 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${isSaving ? 'bg-red-500/20 text-red-400 border border-red-500/20' : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-600/20 border border-indigo-500/30'}`}
+                        className={`h-11 px-6 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all border ${isSaving ? 'bg-rose-500/10 border-rose-500/30 text-rose-500' : 'bg-primary text-white shadow-xl shadow-primary/20 hover:scale-105 active:scale-95'}`}
                     >
-                        {isSaving ? 'Cancel' : 'Pin Shell'}
+                        {isSaving ? 'Cancel' : 'Pin Context'}
                     </button>
-                    <button onClick={() => setShowDiscovery(!showDiscovery)} className={`w-9 h-9 flex items-center justify-center rounded-xl border transition-all ${showDiscovery ? 'bg-indigo-500/10 border-indigo-500/50' : 'bg-white/5 border-white/10 hover:bg-white/10'}`}>
-                        <Icons.Compass size={14} className={showDiscovery ? 'text-indigo-400' : 'text-white/20'} />
+                    <button onClick={() => setShowDiscovery(!showDiscovery)} className={`w-11 h-11 flex items-center justify-center rounded-xl border transition-all ${showDiscovery ? 'bg-primary/10 border-primary/50 text-primary' : 'bg-white/5 border-white/5 text-white/10 hover:text-white hover:bg-white/10'}`}>
+                        <Icons.search size={16} />
                     </button>
                 </div>
             </div>
 
             {/* SAVE INTERFACE */}
             {isSaving && (
-                <div className="px-4 py-3 bg-indigo-600/10 border-t border-indigo-500/20 flex items-center gap-3 animate-slideDown">
+                <div className="px-6 py-4 bg-primary/5 border-t border-primary/10 flex items-center gap-4 animate-in slide-in-from-top-2 duration-300">
                     <input 
                         autoFocus
                         value={tempName}
                         onChange={e => setTempName(e.target.value)}
-                        placeholder="Context shell name (e.g. YouTube Tools)..."
-                        className="flex-1 bg-transparent border-b border-indigo-500/30 outline-none text-[11px] text-white py-1 placeholder:text-white/10"
+                        placeholder="Context shell identifier..."
+                        className="flex-1 bg-transparent border-b border-primary/20 outline-none text-[11px] text-white py-1 placeholder:text-white/5 font-black uppercase tracking-widest"
                         onKeyDown={e => e.key === 'Enter' && saveCurrentShell()}
                     />
-                    <button onClick={saveCurrentShell} className="text-[10px] font-black text-indigo-400 hover:text-indigo-300 transition-colors">SYNC SHELL</button>
+                    <button onClick={saveCurrentShell} className="text-[10px] font-black text-primary hover:text-white transition-colors uppercase tracking-widest">Commit Shell</button>
                 </div>
             )}
 
             {/* DISCOVERY & LIBRARY CONSOLE */}
             {showDiscovery && (
-                <div className="border-t border-white/10 flex flex-col md:flex-row animate-slideDown max-h-[450px]">
+                <div className="border-t border-white/5 flex flex-col md:flex-row animate-in slide-in-from-top-4 duration-500 max-h-[500px]">
                     {/* Shell Archive */}
-                    <div className="w-full md:w-64 border-r border-white/10 bg-[#0a0a0f]/50 flex flex-col">
-                        <div className="p-4 border-b border-white/5 flex items-center justify-between">
-                            <span className="text-[9px] font-black text-white/20 uppercase tracking-[0.2em]">Context Archive</span>
-                            <span className="text-[8px] font-bold text-white/10">{shells.length} Shells</span>
+                    <div className="w-full md:w-72 border-r border-white/5 bg-black/20 flex flex-col">
+                        <div className="p-6 border-b border-white/5 flex items-center justify-between">
+                            <span className="text-[9px] font-black font-outfit uppercase tracking-[0.3em] text-white/20">Shell Archive</span>
+                            <span className="text-[9px] font-black text-primary/40 bg-primary/5 px-2 py-0.5 rounded-full">{shells.length}</span>
                         </div>
                         <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
                             {shells.length === 0 ? (
-                                <div className="text-center py-10 text-[9px] font-bold text-white/5 italic">Archive Empty</div>
+                                <div className="text-center py-20 text-[10px] font-black text-white/5 uppercase tracking-widest italic">Zero Records</div>
                             ) : shells.map(s => (
-                                <div key={s.name} className={`p-3 rounded-xl border group/shell transition-all cursor-pointer ${activeShell?.name === s.name ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-white/5 border-transparent hover:border-white/10'}`} onClick={() => loadShell(s)}>
-                                    <div className="flex items-center justify-between mb-1">
-                                        <span className={`text-[10px] font-black uppercase tracking-tight ${activeShell?.name === s.name ? 'text-emerald-400' : 'text-white/60'}`}>{s.name}</span>
-                                        <button onClick={(e) => { e.stopPropagation(); deleteShell(s.name); }} className="text-red-500/0 group-hover/shell:text-red-500/40 hover:text-red-500 text-[10px]">✕</button>
+                                <div key={s.name} className={`p-4 rounded-2xl border group transition-all cursor-pointer ${activeShell?.name === s.name ? 'bg-primary/10 border-primary/30 shadow-inner' : 'bg-white/5 border-transparent hover:border-white/10'}`} onClick={() => loadShell(s)}>
+                                    <div className="flex items-center justify-between mb-2">
+                                        <span className={`text-[10px] font-black uppercase tracking-widest ${activeShell?.name === s.name ? 'text-primary' : 'text-white/40'}`}>{s.name}</span>
+                                        <button onClick={(e) => { e.stopPropagation(); deleteShell(s.name); }} className="text-rose-500/0 group-hover:text-rose-500/40 hover:text-rose-500 transition-all">
+                                            <Icons.close size={10} />
+                                        </button>
                                     </div>
-                                    <div className="flex flex-wrap gap-1">
-                                        {s.filters.priorityRank && <span className="text-[8px] text-emerald-400/40 bg-emerald-500/5 px-1 rounded uppercase">Rank {s.filters.priorityRank}</span>}
-                                        {s.filters.selectedCreators.length > 0 && <span className="text-[8px] text-indigo-400/40 bg-indigo-500/5 px-1 rounded uppercase">{s.filters.selectedCreators.length} Curators</span>}
+                                    <div className="flex flex-wrap gap-2">
+                                        {s.filters.priorityRank && <span className="text-[8px] font-black text-primary/60 bg-primary/5 px-1.5 py-0.5 rounded uppercase border border-primary/10">Rank {s.filters.priorityRank}</span>}
+                                        {s.filters.selectedCreators.length > 0 && <span className="text-[8px] font-black text-white/20 bg-white/5 px-1.5 py-0.5 rounded uppercase border border-white/5">{s.filters.selectedCreators.length} Pioneers</span>}
                                     </div>
                                 </div>
                             ))}
@@ -298,27 +289,30 @@ const FilterBar: React.FC<FilterBarProps> = ({
                     </div>
 
                     {/* Scouting Engine */}
-                    <div className="flex-1 flex flex-col bg-[#0a0a0f]/20">
-                        <div className="p-4 border-b border-white/5 flex items-center gap-3">
+                    <div className="flex-1 flex flex-col bg-black/10">
+                        <div className="p-6 border-b border-white/5 flex items-center gap-4">
                             <div className="relative flex-1">
-                                <input placeholder="Scout registry..." value={creatorSearch} onChange={e => setCreatorSearch(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-xl h-9 pl-9 text-xs text-white outline-none focus:border-indigo-500/30" />
-                                <Icons.Search size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/20" />
+                                <input placeholder="Scout the registry..." value={creatorSearch} onChange={e => setCreatorSearch(e.target.value)} className="w-full bg-white/5 border border-white/5 rounded-xl h-11 pl-11 text-xs text-white outline-none focus:border-primary/30 transition-all font-medium" />
+                                <Icons.search size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-white/10" />
                             </div>
-                            <div className="flex items-center bg-white/5 rounded-lg p-0.5 border border-white/10">
-                                <button onClick={() => setCreatorSortBy('resources')} className={`px-2 py-1 text-[8px] font-black uppercase rounded ${creatorSortBy === 'resources' ? 'bg-indigo-600 text-white shadow-md' : 'text-white/20'}`}>Impact</button>
-                                <button onClick={() => setCreatorSortBy('updated')} className={`px-2 py-1 text-[8px] font-black uppercase rounded ${creatorSortBy === 'updated' ? 'bg-indigo-600 text-white shadow-md' : 'text-white/20'}`}>Activity</button>
+                            <div className="flex items-center bg-black/40 rounded-xl p-1 border border-white/5">
+                                <button onClick={() => setCreatorSortBy('resources')} className={`px-4 py-2 text-[9px] font-black uppercase rounded-lg transition-all ${creatorSortBy === 'resources' ? 'bg-primary text-white shadow-lg' : 'text-white/20 hover:text-white/40'}`}>Impact</button>
+                                <button onClick={() => setCreatorSortBy('updated')} className={`px-4 py-2 text-[9px] font-black uppercase rounded-lg transition-all ${creatorSortBy === 'updated' ? 'bg-primary text-white shadow-lg' : 'text-white/20 hover:text-white/40'}`}>Activity</button>
                             </div>
                         </div>
-                        <div className="flex-1 overflow-y-auto p-4 grid grid-cols-2 lg:grid-cols-3 gap-2 custom-scrollbar">
+                        <div className="flex-1 overflow-y-auto p-6 grid grid-cols-2 lg:grid-cols-3 gap-3 custom-scrollbar">
                             {filteredCreators.map(c => {
-                                const active = selectedCreators.includes(c.uid);
+                                const active = (selectedCreators || []).includes(c.uid);
                                 return (
-                                    <button key={c.uid} onClick={() => toggleCreator(c.uid)} className={`flex items-center gap-2 p-2 rounded-xl border transition-all ${active ? 'bg-indigo-600/10 border-indigo-500/50 shadow-[0_0_15px_rgba(79,70,229,0.1)]' : 'bg-white/[0.02] border-transparent hover:border-white/10'}`}>
-                                        <div className="w-6 h-6 rounded bg-white/5 overflow-hidden flex-shrink-0">
-                                            {c.photoURL ? <img src={c.photoURL} alt="" className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-[9px] font-bold text-white/20">{c.displayName.charAt(0)}</div>}
+                                    <button key={c.uid} onClick={() => toggleCreator(c.uid)} className={`flex items-center gap-3 p-3 rounded-2xl border transition-all ${active ? 'bg-primary/10 border-primary/30 shadow-[0_0_20px_rgba(20,184,166,0.1)]' : 'bg-white/[0.02] border-transparent hover:border-white/5 hover:bg-white/[0.04]'}`}>
+                                        <div className="w-8 h-8 rounded-lg bg-white/5 overflow-hidden flex-shrink-0 border border-white/5">
+                                            {c.photoURL ? <img src={c.photoURL} alt="" className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-[10px] font-black text-white/10">{c.displayName?.charAt(0)}</div>}
                                         </div>
-                                        <span className={`text-[10px] font-bold truncate ${active ? 'text-indigo-200' : 'text-white/60'}`}>{c.displayName}</span>
-                                        {active && <span className="ml-auto text-indigo-400 text-[10px] animate-in zoom-in">✓</span>}
+                                        <div className="flex flex-col items-start min-w-0">
+                                            <span className={`text-[10px] font-black truncate uppercase tracking-tighter ${active ? 'text-primary' : 'text-white/40'}`}>{c.displayName}</span>
+                                            <span className="text-[8px] font-bold text-white/10 uppercase">{c.resourceCount || 0} Assets</span>
+                                        </div>
+                                        {active && <Icons.check size={12} className="ml-auto text-primary animate-in zoom-in" />}
                                     </button>
                                 );
                             })}

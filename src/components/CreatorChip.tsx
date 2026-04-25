@@ -31,14 +31,14 @@ export default function CreatorChip({ attribution, size = 'md', showExternalIcon
 
     const baseClass = `inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold border transition-all duration-200 group`;
     const themeClass = isInternal
-        ? 'bg-indigo-600/10 border-indigo-500/20 text-indigo-400 hover:bg-indigo-600/20 hover:border-indigo-400/40'
+        ? 'bg-primary/10 border-primary/20 text-primary hover:bg-primary/20 hover:border-primary/40'
         : 'bg-white/5 border-white/10 text-white/60 hover:bg-white/10 hover:border-white/20 hover:text-white';
     
     const sizeClass = size === 'sm' ? 'px-2 py-1 text-[10px]' : '';
 
     const inner = (
         <>
-            <div className={`flex items-center justify-center ${size === 'sm' ? 'w-4 h-4' : 'w-5 h-5'} rounded-full bg-black/20 text-indigo-400 group-hover:scale-110 transition-transform`}>
+            <div className={`flex items-center justify-center ${size === 'sm' ? 'w-4 h-4' : 'w-5 h-5'} rounded-full bg-black/20 text-primary group-hover:scale-110 transition-transform`}>
                 <Icons.user size={size === 'sm' ? 10 : 12} />
             </div>
             <span className="truncate max-w-[120px]">{attribution.name}</span>
@@ -48,7 +48,7 @@ export default function CreatorChip({ attribution, size = 'md', showExternalIcon
                 </span>
             )}
             {href && (
-                <span className={`transition-transform group-hover:translate-x-0.5 ${isInternal ? 'text-indigo-500/50' : 'text-white/20'}`}>
+                <span className={`transition-transform group-hover:translate-x-0.5 ${isInternal ? 'text-primary/50' : 'text-white/20'}`}>
                     {isInternal ? <Icons.chevronRight size={10} /> : <Icons.external size={10} />}
                 </span>
             )}

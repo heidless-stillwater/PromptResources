@@ -1,6 +1,7 @@
 import React, { Suspense } from 'react';
 import ResourcesClient from '@/components/ResourcesClient';
 import { getResourcesAction, getAllCategories } from '@/lib/resources-server';
+import { sanitize } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -60,8 +61,8 @@ export default async function ResourcesPage({ searchParams }: ResourcesPageProps
     return (
         <Suspense fallback={<div className="loading-page"><div className="spinner" /></div>}>
             <ResourcesClient 
-                initialResources={resources} 
-                initialCategories={categories} 
+                initialResources={sanitize(resources)} 
+                initialCategories={sanitize(categories)} 
                 totalResources={total}
                 hasMoreInitial={hasMore}
             />
