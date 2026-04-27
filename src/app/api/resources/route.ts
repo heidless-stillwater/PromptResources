@@ -6,7 +6,7 @@ import { getResourcesAction } from '@/lib/resources-server';
 import { revalidatePath } from 'next/cache';
 import { extractYouTubeId } from '@/lib/youtube';
 import { resolveAttributions, syncCreatorStats } from '@/lib/creators-server';
-import { generateSearchKeywords } from '@/lib/utils';
+import { generateSearchKeywords, sanitize } from '@/lib/utils';
 
 export async function GET(request: NextRequest) {
     try {
@@ -51,9 +51,11 @@ export async function GET(request: NextRequest) {
             creators,
         });
 
+        const sanitizedResources = sanitize(resources);
+
         return NextResponse.json({
             success: true,
-            data: resources,
+            data: sanitizedResources,
             total,
             page,
             pageSize,
@@ -74,28 +76,21 @@ export async function POST(request: NextRequest) {
     try {
         const decodedToken = await getAuthUser(request);
         if (!decodedToken) {
-            return NextResponse.json(
-                { success: false, error: 'Unauthorized' },
-                { status: 401 }
-            );
+            return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
         }
 
         const isAdminUser = await isAdmin(decodedToken.uid);
         const body = await request.json();
 
-        // Basic validation
         if (!body.title || !body.url) {
-            return NextResponse.json(
-                { success: false, error: 'Title and URL are required' },
-                { status: 400 }
-            );
+            return NextResponse.json({ success: false, error: 'Title and URL are required' }, { status: 400 });
         }
 
         let finalAttributions = body.attributions || [];
         let attributedUserIds: string[] = [];
 
         if (finalAttributions.length > 0) {
-            const resolved = await resolveAttributions(finalAttributions);
+            const resolved = await resolveAttributions(finalAttributions, body.url);
             finalAttributions = resolved.resolvedAttributions;
             attributedUserIds = resolved.attributedUserIds;
         }
@@ -108,7 +103,7 @@ export async function POST(request: NextRequest) {
             attributionNames: finalAttributions.map((a: any) => a.name).filter(Boolean),
             addedBy: decodedToken.uid,
             youtubeVideoId: body.url ? extractYouTubeId(body.url) : null,
-            thumbnailUrl: body.thumbnailUrl || null,
+            thumbnailUrl: body.thumbnailUrl || (body.url && extractYouTubeId(body.url) ? `https://img.youtube.com/vi/${extractYouTubeId(body.url)}/hqdefault.jpg` : null),
             searchKeywords: generateSearchKeywords(body.title, body.categories),
             createdAt: now,
             updatedAt: now,
@@ -121,13 +116,9 @@ export async function POST(request: NextRequest) {
 
         const docRef = await adminDb.collection('resources').add(docData);
         
-        // Revalidate listing pages to show new prompt immediately
-        revalidatePath('/resources', 'page');
-        revalidatePath('/', 'page');
         revalidatePath('/resources');
         revalidatePath('/');
         
-        // Sync stats for attributed creators in the background (fire and forget)
         if (attributedUserIds.length > 0) {
             Promise.all(attributedUserIds.map(uid => syncCreatorStats(uid)))
                 .catch(e => console.error('Error syncing creator stats after POST:', e));
@@ -136,18 +127,10 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({
             success: true,
             id: docRef.id,
-            data: {
-                ...docData,
-                id: docRef.id,
-                createdAt: now.toISOString(),
-                updatedAt: now.toISOString(),
-            }
+            data: { ...docData, id: docRef.id, createdAt: now.toISOString(), updatedAt: now.toISOString() }
         });
     } catch (error: any) {
         console.error('API Error:', error);
-        return NextResponse.json(
-            { success: false, error: error.message || 'Internal server error' },
-            { status: 500 }
-        );
+        return NextResponse.json({ success: false, error: error.message || 'Internal server error' }, { status: 500 });
     }
 }

@@ -52,8 +52,7 @@ export default function Navbar() {
                     <div className="w-px h-4 bg-white/5 mx-1" />
                     <Link href="/dashboard" className={`px-4 py-2 text-[10px] font-black uppercase tracking-widest transition-all rounded-xl ${pathname === '/dashboard' ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'text-white/60 hover:text-white hover:bg-white/5'}`} id="nav-dashboard">Dashboard</Link>
                     <Link href="/resources" className={`px-4 py-2 text-[10px] font-black uppercase tracking-widest transition-all rounded-xl ${pathname === '/resources' ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'text-white/60 hover:text-white hover:bg-white/5'}`} id="nav-resources">Resources</Link>
-                    <Link href="/creators" className={`px-4 py-2 text-[10px] font-black uppercase tracking-widest transition-all rounded-xl ${pathname === '/creators' ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'text-white/60 hover:text-white hover:bg-white/5'}`} id="nav-creators">Creators</Link>
-                    <Link href="/pricing" className={`px-4 py-2 text-[10px] font-black uppercase tracking-widest transition-all rounded-xl ${pathname === '/pricing' ? 'bg-primary/20 text-primary border border-primary/30' : 'text-white/60 hover:bg-white/5 border border-transparent hover:bg-primary/10'}`} id="nav-pricing">💎 Pricing</Link>
+                    <Link href="/creators" className={`px-4 py-2 text-[10px] font-black uppercase tracking-widest transition-all rounded-xl ${pathname === '/creators' ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'text-white/60 hover:text-white hover:bg-white/5'}`} id="nav-creators">Sources</Link>
                 </div>
 
                 <div className="flex items-center gap-4">
@@ -123,6 +122,9 @@ export default function Navbar() {
                                         </Link>
                                         <Link href="/dashboard/settings" className="flex items-center gap-3 px-4 py-3 text-[10px] font-black uppercase tracking-widest text-white/60 hover:text-white hover:bg-white/5 rounded-xl transition-all" onClick={() => setMenuOpen(false)}>
                                             ⚙️ Profile Settings
+                                        </Link>
+                                        <Link href="/pricing" className="flex items-center gap-3 px-4 py-3 text-[10px] font-black uppercase tracking-widest text-indigo-400 hover:text-indigo-300 hover:bg-indigo-400/5 rounded-xl transition-all" onClick={() => setMenuOpen(false)}>
+                                            💎 Sovereign Pricing
                                         </Link>
                                         {isAdmin && (
                                             <Link href="/admin" className="flex items-center gap-3 px-4 py-3 text-[10px] font-black uppercase tracking-widest text-red-400/80 hover:text-red-400 hover:bg-red-400/5 rounded-xl transition-all" onClick={() => setMenuOpen(false)}>

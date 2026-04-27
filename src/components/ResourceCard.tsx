@@ -82,7 +82,7 @@ export default function ResourceCard({ resource, savedIds = new Set(), onToggleS
                 <div className="relative aspect-video overflow-hidden shrink-0 m-2 rounded-xl">
                     {resource.thumbnailUrl || resource.youtubeVideoId ? (
                         <NextImage
-                            src={resource.thumbnailUrl || `https://img.youtube.com/vi/${resource.youtubeVideoId}/mqdefault.jpg`}
+                            src={resource.thumbnailUrl || `https://img.youtube.com/vi/${resource.youtubeVideoId}/hqdefault.jpg`}
                             alt={resource.title}
                             fill
                             sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
@@ -137,7 +137,7 @@ export default function ResourceCard({ resource, savedIds = new Set(), onToggleS
                 <div className="relative w-full md:w-72 aspect-video md:aspect-auto rounded-2xl overflow-hidden flex-shrink-0 border border-white/5">
                     {resource.thumbnailUrl || resource.youtubeVideoId ? (
                         <NextImage
-                            src={resource.thumbnailUrl || `https://img.youtube.com/vi/${resource.youtubeVideoId}/mqdefault.jpg`}
+                            src={resource.thumbnailUrl || `https://img.youtube.com/vi/${resource.youtubeVideoId}/hqdefault.jpg`}
                             alt={resource.title}
                             fill
                             sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
@@ -165,7 +165,7 @@ export default function ResourceCard({ resource, savedIds = new Set(), onToggleS
                 <div className="flex flex-col flex-grow min-w-0 pt-2">
                     <div className="flex justify-between items-start gap-4 mb-3">
                         <div className="min-w-0 flex-1">
-                            <h3 className="text-2xl font-black font-outfit tracking-tighter leading-tight text-white group-hover:text-primary transition-all mb-2">
+                            <h3 className="text-xl font-bold font-outfit tracking-tighter leading-tight text-white group-hover:text-primary transition-all mb-2">
                                 <Link href={`/resources/${resource.id}`} onClick={(e) => e.stopPropagation()}>
                                     {resource.title}
                                 </Link>
@@ -177,6 +177,15 @@ export default function ResourceCard({ resource, savedIds = new Set(), onToggleS
                                     {resource.platform}
                                 </span>
                                 {resource.rank && <span className="text-amber-500">🏆 #{resource.rank} Rank</span>}
+                                {resource.createdAt && (
+                                    <span 
+                                        className="flex items-center gap-1.5 ml-auto text-white/10 italic font-medium"
+                                        suppressHydrationWarning
+                                    >
+                                        <Icons.calendar size={10} />
+                                        {new Date(resource.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                                    </span>
+                                )}
                             </div>
                         </div>
 
@@ -262,7 +271,7 @@ export default function ResourceCard({ resource, savedIds = new Set(), onToggleS
             <div className="relative aspect-video m-4 rounded-[1.5rem] overflow-hidden border border-white/5 shadow-2xl">
                 {resource.thumbnailUrl || resource.youtubeVideoId ? (
                     <NextImage
-                        src={resource.thumbnailUrl || `https://img.youtube.com/vi/${resource.youtubeVideoId}/mqdefault.jpg`}
+                        src={resource.thumbnailUrl || `https://img.youtube.com/vi/${resource.youtubeVideoId}/hqdefault.jpg`}
                         alt={resource.title}
                         fill
                         sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"

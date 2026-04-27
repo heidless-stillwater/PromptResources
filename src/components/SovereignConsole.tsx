@@ -7,6 +7,11 @@ import { useAuth } from '@/contexts/AuthContext';
 export function SovereignConsole() {
   const { protection, avRequired, isAvVerified } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
+  const [mounted, setMounted] = React.useState(false);
+
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
 
   if (!protection.avEnabled) return null;
 
@@ -15,7 +20,7 @@ export function SovereignConsole() {
     verification_anchor: isAvVerified ? 'IDENTITY_VERIFIED' : 'PENDING',
     registry_alignment: 'SYNCHRONIZED',
     policy_strictness: protection.avStrictness,
-    timestamp: new Date().toISOString()
+    timestamp: mounted ? new Date().toISOString() : 'SYNCHRONIZING...'
   };
 
   return (

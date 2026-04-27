@@ -1,4 +1,4 @@
-import { adminDb, toolDbAdmin } from '@/lib/firebase-admin';
+import { adminDb, toolDbAdmin, accreditationDb } from '@/lib/firebase-admin';
 import { UserProfile, Resource, Attribution } from '@/lib/types';
 import { PaginatedResponse } from '@/lib/types';
 import { slugify } from '@/lib/utils';
@@ -24,16 +24,47 @@ export interface CreatorStats {
  */
 export async function getUserBySlug(slug: string): Promise<UserProfile | null> {
     const normalizedSlug = slugify(slug);
-    
-    // 1. Try slug lookup first (preferred for SEO)
-    const snapshot = await toolDbAdmin.collection('users')
-        .where('slug', 'in', [slug, normalizedSlug]) // Check both for maximum resilience
-        .limit(1)
+    const slugsToCheck = Array.from(new Set([slug, normalizedSlug]));
+    if (!slug.startsWith('stub_')) slugsToCheck.push(`stub_${slug}`);
+    if (!normalizedSlug.startsWith('stub_')) slugsToCheck.push(`stub_${normalizedSlug}`);
+
+    // 1. Try local adminDb first but get ALL matches to prioritize real users
+    const localSnapshot = await adminDb.collection('users')
+        .where('slug', 'in', slugsToCheck)
         .get();
 
-    if (!snapshot.empty) {
-        const doc = snapshot.docs[0];
-        const data = doc.data();
+    let bestDoc = null;
+    if (!localSnapshot.empty) {
+        // Prioritize: 1. Real account (isStub != true), 2. Stub
+        const docs = localSnapshot.docs;
+        bestDoc = docs.find(d => !d.data().isStub) || docs[0];
+    }
+
+    // 2. Cross-Reference Master Identity (toolDbAdmin)
+    // If we didn't find a real account locally, check the master registry
+    if (!bestDoc || bestDoc.data().isStub) {
+        const toolSnapshot = await toolDbAdmin.collection('users')
+            .where('slug', 'in', slugsToCheck)
+            .limit(1)
+            .get();
+        
+        if (!toolSnapshot.empty) {
+            console.log(`[getUserBySlug] Master Identity Match found for '${slug}' in toolDbAdmin`);
+            const toolDoc = toolSnapshot.docs[0];
+            const toolData = toolDoc.data();
+            
+            // If we have a local stub, we should ideally sync it, but for now just return the master data
+            return {
+                ...toolData,
+                uid: toolDoc.id,
+                createdAt: toolData.createdAt?.toDate?.() || new Date(toolData.createdAt),
+                updatedAt: toolData.updatedAt?.toDate?.() || new Date(toolData.updatedAt)
+            } as UserProfile;
+        }
+    }
+
+    if (bestDoc) {
+        const data = bestDoc.data();
         
         // --- HEALING: Clean up legacy corruption on the fly ---
         let displayName = data.displayName;
@@ -54,16 +85,35 @@ export async function getUserBySlug(slug: string): Promise<UserProfile | null> {
         }
 
         if (changed) {
-            await toolDbAdmin.collection('users').doc(doc.id).update({ 
+            await adminDb.collection('users').doc(bestDoc.id).update({ 
                 displayName,
                 updatedAt: new Date()
             });
             data.displayName = displayName;
         }
 
+        // --- SELF-HEALING: Profile Backfilling ---
+        if (data.isStub && !data.photoURL) {
+            // Attempt to backfill avatar from related resources in background
+            adminDb.collection('resources')
+                .where('attributedUserIds', 'array-contains', bestDoc.id)
+                .limit(5)
+                .get()
+                .then(async (rSnap) => {
+                    const firstYt = rSnap.docs.find(d => d.data().url && d.data().url.includes('youtube.com'));
+                    if (firstYt) {
+                        const avatar = await getYouTubeAvatar(firstYt.data().url);
+                        if (avatar) {
+                            await adminDb.collection('users').doc(bestDoc.id).update({ photoURL: avatar });
+                            console.log(`[SelfHealing] Backfilled missing avatar for stub: ${data.displayName}`);
+                        }
+                    }
+                }).catch(e => {});
+        }
+
         return {
             ...data,
-            uid: doc.id,
+            uid: bestDoc.id,
             createdAt: data.createdAt?.toDate?.() || new Date(data.createdAt),
             updatedAt: data.updatedAt?.toDate?.() || new Date(data.updatedAt)
         } as UserProfile;
@@ -71,7 +121,7 @@ export async function getUserBySlug(slug: string): Promise<UserProfile | null> {
 
     // 2. Try ID lookup as fallback (essential for stubs/new users)
     try {
-        const docSnap = await toolDbAdmin.collection('users').doc(slug).get();
+        const docSnap = await adminDb.collection('users').doc(slug).get();
         if (docSnap.exists) {
             const data = docSnap.data()!;
             return {
@@ -152,7 +202,7 @@ export async function getUserBySlug(slug: string): Promise<UserProfile | null> {
             };
 
             // B. Persist the stub
-            await toolDbAdmin.collection('users').doc(stubId).set(newStub);
+            await adminDb.collection('users').doc(stubId).set(newStub);
             console.log(`[getUserBySlug] SUCCESS: Created clean placeholder profile for '${foundName}' (uid: ${stubId})`);
             
             // C. Resource Synchronization
@@ -234,12 +284,24 @@ export async function getCreatorResources(userId: string, options: PaginationOpt
         searchNames.add(cleanName + 'i');           // Michele Tort -> Michele Torti
         
         const lower = cleanName.toLowerCase();
+        searchNames.add(lower);
+        
+        // Add Title Case variation if not already there
+        const titleCase = cleanName.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+        searchNames.add(titleCase);
+
         if (lower.includes('michel')) {
             searchNames.add('Michel Torti');
             searchNames.add('Michele Torti');
             searchNames.add('Michele Tort');
             searchNames.add('Michel Tort');
             searchNames.add('michael torl'); // legacy typo fix
+        }
+        
+        // Specific fix for "Sajid"
+        if (lower === 'sajid') {
+            searchNames.add('Sajid');
+            searchNames.add('sajid');
         }
     }
     
@@ -315,10 +377,9 @@ export async function getCreatorResources(userId: string, options: PaginationOpt
  */
 export async function getAllCreators(options?: { featured?: boolean; limit?: number; type?: string }): Promise<UserProfile[]> {
     // Phase 4 "All-In" Sweep: We fetch a broad pool and filter in-memory to bypass potential flag discrepancies.
-    const snapshot = await toolDbAdmin.collection('users')
-        .limit(options?.limit || 300)
+    const snapshot = await adminDb.collection('users')
+        .limit(1000)
         .get();
-
     const creators: UserProfile[] = [];
 
     snapshot.docs.forEach(doc => {
@@ -343,11 +404,14 @@ export async function getAllCreators(options?: { featured?: boolean; limit?: num
         if (options?.featured && !profile.isFeatured) return;
         if (options?.type && profile.profileType !== options.type) return;
 
+        if (profile.displayName === 'Julian Goldie SEO') {
+            console.log(`[getAllCreators] TRACE: Julian found. UID=${profile.uid}, Photo=${profile.photoURL ? 'YES' : 'NO'}, Bio=${profile.bio ? 'YES' : 'NO'}`);
+        }
         creators.push(profile);
     });
 
-    // Impact Fallback: If registry is empty/sparse, sweep resources for unique attribution names
-    if (creators.length < 5) {
+    // Impact Fallback: Only sweep resources if the primary registry is completely empty
+    if (creators.length === 0) {
         const resourcesSnap = await adminDb.collection('resources')
             .where('status', '==', 'published')
             .limit(500)
@@ -361,7 +425,7 @@ export async function getAllCreators(options?: { featured?: boolean; limit?: num
                 if (!creators.find(c => c.displayName === name) && !extraCreators.has(name)) {
                     const slug = slugify(name);
                     extraCreators.set(name, {
-                        uid: `temp_${slug}`, // Use a slug-based temp ID for consistency
+                        uid: `stub_${slug}`, // Use a slug-based stub ID for consistency
                         displayName: name,
                         slug: slug,
                         resourceCount: 1,
@@ -455,10 +519,12 @@ export async function getCreatorStats(userId: string): Promise<CreatorStats> {
     return stats;
 }
 
+import { getYouTubeAvatar } from './youtube';
+
 /**
  * Auto-detect and resolve attribution names to actual User IDs in the system.
  */
-export async function resolveAttributions(attributions: Attribution[]): Promise<{ resolvedAttributions: Attribution[], attributedUserIds: string[] }> {
+export async function resolveAttributions(attributions: Attribution[], resourceUrl?: string): Promise<{ resolvedAttributions: Attribution[], attributedUserIds: string[] }> {
     if (!attributions || !Array.isArray(attributions) || attributions.length === 0) {
         return { resolvedAttributions: [], attributedUserIds: [] };
     }
@@ -477,7 +543,7 @@ export async function resolveAttributions(attributions: Attribution[]): Promise<
 
         try {
             // Check if there is an existing public profile or stub with this exact name
-            const snapshot = await toolDbAdmin.collection('users')
+            const snapshot = await adminDb.collection('users')
                 .where('displayName', '==', attr.name)
                 .limit(1)
                 .get();
@@ -487,17 +553,42 @@ export async function resolveAttributions(attributions: Attribution[]): Promise<
                 const userData = doc.data();
                 if (userData.isPublicProfile || userData.isStub) {
                     attr.userId = doc.id;
+                    attr.photoURL = userData.photoURL; // PRO-TIP: Pass the photoURL forward for the UI
                     userIds.add(doc.id);
+
+                    // SELF-HEALING: If it's a stub, missing a photoURL, or the photoURL is stale (> 24h), try to get one now
+                    const isStale = userData.updatedAt && (new Date().getTime() - (userData.updatedAt.toDate?.() || new Date(userData.updatedAt)).getTime() > 24 * 60 * 60 * 1000);
+                    
+                    if (userData.isStub && (!userData.photoURL || isStale) && resourceUrl) {
+                        const photoURL = await getYouTubeAvatar(resourceUrl);
+                        if (photoURL && photoURL !== userData.photoURL) {
+                            await adminDb.collection('users').doc(doc.id).update({
+                                photoURL: photoURL,
+                                updatedAt: new Date()
+                            });
+                            attr.photoURL = photoURL; // Update it in the return object too
+                            console.log(`Self-healed/Refreshed avatar for existing stub: ${attr.name}`);
+                            
+                            // Propagate to other databases
+                            syncCreatorStats(doc.id).catch(e => {});
+                        }
+                    }
                 }
             } else {
-                // CREATE STUB: If no profile exists, create a stub profile.
                 const slug = slugify(attr.name);
                 const stubId = `stub_${slug}`; // Deterministic ID for cleaner URLs
-                
+
+                // Fetch avatar if we have a resource URL
+                let photoURL = null;
+                if (resourceUrl) {
+                    photoURL = await getYouTubeAvatar(resourceUrl);
+                }
+
                 const newStub: Partial<UserProfile> = {
                     uid: stubId,
                     displayName: attr.name,
                     slug: slug,
+                    photoURL: photoURL || undefined,
                     isStub: true,
                     isPublicProfile: true, 
                     profileType: 'individual',
@@ -506,8 +597,9 @@ export async function resolveAttributions(attributions: Attribution[]): Promise<
                     updatedAt: new Date(),
                 };
 
-                await toolDbAdmin.collection('users').doc(stubId).set(newStub);
+                await adminDb.collection('users').doc(stubId).set(newStub);
                 attr.userId = stubId;
+                attr.photoURL = photoURL || undefined; // Include in attribution
                 userIds.add(stubId);
                 console.log(`Created new deterministic creator stub for: ${attr.name} (${stubId})`);
             }
@@ -523,11 +615,16 @@ export async function resolveAttributions(attributions: Attribution[]): Promise<
 }
 
 /**
- * Synchronize aggregate statistics for a creator profile.
+ * Force synchronization of creator statistics and metadata across the suite
  */
 export async function syncCreatorStats(userId: string): Promise<void> {
     try {
         const stats = await getCreatorStats(userId);
+        
+        // Fetch full profile from adminDb to get photoURL and other metadata
+        const profileDoc = await adminDb.collection('users').doc(userId).get();
+        const profile = profileDoc.exists ? profileDoc.data() : null;
+
         const updates: any = {
             resourceCount: stats.totalResources,
             authoredCount: stats.authoredCount,
@@ -537,14 +634,40 @@ export async function syncCreatorStats(userId: string): Promise<void> {
             updatedAt: new Date()
         };
 
+        if (profile) {
+            if (profile.photoURL) updates.photoURL = profile.photoURL;
+            if (profile.displayName) updates.displayName = profile.displayName;
+            if (profile.slug) updates.slug = profile.slug;
+            if (profile.isStub) updates.isStub = profile.isStub;
+        }
+
         // If they have authored resources, ensure they are visible in the registry
         if (stats.authoredCount > 0) {
             updates.isPublicProfile = true;
         }
 
-        await toolDbAdmin.collection('users').doc(userId).update(updates);
+        // 1. Update Suite-wide Registry (PromptTool)
+        try {
+            await toolDbAdmin.collection('users').doc(userId).set(updates, { merge: true });
+            console.log(`[syncCreatorStats] Updated toolDbAdmin for ${userId}`);
+        } catch (e) {
+            console.error(`[syncCreatorStats] toolDbAdmin update failed for ${userId}`);
+        }
+
+        // 2. Update Accreditation Hub (PromptAccreditation)
+        try {
+            await accreditationDb.collection('users').doc(userId).set(updates, { merge: true });
+            console.log(`[syncCreatorStats] Updated accreditationDb for ${userId}`);
+        } catch (e) {
+            console.error(`[syncCreatorStats] accreditationDb update failed for ${userId}`);
+        }
+
+        // 3. Update Local Creator Database (PromptResources)
+        await adminDb.collection('users').doc(userId).update(updates);
+        console.log(`[syncCreatorStats] Updated adminDb for ${userId}`);
+
         console.log(`Synced stats for creator ${userId}: Authored: ${stats.authoredCount}, Curated: ${stats.curatedCount}`);
-    } catch (e) {
-        console.error(`Failed to sync stats for creator ${userId}:`, e);
+    } catch (error) {
+        console.error(`Error in syncCreatorStats for ${userId}:`, error);
     }
 }

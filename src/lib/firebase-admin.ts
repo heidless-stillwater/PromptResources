@@ -15,7 +15,10 @@ function getAdminApp(): App | null {
   if (adminApp) return adminApp;
 
   try {
-    process.stdout.write(`[FirebaseAdmin] HANDSHAKE_START: [DEFAULT]\n`);
+    console.log(`[FirebaseAdmin] HANDSHAKE_START: [DEFAULT]`, { 
+        hasEmulatorHost: !!process.env.FIRESTORE_EMULATOR_HOST,
+        emulatorHost: process.env.FIRESTORE_EMULATOR_HOST 
+    });
     const apps = getApps();
     const existing = apps.find(a => a.name === '[DEFAULT]');
     if (existing) {
@@ -29,21 +32,21 @@ function getAdminApp(): App | null {
     const privateKey = process.env.SERVICE_PRIVATE_KEY || process.env.FIREBASE_PRIVATE_KEY || process.env.FIREBASE_ADMIN_PRIVATE_KEY;
 
     if (projectId && privateKey && clientEmail) {
-        process.stdout.write(`[FirebaseAdmin] PREPARING_CERT: ${projectId}\n`);
+        console.log(`[FirebaseAdmin] PREPARING_CERT: ${projectId}`);
         const formattedKey = privateKey.replace(/\\n/g, '\n').replace(/^["']|["']$/g, '').trim();
         const credential = cert({ projectId, clientEmail, privateKey: formattedKey });
         
-        process.stdout.write(`[FirebaseAdmin] INITIALIZING_APP: [DEFAULT] (Manual Cert)\n`);
+        console.log(`[FirebaseAdmin] INITIALIZING_APP: [DEFAULT] (Manual Cert)`);
         adminApp = initializeApp({ credential });
     } else {
-        process.stdout.write(`[FirebaseAdmin] INITIALIZING_APP: [DEFAULT] (Zero-Config/GCP Default)\n`);
+        console.log(`[FirebaseAdmin] INITIALIZING_APP: [DEFAULT] (Zero-Config/GCP Default)`);
         // On Cloud Run/GCP, initializeApp() without args uses the built-in Service Account
         adminApp = initializeApp();
     }
 
     return adminApp;
   } catch (error: any) {
-    process.stdout.write(`[FirebaseAdmin] HANDSHAKE_CRASH: ${error.message} - ${error.stack}\n`);
+    console.error(`[FirebaseAdmin] HANDSHAKE_CRASH: ${error.message} - ${error.stack}`);
     return null;
   }
 }
@@ -63,7 +66,7 @@ export const getDb = (name: string): Firestore | null => {
     try { db.settings({ ignoreUndefinedProperties: true }); } catch (e) {}
     return db;
   } catch (err) {
-    process.stdout.write(`[FirebaseAdmin] Firestore error (${name}): ${err}\n`);
+    console.error(`[FirebaseAdmin] Firestore error (${name}): ${err}`);
     return null;
   }
 };
@@ -93,7 +96,8 @@ const createLazyDb = (name: string) => {
 };
 
 // Database Exports
-export const adminDb = createLazyDb('promptresources-db-0');
+const DEFAULT_RESOURCES_DB = process.env.FIREBASE_DATABASE_ID || 'promptresources-db-0';
+export const adminDb = createLazyDb(DEFAULT_RESOURCES_DB);
 export const toolDbAdmin = createLazyDb('prompttool-db-0');
 export const masterDbAdmin = createLazyDb('promptmaster-spa-db-0');
 export const accreditationDb = createLazyDb('promptaccreditation-db-0');

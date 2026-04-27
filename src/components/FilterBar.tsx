@@ -138,13 +138,14 @@ const FilterBar: React.FC<FilterBarProps> = ({
         localStorage.setItem('context-shells-v2', JSON.stringify(updated));
     };
 
-    const selectStyle = "h-11 bg-black/40 border border-white/5 rounded-xl px-3 text-[10px] font-black font-outfit uppercase text-white/40 outline-none hover:bg-white/5 hover:border-primary/30 transition-all cursor-pointer min-w-[120px] appearance-none text-center tracking-widest";
+    const selectStyle = "h-11 bg-[#0a0a0f] border border-white/5 rounded-xl px-4 text-[10px] font-black font-outfit uppercase text-white/70 outline-none hover:bg-white/5 hover:border-primary/30 transition-all cursor-pointer min-w-[130px] appearance-none tracking-widest";
+    const optionStyle = "bg-[#1e293b] text-white font-sans py-2";
 
     return (
-        <div id="filter-console" className="flex flex-col gap-px bg-white/[0.02] border border-white/5 rounded-[2rem] overflow-hidden transition-all duration-500 shadow-2xl font-inter">
+        <div id="filter-console" className="flex flex-col gap-px w-full font-inter">
             
             {/* STICKY CONTROL BELT */}
-            <div className="flex flex-wrap items-center gap-4 p-4 bg-black/40 backdrop-blur-3xl">
+            <div className="flex flex-wrap items-center gap-4 py-4">
                 
                 {/* 1. Attribute Selectors */}
                 <div className="flex items-center gap-2">
@@ -162,9 +163,11 @@ const FilterBar: React.FC<FilterBarProps> = ({
                             onChange={e => setPriorityRank(e.target.value)} 
                             className={selectStyle}
                         >
-                            <option value="">Ranking</option>
-                            <option value="any">Ranked Only</option>
-                            {[1,3,5,10,25].map(r => <option key={r} value={r.toString()}>Top {r}</option>)}
+                            <option value="" className={optionStyle}>Ranking</option>
+                            <option value="any" className={optionStyle}>Ranked Only</option>
+                            {[1,3,5,10,25].map(r => (
+                                <option key={r} value={r.toString()} className={optionStyle}>Top {r}</option>
+                            ))}
                         </select>
                         <Icons.chevronDown size={12} className="absolute right-3 text-white/10 pointer-events-none group-hover:text-primary transition-colors" />
                     </div>
@@ -175,8 +178,10 @@ const FilterBar: React.FC<FilterBarProps> = ({
                             onChange={e => setCategoryFilter(e.target.value)} 
                             className={selectStyle}
                         >
-                            <option value="">Domains</option>
-                            {initialCategories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                            <option value="" className={optionStyle}>Domains</option>
+                            {initialCategories.map(c => (
+                                <option key={c.id} value={c.id} className={optionStyle}>{c.name}</option>
+                            ))}
                         </select>
                         <Icons.chevronDown size={12} className="absolute right-3 text-white/10 pointer-events-none group-hover:text-primary transition-colors" />
                     </div>
@@ -187,8 +192,10 @@ const FilterBar: React.FC<FilterBarProps> = ({
                             onChange={e => setTypeFilter(e.target.value)} 
                             className={selectStyle}
                         >
-                            <option value="">Asset Type</option>
-                            {types.map(t => <option key={t} value={t}>{t}</option>)}
+                            <option value="" className={optionStyle}>Asset Type</option>
+                            {types.map(t => (
+                                <option key={t} value={t} className={optionStyle}>{t}</option>
+                            ))}
                         </select>
                         <Icons.chevronDown size={12} className="absolute right-3 text-white/10 pointer-events-none group-hover:text-primary transition-colors" />
                     </div>
@@ -304,13 +311,19 @@ const FilterBar: React.FC<FilterBarProps> = ({
                             {filteredCreators.map(c => {
                                 const active = (selectedCreators || []).includes(c.uid);
                                 return (
-                                    <button key={c.uid} onClick={() => toggleCreator(c.uid)} className={`flex items-center gap-3 p-3 rounded-2xl border transition-all ${active ? 'bg-primary/10 border-primary/30 shadow-[0_0_20px_rgba(20,184,166,0.1)]' : 'bg-white/[0.02] border-transparent hover:border-white/5 hover:bg-white/[0.04]'}`}>
-                                        <div className="w-8 h-8 rounded-lg bg-white/5 overflow-hidden flex-shrink-0 border border-white/5">
-                                            {c.photoURL ? <img src={c.photoURL} alt="" className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-[10px] font-black text-white/10">{c.displayName?.charAt(0)}</div>}
+                                    <button key={c.uid} onClick={() => toggleCreator(c.uid)} className={`flex items-center gap-4 p-3 rounded-2xl border transition-all ${active ? 'bg-primary/10 border-primary/30 shadow-[0_0_20px_rgba(20,184,166,0.1)]' : 'bg-white/[0.02] border-transparent hover:border-white/5 hover:bg-white/[0.04] group'}`}>
+                                        <div className="w-10 h-10 rounded-xl overflow-hidden bg-primary/20 flex-shrink-0 border border-white/5 group-hover:bg-primary/30 transition-colors">
+                                            {c.photoURL ? (
+                                                <img src={c.photoURL} alt="" className="w-full h-full object-cover" />
+                                            ) : (
+                                                <div className="w-full h-full flex items-center justify-center font-black text-primary text-xs uppercase">
+                                                    {c.displayName?.charAt(0)}
+                                                </div>
+                                            )}
                                         </div>
                                         <div className="flex flex-col items-start min-w-0">
-                                            <span className={`text-[10px] font-black truncate uppercase tracking-tighter ${active ? 'text-primary' : 'text-white/40'}`}>{c.displayName}</span>
-                                            <span className="text-[8px] font-bold text-white/10 uppercase">{c.resourceCount || 0} Assets</span>
+                                            <span className={`text-[11px] font-black truncate uppercase tracking-tight font-outfit ${active ? 'text-primary' : 'text-white'}`}>{c.displayName}</span>
+                                            <span className="text-[9px] font-black text-white/20 uppercase tracking-widest leading-tight">{c.resourceCount || 0} Assets</span>
                                         </div>
                                         {active && <Icons.check size={12} className="ml-auto text-primary animate-in zoom-in" />}
                                     </button>

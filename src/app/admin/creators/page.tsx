@@ -452,7 +452,7 @@ function CreatorsAdminContent() {
                         <table className="w-full text-left border-collapse">
                             <thead>
                                 <tr className="bg-white/5 border-b border-white/5">
-                                    <th className="p-6 text-[10px] font-black uppercase tracking-widest text-white/30">Contributor Identity</th>
+                                    <th className="p-6 text-[10px] font-black uppercase tracking-widest text-white/30">Source Identity</th>
                                     <th className="p-6 text-[10px] font-black uppercase tracking-widest text-white/30">Class Hub</th>
                                     <th className="p-6 text-[10px] font-black uppercase tracking-widest text-white/30">Impact Matrix</th>
                                     <th className="p-6 text-[10px] font-black uppercase tracking-widest text-white/30">Hall of Fame</th>
@@ -465,13 +465,15 @@ function CreatorsAdminContent() {
                                     <tr key={c.uid} className="hover:bg-white/[0.02] transition-colors group">
                                         <td className="p-6">
                                             <div className="flex items-center gap-4">
-                                                {c.photoURL ? (
-                                                     <img src={c.photoURL} alt={c.displayName} className="w-12 h-12 rounded-2xl object-cover ring-2 ring-white/10 group-hover:ring-indigo-500/30 transition-all" />
-                                                ) : (
-                                                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-500/20 to-purple-500/20 flex items-center justify-center text-xs font-black border border-white/10">
-                                                        {(c.displayName?.[0] || 'C').toUpperCase()}
-                                                    </div>
-                                                )}
+                                                <div className="w-12 h-12 rounded-xl overflow-hidden bg-primary/20 flex-shrink-0 border border-white/10 ring-2 ring-white/10 group-hover:ring-indigo-500/30 transition-all">
+                                                    {c.photoURL ? (
+                                                        <img src={c.photoURL} alt={c.displayName} className="w-full h-full object-cover" />
+                                                    ) : (
+                                                        <div className="w-full h-full flex items-center justify-center font-black text-primary text-sm uppercase">
+                                                            {(c.displayName?.[0] || 'C').toUpperCase()}
+                                                        </div>
+                                                    )}
+                                                </div>
                                                 <div>
                                                     <div className="font-black text-white group-hover:text-indigo-400 transition-colors flex items-center gap-2">
                                                         {c.displayName}

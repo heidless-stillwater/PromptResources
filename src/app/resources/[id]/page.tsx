@@ -662,17 +662,17 @@ export default function ResourceDetailPage() {
     const r = resource as Resource;
     const ytId = r.youtubeVideoId || (r.mediaFormat === 'youtube' ? extractYouTubeId(r.url) : null);
 
-    return (
-        <div className="page-wrapper dashboard-theme min-h-screen bg-[#0a0a0f] text-white">
+return (
+        <div className="page-wrapper dashboard-theme min-h-screen selection:bg-primary/30 font-inter text-white">
             <Navbar />
             
             {/* ── PREMIUM CINEMATIC COVER ── */}
-            <div className="relative w-full overflow-hidden flex flex-col border-b border-white/5 bg-[#0a0a0f]">
+            <div className="relative w-full overflow-hidden flex flex-col border-b border-white/5">
                 {/* Background Layer (Stillwater Brand Glow) */}
                 <div className="absolute inset-0 z-0">
                     <div className="w-full h-full">
-                        <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-transparent to-accent/10 opacity-60" />
-                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[400px] bg-primary/10 rounded-full blur-[120px]" />
+                        <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-background to-background opacity-60" />
+                        <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-primary/5 rounded-full blur-[120px] -mr-48 -mt-48" />
                         {r.thumbnailUrl && (
                             <div className="absolute inset-0 opacity-10">
                                 <img src={r.thumbnailUrl} alt="" className="w-full h-full object-cover blur-3xl scale-110" />
@@ -685,7 +685,7 @@ export default function ResourceDetailPage() {
                 <div className="container relative z-10 pt-12 pb-40">
                     {/* Pathing breadcrumbs */}
                     <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.4em] text-white/30 mb-8">
-                        <Link href="/" className="hover:text-primary transition-colors">Registry</Link>
+                        <Link href="/" className="hover:text-primary transition-colors">Sources Registry</Link>
                         <Icons.chevronRight size={10} className="text-white/10" />
                         <Link href="/resources" className="hover:text-primary transition-colors">Resources</Link>
                         <Icons.chevronRight size={10} className="text-white/10" />
@@ -717,11 +717,21 @@ export default function ResourceDetailPage() {
                                 )}
                             </div>
 
-                            <div className="mb-8">
-                                <h2 className="text-sm font-black text-white/30 uppercase tracking-[0.4em] mb-2">Architectural Asset</h2>
-                                <h1 className="text-4xl md:text-7xl font-black tracking-tighter text-white mb-6 leading-[0.9]">
-                                    {r.title}
-                                </h1>
+                            <div className="mb-10">
+                                <div className="flex flex-col md:flex-row items-start md:items-center gap-8 mb-8">
+                                    {r.thumbnailUrl && (
+                                        <div className="w-24 h-24 md:w-32 md:h-32 rounded-[2rem] overflow-hidden border-4 border-white/10 shadow-2xl shrink-0 bg-white/5 relative group">
+                                            <img src={r.thumbnailUrl} alt="" className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
+                                            <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                                        </div>
+                                    )}
+                                    <div>
+                                        <h2 className="text-sm font-black text-white/30 uppercase tracking-[0.4em] mb-3 font-outfit">Architectural Asset</h2>
+                                        <h1 className="text-4xl md:text-7xl font-black tracking-tighter text-white leading-[0.9] font-outfit">
+                                            {r.title}
+                                        </h1>
+                                    </div>
+                                </div>
                                 <div className="flex flex-wrap items-center gap-6 text-white/40">
                                     <Rating value={r.averageRating || 0} count={r.reviewCount || 0} />
                                     <div className="h-4 w-px bg-white/10" />
@@ -746,7 +756,7 @@ export default function ResourceDetailPage() {
                                     rel="noopener noreferrer"
                                     className="flex-1 md:flex-none px-12 py-4 bg-gradient-to-r from-primary to-accent text-white rounded-2xl font-black text-sm transition-all flex items-center justify-center gap-3 shadow-2xl shadow-primary/30 hover:scale-[1.02] active:scale-95"
                                 >
-                                    Launch Interface <Icons.external size={18} strokeWidth={3} />
+                                    Open Resource <Icons.external size={18} strokeWidth={3} />
                                 </a>
                                 
                                 <button 
@@ -768,6 +778,7 @@ export default function ResourceDetailPage() {
                     </div>
                 </div>
             </div>
+
 
             <div className="main-content -mt-28 overflow-visible">
                 <main className="container mx-auto px-4 pt-0 pb-20 relative z-30">
@@ -835,8 +846,22 @@ export default function ResourceDetailPage() {
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
                         {/* Main Stream */}
                         <div className="lg:col-span-2 space-y-10">
-                                <div className="bg-[#12121e]/90 border border-white/10 rounded-3xl p-6 md:p-8 backdrop-blur-xl shadow-2xl relative overflow-hidden group mb-8">
+                                <div className="bg-background-secondary/90 border border-white/10 rounded-3xl p-6 md:p-8 backdrop-blur-xl shadow-2xl relative overflow-hidden group mb-8">
                                     <div className="absolute top-0 right-0 p-8 w-64 h-64 bg-primary/10 rounded-full blur-3xl pointer-events-none group-hover:bg-primary/20 transition-all duration-700"></div>
+                                    
+                                    <div className="flex flex-col md:flex-row gap-8 items-start mb-8">
+                                        <div className="relative shrink-0">
+                                            <div className="absolute -inset-1 bg-gradient-to-r from-primary to-accent rounded-2xl blur opacity-20 group-hover:opacity-40 transition duration-1000"></div>
+                                            <div className="relative w-24 h-24 rounded-2xl border border-white/10 overflow-hidden bg-black/40 backdrop-blur-xl shadow-xl">
+                                                <img 
+                                                    src={r.thumbnailUrl || '/placeholder-resource.jpg'} 
+                                                    alt={r.title}
+                                                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
+                                                />
+                                            </div>
+                                        </div>
+                                        
+                                        <div className="flex-1">
                                 {isEditingTitle ? (
                                     <div className="animate-in fade-in zoom-in duration-200" style={{ width: '100%', marginBottom: 'var(--space-4)' }}>
                                         <input 
@@ -903,6 +928,7 @@ export default function ResourceDetailPage() {
                                                     setTempTitle(r.title);
                                                 }
                                             }}
+                                            className="font-outfit"
                                         >
                                             {r.title}
                                             {(isAdmin || (user && r.addedBy === user.uid)) && (
@@ -1054,38 +1080,11 @@ export default function ResourceDetailPage() {
                                     </div>
                                 </div>
                             </div>
+                        </div>
+                    </div>
 
-                             <div className="bg-[#12121e]/50 border border-white/5 rounded-3xl p-6 md:p-8 mb-8 hover:bg-[#12121e]/70 transition-colors">
-                                <div className="flex flex-col gap-8 mb-8">
-                                    <div className="flex items-center gap-6">
-                                        <div className="flex items-center gap-3">
-                                            <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary shrink-0">📄</div>
-                                            {r.thumbnailUrl && (
-                                                <div className="w-16 h-16 rounded-2xl overflow-hidden border border-white/10 shadow-xl shrink-0">
-                                                    <img src={r.thumbnailUrl} alt="" className="w-full h-full object-cover" />
-                                                </div>
-                                            )}
-                                        </div>
-                                        <h3 className="text-sm font-black uppercase tracking-[0.2em] text-white/50">Technical Description</h3>
-                                    </div>
 
-                                    {/* Inline Media Player */}
-                                    {ytId && (
-                                        <div className="relative aspect-video rounded-3xl overflow-hidden border border-white/10 shadow-2xl bg-black/40">
-                                            <iframe
-                                                src={getYouTubeEmbedUrl(ytId)}
-                                                title={r.title}
-                                                className="w-full h-full"
-                                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                                                allowFullScreen
-                                            />
-                                        </div>
-                                    )}
-                                </div>
-                                <div className="text-white/70 leading-loose text-sm">
-                                    {r.description}
-                                </div>
-                            </div>
+
 
                             {/* Recommended Nanobanana Prompt (Editable in-place) */}
                             {(r.prompts && r.prompts.length > 0 || isAdmin || (user && r.addedBy === user.uid)) && (
@@ -1406,14 +1405,14 @@ export default function ResourceDetailPage() {
                                                     value={r.pricing} 
                                                     onChange={(e) => handleUpdateField('pricing', e.target.value)}
                                                 >
-                                                    {['free', 'paid', 'freemium', 'enterprise'].map(opt => <option key={opt} value={opt} className="bg-[#0a0a0f]">{opt.toUpperCase()}</option>)}
+                                                    {['free', 'paid', 'freemium', 'enterprise'].map(opt => <option key={opt} value={opt} className="bg-background">{opt.toUpperCase()}</option>)}
                                                 </select>
                                                 <select 
                                                     className="px-3 py-1.5 bg-white/5 border border-white/10 rounded-lg text-[10px] font-bold text-white/60 outline-none cursor-pointer hover:bg-white/10 transition-all appearance-none"
                                                     value={r.platform} 
                                                     onChange={(e) => handleUpdateField('platform', e.target.value)}
                                                 >
-                                                    {['web', 'ios', 'android', 'macos', 'windows', 'multi'].map(opt => <option key={opt} value={opt} className="bg-[#0a0a0f]">{opt.toUpperCase()}</option>)}
+                                                    {['web', 'ios', 'android', 'macos', 'windows', 'multi'].map(opt => <option key={opt} value={opt} className="bg-background">{opt.toUpperCase()}</option>)}
                                                 </select>
                                             </>
                                         ) : (
@@ -1500,8 +1499,12 @@ export default function ResourceDetailPage() {
                                     {deduplicateAttributions(r.attributions || []).map((attr, idx) => (
                                         <div key={idx} className="flex items-center justify-between p-3 bg-white/5 border border-white/5 rounded-xl group/attr">
                                             <div className="flex items-center gap-3">
-                                                <div className="w-8 h-8 rounded-lg bg-primary text-white flex items-center justify-center font-black text-xs shadow-lg shadow-primary/20">
-                                                    {attr.name.charAt(0)}
+                                                <div className="w-8 h-8 rounded-lg bg-primary text-white flex items-center justify-center font-black text-xs shadow-lg shadow-primary/20 overflow-hidden">
+                                                    {attr.photoURL ? (
+                                                        <img src={attr.photoURL} alt={attr.name} className="w-full h-full object-cover" />
+                                                    ) : (
+                                                        attr.name.charAt(0)
+                                                    )}
                                                 </div>
                                                 <div className="min-w-0">
                                                     {attr.userId ? (
@@ -1535,6 +1538,7 @@ export default function ResourceDetailPage() {
                     </div>
                 </main>
             </div>
+            
             {/* Note Editor Modal */}
             <Modal
                 isOpen={isNoteModalOpen}

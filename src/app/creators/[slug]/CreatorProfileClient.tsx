@@ -33,7 +33,7 @@ const socialIcon = (platform: CreatorSocial['platform']) => {
 
 const profileTypeBadge = (type?: string) => {
     const map: Record<string, { label: string; bgColor: string; textColor: string; borderColor: string }> = {
-        individual: { label: 'Creator', bgColor: 'bg-primary/10', textColor: 'text-primary', borderColor: 'border-primary/20' },
+        individual: { label: 'Source', bgColor: 'bg-primary/10', textColor: 'text-primary', borderColor: 'border-primary/20' },
         channel: { label: 'Channel', bgColor: 'bg-rose-500/10', textColor: 'text-rose-400', borderColor: 'border-rose-500/20' },
         organization: { label: 'Organization', bgColor: 'bg-teal-500/10', textColor: 'text-teal-400', borderColor: 'border-teal-500/20' },
     };
@@ -43,11 +43,11 @@ const profileTypeBadge = (type?: string) => {
 export default function CreatorProfileClient({ creator, initialResources, stats }: Props) {
     const { isAdmin } = useAuth();
     const authoredResources = initialResources.filter(r =>
-        r.attributions?.some(a => (a.userId === creator.uid || a.name === creator.displayName) && a.role !== 'curator')
+        r.attributions?.some(a => (a.userId === creator.uid || a.name?.toLowerCase() === creator.displayName?.toLowerCase()) && a.role !== 'curator')
     );
     const curatedResources = initialResources.filter(r =>
         r.addedBy === creator.uid || 
-        r.attributions?.some(a => (a.userId === creator.uid || a.name === creator.displayName) && a.role === 'curator')
+        r.attributions?.some(a => (a.userId === creator.uid || a.name?.toLowerCase() === creator.displayName?.toLowerCase()) && a.role === 'curator')
     );
 
     const defaultTab: 'authored' | 'curated' =
@@ -70,7 +70,7 @@ export default function CreatorProfileClient({ creator, initialResources, stats 
         const unsubscribe = onAuthStateChanged(auth, async (user) => {
             if (user) {
                 const isOwner = user.uid === creator.uid;
-                setIsAuthorized(isOwner);
+                setIsAuthorized(isOwner || isAdmin);
             } else {
                 setIsAuthorized(false);
             }
@@ -107,7 +107,7 @@ export default function CreatorProfileClient({ creator, initialResources, stats 
         if (navigator.share) {
             try {
                 await navigator.share({
-                    title: `${creator.displayName} | Creator Profile`,
+                    title: `${creator.displayName} | Source Profile`,
                     text: `Discover the AI resources and collections from ${creator.displayName} on PromptResources.`,
                     url: window.location.href,
                 });
@@ -117,25 +117,6 @@ export default function CreatorProfileClient({ creator, initialResources, stats 
         } else {
             handleCopyLink();
         }
-    };
-
-    const handleExport = () => {
-        const exportData = {
-            profile: creator,
-            stats: stats,
-            contributions: {
-                authored: authoredResources,
-                curated: curatedResources
-            },
-            exportedAt: new Date().toISOString()
-        };
-        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(exportData, null, 2));
-        const downloadAnchorNode = document.createElement('a');
-        downloadAnchorNode.setAttribute("href", dataStr);
-        downloadAnchorNode.setAttribute("download", `creator_profile_${creator.slug || creator.uid}.json`);
-        document.body.appendChild(downloadAnchorNode);
-        downloadAnchorNode.click();
-        downloadAnchorNode.remove();
     };
 
     const handleUpdateStrikes = async (count: number) => {
@@ -170,11 +151,11 @@ export default function CreatorProfileClient({ creator, initialResources, stats 
         .slice(0, 2);
 
     return (
-        <div className="page-wrapper dashboard-theme min-h-screen bg-[#0a0a0f] text-white">
+        <div className="page-wrapper dashboard-theme min-h-screen bg-background text-white">
             <Navbar />
             
             {/* ── CINEMATIC HERO COVER ── */}
-            <div className="relative w-full h-auto overflow-hidden flex flex-col">
+            <div className="relative w-full h-auto overflow-hidden flex flex-col mb-5">
                 {/* Background Layer (Blurred Telemetry) */}
                 <div className="absolute inset-0 z-0">
                     {currentBanner ? (
@@ -184,23 +165,23 @@ export default function CreatorProfileClient({ creator, initialResources, stats 
                                 alt="" 
                                 className="w-full h-full object-cover scale-110 blur-3xl opacity-20" 
                             />
-                            <div className="absolute inset-0 bg-gradient-to-b from-[#0a0a0f]/40 via-[#0a0a0f]/80 to-[#0a0a0f]" />
+                            <div className="absolute inset-0 bg-gradient-to-b from-background/40 via-background/80 to-background" />
                         </div>
                     ) : (
-                        <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-[#0a0a0f] to-[#0a0a0f]" />
+                        <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-background to-background" />
                     )}
                 </div>
 
-                <div className="container relative z-10 flex flex-col gap-8 pt-8 pb-32">
+                <div className="container relative z-10 flex flex-col gap-4 pt-4">
                     {/* Header Pathing */}
-                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-12">
+                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 mb-6">
                         <div className="flex items-center gap-4">
                             <Link href="/creators" className="p-3 bg-white/5 border border-white/10 rounded-2xl hover:bg-primary/20 hover:border-primary/30 transition-all group">
                                 <Icons.arrowLeft size={20} className="text-white/40 group-hover:text-primary group-hover:-translate-x-1 transition-all" />
                             </Link>
                             <div className="flex flex-col">
                                 <div className="text-[10px] font-black text-white/20 uppercase tracking-[0.3em] mb-1">
-                                    Registry Intelligence / Creators
+                                    Registry Intelligence / Sources
                                 </div>
                                 <div className="flex items-center gap-2 text-xs font-bold text-white/60">
                                     <span className="text-primary/60 uppercase">Identity Profile</span>
@@ -219,7 +200,7 @@ export default function CreatorProfileClient({ creator, initialResources, stats 
                             </button>
                             <div className="h-6 w-px bg-white/10 mx-2" />
                             <Link href="/creators" className="px-6 py-2.5 bg-primary border border-primary/50 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 shadow-lg shadow-primary/20">
-                                <Icons.users size={18} /> Community Registry
+                                <Icons.users size={18} /> Sources Registry
                             </Link>
                         </div>
                     </div>
@@ -228,55 +209,57 @@ export default function CreatorProfileClient({ creator, initialResources, stats 
                     <div className="glass-card p-8 shadow-2xl relative overflow-hidden group">
                         <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-primary/5 rounded-full blur-[100px] -mr-48 -mt-48 group-hover:bg-primary/10 transition-all duration-1000" />
                         
-                        <div className="relative z-10 flex flex-col md:flex-row gap-10">
-                            {/* Visual Identity (Avatar) */}
-                            <div className="relative flex-shrink-0">
-                                <div className="w-32 h-32 md:w-48 md:h-48 rounded-[2.5rem] p-[2px] bg-gradient-to-br from-white/40 via-white/5 to-transparent backdrop-blur-3xl shadow-2xl overflow-hidden hover:scale-105 transition-transform duration-500">
-                                    <div className="w-full h-full rounded-[2.4rem] overflow-hidden bg-[#0a0a0f]">
-                                        {creator.photoURL ? (
-                                            <img src={creator.photoURL} alt={creator.displayName} className="w-full h-full object-cover" />
-                                        ) : (
-                                            <div className="w-full h-full bg-gradient-to-br from-primary to-accent flex items-center justify-center text-5xl font-black text-white">
-                                                {initials}
-                                            </div>
-                                        )}
+                        <div className="relative z-10 grid grid-cols-1 lg:grid-cols-12 gap-5">
+                            {/* Visual Identity (Avatar) - 3 cols */}
+                            <div className="lg:col-span-3 flex flex-col items-center lg:items-start gap-4">
+                                <div className="relative">
+                                    <div className="w-32 h-32 md:w-48 md:h-48 rounded-[2.5rem] p-[2px] bg-gradient-to-br from-white/40 via-white/5 to-transparent backdrop-blur-3xl shadow-2xl overflow-hidden hover:scale-105 transition-transform duration-500">
+                                        <div className="w-full h-full rounded-[2.4rem] overflow-hidden bg-background">
+                                            {creator.photoURL ? (
+                                                <img src={creator.photoURL} alt={creator.displayName} className="w-full h-full object-cover" />
+                                            ) : (
+                                                <div className="w-full h-full bg-gradient-to-br from-primary to-accent flex items-center justify-center text-5xl font-black text-white">
+                                                    {initials}
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
+                                    {creator.isVerified && (
+                                        <div className="absolute -bottom-2 -right-2 w-12 h-12 bg-primary rounded-2xl flex items-center justify-center border-4 border-background-secondary shadow-2xl" title="Verified Pioneer">
+                                            <Icons.check size={22} strokeWidth={4} />
+                                        </div>
+                                    )}
+                                    {isAuthorized && (
+                                        <button 
+                                            onClick={() => setIsEditingHeader(true)}
+                                            className="absolute -top-2 -right-2 p-3 bg-black/60 backdrop-blur-xl border border-white/10 rounded-xl text-white/40 hover:text-primary opacity-0 group-hover:opacity-100 transition-all shadow-xl"
+                                        >
+                                            <Icons.image size={18} />
+                                        </button>
+                                    )}
                                 </div>
-                                {creator.isVerified && (
-                                    <div className="absolute -bottom-2 -right-2 w-12 h-12 bg-primary rounded-2xl flex items-center justify-center border-4 border-[#12121e] shadow-2xl" title="Verified Pioneer">
-                                        <Icons.check size={22} strokeWidth={4} />
-                                    </div>
-                                )}
-                                {isAuthorized && (
-                                    <button 
-                                        onClick={() => setIsEditingHeader(true)}
-                                        className="absolute -top-2 -right-2 p-3 bg-black/60 backdrop-blur-xl border border-white/10 rounded-xl text-white/40 hover:text-primary opacity-0 group-hover:opacity-100 transition-all shadow-xl"
-                                    >
-                                        <Icons.image size={18} />
-                                    </button>
-                                )}
                             </div>
 
-                            {/* Textual Identity */}
-                            <div className="flex-1 flex flex-col py-2">
-                                <div className="flex items-center gap-3 mb-4">
+                            {/* Textual Identity & Bio - 5 cols */}
+                            <div className="lg:col-span-5 flex flex-col justify-center text-center lg:text-left">
+                                <div className="flex items-center justify-center lg:justify-start gap-3 mb-4">
                                     <span className="px-3 py-1 bg-primary/10 border border-primary/20 text-primary rounded-lg text-[9px] font-black uppercase tracking-widest">
                                         {badge.label}
                                     </span>
                                     <span className="text-white/20 text-[9px] font-black uppercase tracking-[0.2em]">Pioneer ID: {creator.uid.slice(0, 8)}</span>
                                 </div>
 
-                                <h1 className="text-4xl md:text-6xl font-black tracking-tighter text-white mb-4 leading-none group-hover:text-primary transition-colors">
+                                <h1 className="text-4xl md:text-6xl font-black tracking-tighter text-white mb-4 leading-none group-hover:text-primary transition-colors font-outfit">
                                     {creator.displayName}
                                 </h1>
 
                                 {creator.bio && (
-                                    <p className="text-white/50 max-w-2xl text-base font-medium leading-relaxed mb-4">
+                                    <p className="text-white/40 max-w-xl text-base font-medium leading-relaxed mb-6 italic">
                                         {creator.bio}
                                     </p>
                                 )}
 
-                                <div className="mt-auto flex flex-wrap gap-4">
+                                <div className="flex flex-wrap justify-center lg:justify-start gap-4">
                                     {creator.socials?.map((s, i) => (
                                         <a
                                             key={i}
@@ -297,59 +280,60 @@ export default function CreatorProfileClient({ creator, initialResources, stats 
                                     )}
                                 </div>
                             </div>
+
+                            {/* HUD Stats - 4 cols */}
+                            <div className="lg:col-span-4 grid grid-cols-2 gap-3 h-full self-center">
+                                {[
+                                    { label: 'Authored', value: stats.authoredCount, icon: <Icons.wand size={16} /> },
+                                    { label: 'Curated', value: stats.curatedCount, icon: <Icons.grid size={16} /> },
+                                    { label: 'Impact', value: stats.totalResources, icon: <Icons.zap size={16} /> },
+                                    { label: 'Rating', value: stats.averageRating > 0 ? stats.averageRating.toFixed(1) : '—', icon: <Icons.sparkles size={16} /> }
+                                ].map((stat, i) => (
+                                    <div key={i} className="bg-white/5 border border-white/10 rounded-2xl p-5 flex flex-col items-center justify-center hover:bg-white/10 transition-all group/stat relative overflow-hidden">
+                                        <div className="absolute top-0 right-0 p-2 text-primary/10 group-hover/stat:text-primary/30 transition-colors">
+                                            {stat.icon}
+                                        </div>
+                                        <div className="text-3xl font-black text-white group-hover/stat:scale-110 transition-transform duration-500 tracking-tighter">{stat.value}</div>
+                                        <div className="text-[9px] font-black text-white/20 uppercase tracking-[0.3em] mt-2 leading-none">{stat.label}</div>
+                                    </div>
+                                ))}
+                                
+                                <div className={`col-span-2 relative bg-gradient-to-br ${(creator.strikes || 0) > 0 ? 'from-rose-500/10 to-rose-500/5 border-rose-500/20' : 'bg-white/5 border-white/10'} border p-3 rounded-2xl flex items-center justify-between px-6 hover:bg-white/10 transition-all group/strike`}>
+                                    <div className="flex items-center gap-3">
+                                        <Icons.report size={14} className={(creator.strikes || 0) > 0 ? 'text-rose-400 animate-pulse' : 'text-white/20'} />
+                                        <span className="text-[10px] font-black uppercase tracking-[0.2em] text-white/30">Safety Strikes</span>
+                                    </div>
+                                    <div className={`text-xl font-black ${(creator.strikes || 0) > 0 ? 'text-rose-400' : 'text-white/40'} tracking-tighter`}>
+                                        {creator.strikes || 0}
+                                        {isAdmin && (
+                                            <button 
+                                                onClick={(e) => {
+                                                    e.preventDefault();
+                                                    const newCount = prompt(`Update strikes for ${creator.displayName}:`, (creator.strikes || 0).toString());
+                                                    if (newCount !== null) {
+                                                        const count = parseInt(newCount);
+                                                        if (!isNaN(count)) handleUpdateStrikes(count);
+                                                    }
+                                                }}
+                                                className="ml-2 p-1 bg-white/10 rounded-md text-[10px] opacity-0 group-hover/strike:opacity-100 transition-opacity"
+                                            >
+                                                ⚙️
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <main className="container mx-auto px-4 -mt-28 pb-12 relative z-30">
-                {/* ── IMPACT GRID ── */}
-                <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
-                    {[
-                        { label: 'Authored Resources', value: stats.authoredCount, icon: <Icons.wand size={20} />, color: 'from-primary/10 to-primary/5' },
-                        { label: 'Curated Assets', value: stats.curatedCount, icon: <Icons.grid size={20} />, color: 'from-primary/10 to-primary/5' },
-                        { label: 'Categories Mastered', value: stats.categories.length, icon: <Icons.tag size={20} />, color: 'from-primary/10 to-primary/5' },
-                        { label: 'Community Rating', value: stats.averageRating > 0 ? stats.averageRating.toFixed(1) : '—', icon: <Icons.sparkles size={20} />, color: 'from-primary/10 to-primary/5' },
-                        { label: 'Safety Strikes', value: creator.strikes || 0, icon: <Icons.report size={20} />, color: (creator.strikes || 0) > 0 ? 'from-rose-500/10 to-rose-500/5 border-rose-500/20' : 'from-primary/10 to-primary/5' }
-                    ].map((stat, i) => {
-                        const isStrikeCard = stat.label === 'Safety Strikes';
-                        const hasStrikes = isStrikeCard && (creator.strikes || 0) > 0;
-                        
-                        return (
-                            <div key={i} className={`relative bg-gradient-to-br ${stat.color} border border-white/10 p-8 rounded-[2rem] flex flex-col items-center gap-3 hover:bg-white/5 transition-all group overflow-hidden`}>
-                                <div className={`${hasStrikes ? 'text-rose-400 animate-pulse' : 'text-primary'} group-hover:scale-110 transition-transform duration-500 z-10 opacity-60`}>{stat.icon}</div>
-                                <div className={`text-5xl font-black ${hasStrikes ? 'text-rose-400' : 'text-white'} relative z-10 tracking-tight`}>
-                                    {stat.value}
-                                    {isStrikeCard && isAdmin && (
-                                        <button 
-                                            onClick={(e) => {
-                                                e.preventDefault();
-                                                const newCount = prompt(`Update strikes for ${creator.displayName}:`, stat.value.toString());
-                                                if (newCount !== null) {
-                                                    const count = parseInt(newCount);
-                                                    if (!isNaN(count)) {
-                                                        handleUpdateStrikes(count);
-                                                    }
-                                                }
-                                            }}
-                                            className="absolute -right-6 top-1 p-1 bg-white/10 rounded-lg hover:bg-white/20 text-[10px] text-white/40 hover:text-white"
-                                            title="Admin Override"
-                                        >
-                                            ⚙️
-                                        </button>
-                                    )}
-                                </div>
-                                <div className="text-[10px] uppercase font-black tracking-[0.25em] text-white/30 text-center z-10 leading-tight">{stat.label}</div>
-                            </div>
-                        );
-                    })}
-                </div>
-
+            <main className="container mx-auto px-4 pb-12 relative z-30">
                 {/* ── RESOURCE EXPLORER ── */}
-                <section className="mt-20">
-                    <div className="flex flex-col md:flex-row justify-between items-center gap-8 mb-12 border-b border-white/5 pb-8">
+                <section className="mt-10">
+                    <div className="flex flex-col md:flex-row justify-between items-center gap-4 mb-6 border-b border-white/5 pb-4">
                         <div className="flex items-center gap-14">
-                            <h2 className="text-3xl font-black text-white tracking-tighter">Contributions</h2>
+                            <h2 className="text-3xl font-black text-white tracking-tighter font-outfit">Contributions</h2>
                             <div className="flex gap-10">
                                 {['authored', 'curated'].map(tab => (
                                     <button

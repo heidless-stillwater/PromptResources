@@ -38,8 +38,12 @@ export default function CreatorChip({ attribution, size = 'md', showExternalIcon
 
     const inner = (
         <>
-            <div className={`flex items-center justify-center ${size === 'sm' ? 'w-4 h-4' : 'w-5 h-5'} rounded-full bg-black/20 text-primary group-hover:scale-110 transition-transform`}>
-                <Icons.user size={size === 'sm' ? 10 : 12} />
+            <div className={`flex items-center justify-center ${size === 'sm' ? 'w-4 h-4' : 'w-5 h-5'} rounded-full bg-black/20 text-primary group-hover:scale-110 transition-transform overflow-hidden shrink-0`}>
+                {attribution.photoURL ? (
+                    <img src={attribution.photoURL} alt="" className="w-full h-full object-cover" />
+                ) : (
+                    <Icons.user size={size === 'sm' ? 10 : 12} />
+                )}
             </div>
             <span className="truncate max-w-[120px]">{attribution.name}</span>
             {roleLabel && (

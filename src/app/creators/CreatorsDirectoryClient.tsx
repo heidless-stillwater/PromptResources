@@ -100,37 +100,88 @@ export default function CreatorsDirectoryClient({ featured, creators }: Props) {
             <div className="main-content">
                 <div className="container">
 
-                    {/* Premium Header - Sync'd with Taxonomy Registry */}
-                    <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 mb-12 mt-2" id="listing-action-hub">
-                        <div className="hero-section text-left">
-                            <div className="flex items-center gap-3 mb-4">
-                                <div className="p-3 bg-primary/10 rounded-2xl border border-primary/20">
-                                    <Icons.users className="w-8 h-8 text-primary" />
-                                </div>
-                                <h1 className="text-4xl md:text-6xl font-black tracking-tighter bg-gradient-to-r from-white via-white/90 to-white/40 bg-clip-text text-transparent">
-                                    Community <span className="text-primary">Registry</span>
-                                </h1>
-                            </div>
-                            <p className="text-white/40 max-w-xl text-lg font-medium leading-relaxed">
-                                Discover the pioneers, builders, and educators shaping the future of the AI learning landscape. Explore profiles, browse their collections, and find your next favourite creator.
-                            </p>
+                    {/* Cinematic Hero - Styled after Control Hub */}
+                    <div className="relative w-full overflow-hidden flex flex-col mb-10">
+                        {/* Background Layer */}
+                        <div className="absolute inset-0 z-0">
+                            <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-background to-background" />
+                            <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-primary/5 rounded-full blur-[120px] -mr-48 -mt-48" />
                         </div>
-                    </div>
 
-                    {/* ── REGISTRY STATS ── */}
-                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 mb-4">
-                        {[
-                            { label: 'Total Pioneers', value: creators.length, icon: <Icons.users size={20} />, color: 'from-primary/10 to-primary/5' },
-                            { label: 'Verified leaders', value: creators.filter(c => c.isVerified).length, icon: <Icons.check size={20} />, color: 'from-white/10 to-transparent' },
-                            { label: 'Global impact', value: creators.reduce((acc, c) => acc + (c.resourceCount || 0), 0), icon: <Icons.sparkles size={20} />, color: 'from-primary/10 to-transparent' },
-                            { label: 'Registry rank', value: creators.filter(c => c.rank).length, icon: <Icons.trophy size={20} />, color: 'from-white/10 to-transparent' }
-                        ].map((stat, i) => (
-                            <div key={i} className={`relative bg-gradient-to-br ${stat.color} border border-white/10 p-8 rounded-[2rem] flex flex-col items-center gap-3 hover:bg-white/5 transition-all group overflow-hidden`}>
-                                <div className="text-primary group-hover:scale-110 transition-transform duration-500 z-10 opacity-60">{stat.icon}</div>
-                                <div className="text-5xl font-black text-white relative z-10 tracking-tight">{stat.value}</div>
-                                <div className="text-[10px] uppercase font-black tracking-[0.25em] text-white/30 text-center z-10 leading-tight">{stat.label}</div>
+                        <div className="relative z-10 flex flex-col gap-6 pt-8">
+                            {/* Identity Pathing */}
+                            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
+                                <div className="flex items-center gap-4">
+                                    <div className="p-3 bg-white/5 border border-white/10 rounded-2xl">
+                                        <Icons.users size={20} className="text-primary" />
+                                    </div>
+                                    <div className="flex flex-col">
+                                        <div className="text-[10px] font-black text-white/20 uppercase tracking-[0.3em] mb-1">
+                                            Ecosystem Registry / Authority
+                                        </div>
+                                        <div className="flex items-center gap-2 text-xs font-bold text-white/60">
+                                            <span className="text-white uppercase tracking-widest">Sources</span>
+                                            <span className="opacity-20">/</span>
+                                            <span className="text-primary/60 font-black tracking-widest uppercase">Pioneer Directory</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div className="flex items-center gap-4 p-3 px-4 bg-white/5 border border-white/10 rounded-2xl backdrop-blur-xl">
+                                    <div className="flex flex-col items-end">
+                                        <div className="text-[9px] font-black text-white/20 uppercase tracking-widest leading-none mb-1">Public Registry</div>
+                                        <div className="text-xs font-bold text-primary tracking-widest">PROMPT-CLOUD</div>
+                                    </div>
+                                    <div className="h-8 w-px bg-white/10" />
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
+                                        <span className="text-[10px] font-black uppercase tracking-widest text-white/40 italic">Global Sync</span>
+                                    </div>
+                                </div>
                             </div>
-                        ))}
+
+                            {/* Main Identity Glass Card */}
+                            <div className="glass-card p-8 shadow-2xl relative overflow-hidden group">
+                                <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-primary/5 rounded-full blur-[100px] -mr-48 -mt-48 group-hover:bg-primary/10 transition-all duration-1000" />
+                                
+                                <div className="relative z-10 grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
+                                    <div>
+                                        <div className="text-[10px] font-black text-white/20 uppercase tracking-[0.3em] mb-4 flex items-center gap-2">
+                                            Directory Index / Sources Hub
+                                            <span className="w-1 h-1 rounded-full bg-primary/50" />
+                                            <span className="text-primary/60 flex items-center gap-1">
+                                                <Icons.database size={10} />
+                                                prompttool-db-0
+                                            </span>
+                                        </div>
+                                        <h1 className="text-5xl md:text-8xl font-black tracking-tighter text-white mb-4 leading-none flex items-center gap-4 font-outfit">
+                                            <span>Sources <span className="text-primary">Registry</span></span>
+                                        </h1>
+                                        <p className="text-white/40 max-w-xl text-lg font-medium leading-relaxed italic">
+                                            Discover the pioneers, builders, and educators shaping the future of the AI learning landscape. Explore profiles, browse collections, and find your next favourite creator.
+                                        </p>
+                                    </div>
+
+                                    {/* HUD - Embedded in Hero */}
+                                    <div className="grid grid-cols-2 gap-3 h-full">
+                                        {[
+                                            { label: 'Sources', value: creators.length, icon: <Icons.users size={16} />, tooltip: 'Total number of verified and community creators registered in the Stillwater ecosystem.' },
+                                            { label: 'Verified', value: creators.filter(c => c.isVerified).length, icon: <Icons.check size={16} />, tooltip: 'Creators who have passed identity and quality verification standards.' },
+                                            { label: 'Impact', value: creators.reduce((acc, c) => acc + (c.resourceCount || 0), 0), icon: <Icons.zap size={16} />, tooltip: 'Cumulative number of architectural assets contributed by the community to the registry.' },
+                                            { label: 'Ranked', value: creators.filter(c => c.rank).length, icon: <Icons.trophy size={16} />, tooltip: 'Creators recognized for exceptional contribution quality and system performance.' }
+                                        ].map((stat, i) => (
+                                            <div key={i} className="bg-white/5 border border-white/10 rounded-2xl p-5 flex flex-col items-center justify-center hover:bg-white/10 transition-all group/stat relative overflow-hidden" title={stat.tooltip}>
+                                                <div className="absolute top-0 right-0 p-2 text-primary/10 group-hover/stat:text-primary/30 transition-colors">
+                                                    {stat.icon}
+                                                </div>
+                                                <div className="text-3xl font-black text-white group-hover/stat:scale-110 transition-transform duration-500 tracking-tighter">{stat.value}</div>
+                                                <div className="text-[9px] font-black text-white/20 uppercase tracking-[0.3em] mt-2 leading-none">{stat.label}</div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
                     {/* Control Belt - Sync'd with Platform Archetype */}
@@ -221,6 +272,37 @@ export default function CreatorsDirectoryClient({ featured, creators }: Props) {
                                 </button>
                             )}
 
+                            <div className="h-8 w-px bg-white/5 hidden lg:block"></div>
+
+                            {/* Sort Dropdown */}
+                            <div className="relative group/sort hidden lg:block">
+                                <select 
+                                    value={sortBy}
+                                    onChange={(e) => setSortBy(e.target.value as any)}
+                                    className="h-11 bg-background border border-white/5 rounded-xl px-4 pr-10 text-[10px] font-black uppercase text-white/70 outline-none hover:bg-white/5 hover:border-primary/30 transition-all cursor-pointer min-w-[160px] appearance-none tracking-widest font-outfit"
+                                >
+                                    <option value="authored" className="bg-[#1e293b] text-white">Sort: Authored Assets</option>
+                                    <option value="curated" className="bg-[#1e293b] text-white">Sort: Curated Index</option>
+                                    <option value="total" className="bg-[#1e293b] text-white">Sort: Registry Impact</option>
+                                    <option value="newest" className="bg-[#1e293b] text-white">Sort: Discovery Date</option>
+                                    <option value="name" className="bg-[#1e293b] text-white">Sort: Identity (A-Z)</option>
+                                </select>
+                                <Icons.chevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-3 h-3 text-white/20 pointer-events-none group-hover/sort:text-primary transition-colors" />
+                            </div>
+
+                            {/* Verified Toggle */}
+                            <button 
+                                onClick={() => setShowVerifiedOnly(!showVerifiedOnly)}
+                                className={`h-11 px-6 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 border ${
+                                    showVerifiedOnly 
+                                    ? 'bg-emerald-500/10 border-emerald-500/50 text-emerald-400 shadow-[0_0_20px_rgba(16,185,129,0.1)]' 
+                                    : 'bg-black/40 border-white/5 text-white/20 hover:text-white/40'
+                                }`}
+                            >
+                                <Icons.check size={12} strokeWidth={4} />
+                                Verified Only
+                            </button>
+
                             <div className="h-8 w-px bg-white/5"></div>
 
                             <button onClick={handleShare} className="p-2 text-white/20 hover:text-primary transition-all">
@@ -233,7 +315,7 @@ export default function CreatorsDirectoryClient({ featured, creators }: Props) {
                     {filtered.length === 0 ? (
                         <div className="bg-white/[0.02] border border-white/5 rounded-2xl p-24 text-center">
                             <Icons.users size={64} className="mx-auto mb-6 text-white/5" />
-                            <h3 className="text-xl font-bold text-white/60 mb-2">No Pioneers Discovered</h3>
+                            <h3 className="text-xl font-bold text-white/60 mb-2">No Sources Discovered</h3>
                             <p className="text-white/30 font-medium">Try broadening your search or adjusting the classification filters.</p>
                         </div>
                     ) : (
@@ -242,7 +324,7 @@ export default function CreatorsDirectoryClient({ featured, creators }: Props) {
                             {featured.length > 0 && !search && filterType === 'all' && viewMode === 'grid' && (
                                 <section>
                                     <div className="flex items-center gap-4 mb-8">
-                                        <h2 className="text-[11px] font-black uppercase tracking-[0.4em] text-primary">Featured Pioneers</h2>
+                                        <h2 className="text-[11px] font-black uppercase tracking-[0.4em] text-primary">Featured Sources</h2>
                                         <div className="flex-1 h-px bg-gradient-to-r from-primary/25 to-transparent" />
                                     </div>
                                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -374,7 +456,7 @@ function CreatorCard({ creator, featured = false, viewMode = 'grid' }: { creator
                             </div>
                         )}
                         {creator.isVerified && (
-                            <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-emerald-500 rounded-full flex items-center justify-center border-2 border-[#0f0f15]">
+                            <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-emerald-500 rounded-full flex items-center justify-center border-2 border-background">
                                 <Icons.check size={8} strokeWidth={4} />
                             </div>
                         )}
@@ -427,7 +509,7 @@ function CreatorCard({ creator, featured = false, viewMode = 'grid' }: { creator
                         </div>
                     )}
                     {creator.isVerified && (
-                        <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-accent rounded-full flex items-center justify-center border-2 border-[#0f0f15] shadow-lg">
+                        <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-accent rounded-full flex items-center justify-center border-2 border-background shadow-lg">
                             <Icons.check size={12} strokeWidth={4} />
                         </div>
                     )}
@@ -558,7 +640,7 @@ function CreatorCard({ creator, featured = false, viewMode = 'grid' }: { creator
                 <div className="flex items-start gap-4 mb-6">
                     <div className="relative flex-shrink-0">
                         <div className="w-16 h-16 rounded-[1.25rem] p-[2px] bg-gradient-to-br from-white/20 to-transparent shadow-2xl">
-                            <div className="w-full h-full rounded-[1.15rem] overflow-hidden bg-[#0a0a0f]">
+                            <div className="w-full h-full rounded-[1.15rem] overflow-hidden bg-background">
                                 {creator.photoURL ? (
                                     <img src={creator.photoURL} alt={creator.displayName} className="w-full h-full object-cover" />
                                 ) : (
@@ -569,7 +651,7 @@ function CreatorCard({ creator, featured = false, viewMode = 'grid' }: { creator
                             </div>
                         </div>
                         {creator.isVerified && (
-                            <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-primary rounded-lg flex items-center justify-center border-2 border-[#12121e]">
+                            <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-primary rounded-lg flex items-center justify-center border-2 border-background-secondary">
                                 <Icons.check size={10} strokeWidth={4} />
                             </div>
                         )}

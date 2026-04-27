@@ -92,6 +92,60 @@ export async function getYouTubeMetadataServer(url: string) {
 }
 
 /**
+ * Attempt to get the creator's avatar (profile picture) from a YouTube channel or video
+ */
+export async function getYouTubeAvatar(url: string): Promise<string | null> {
+    if (!isYouTubeUrl(url)) return null;
+
+    try {
+        console.log(`[getYouTubeAvatar] START: ${url}`);
+        // 1. Try to get metadata first (gives us the author_url)
+        const metadata = await getYouTubeMetadataServer(url);
+        if (!metadata || !metadata.author_url) {
+            console.log(`[getYouTubeAvatar] WARN: No metadata or author_url found for ${url}`);
+            return null;
+        }
+
+        console.log(`[getYouTubeAvatar] FETCHING_CHANNEL: ${metadata.author_url}`);
+        // 2. Fetch the author's page to scrape the profile image
+        const channelResponse = await fetch(metadata.author_url, {
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Safari/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.9',
+            },
+        });
+
+        if (!channelResponse.ok) {
+            console.log(`[getYouTubeAvatar] ERROR: Channel fetch failed with status ${channelResponse.status}`);
+            return null;
+        }
+
+        const html = await channelResponse.text();
+        
+        // Match <meta property="og:image" content="...">
+        const ogImageMatch = html.match(/<meta\s+property="og:image"\s+content="([^"]+)"/i);
+        if (ogImageMatch && ogImageMatch[1]) {
+            console.log(`[getYouTubeAvatar] SUCCESS (og:image): ${ogImageMatch[1]}`);
+            return ogImageMatch[1];
+        }
+
+        // Fallback: look for twitter:image
+        const twitterImageMatch = html.match(/<meta\s+name="twitter:image"\s+content="([^"]+)"/i);
+        if (twitterImageMatch && twitterImageMatch[1]) {
+            console.log(`[getYouTubeAvatar] SUCCESS (twitter:image): ${twitterImageMatch[1]}`);
+            return twitterImageMatch[1];
+        }
+
+        console.log(`[getYouTubeAvatar] FAIL: No avatar image found in HTML`);
+        return null;
+    } catch (err) {
+        console.error('[getYouTubeAvatar] CRASH:', err);
+        return null;
+    }
+}
+
+/**
  * Fetch YouTube video metadata via server-side proxy (for use in client-side)
  */
 export async function fetchYouTubeMetadata(url: string) {

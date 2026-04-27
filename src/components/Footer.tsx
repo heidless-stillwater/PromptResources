@@ -29,7 +29,7 @@ export default function Footer() {
                         <div className="flex flex-col gap-3">
                             <Link href="/resources" className="text-xs font-bold text-white/40 hover:text-primary transition-colors uppercase tracking-widest">All Resources</Link>
                             <Link href="/categories" className="text-xs font-bold text-white/40 hover:text-primary transition-colors uppercase tracking-widest">Categories</Link>
-                            <Link href="/creators" className="text-xs font-bold text-white/40 hover:text-primary transition-colors uppercase tracking-widest">Creator Registry</Link>
+                            <Link href="/creators" className="text-xs font-bold text-white/40 hover:text-primary transition-all uppercase tracking-widest">Sources Registry</Link>
                             <Link href="/resources?platform=gemini" className="text-xs font-bold text-white/40 hover:text-primary transition-colors uppercase tracking-widest">Gemini Nodes</Link>
                         </div>
                     </div>

@@ -5,7 +5,7 @@ import Navbar from '@/components/Navbar';
 import Image from 'next/image';
 import Footer from '@/components/Footer';
 import { useAuth } from '@/contexts/AuthContext';
-import { db } from '@/lib/firebase';
+import { db, toolDb } from '@/lib/firebase';
 import { doc, updateDoc } from 'firebase/firestore';
 import { storage } from '@/lib/firebase';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
@@ -46,11 +46,22 @@ export default function SettingsPage() {
     const updateProfileMutation = useMutation({
         mutationFn: async (data: any) => {
             if (!user) throw new Error('Not authenticated');
+            
+            // 1. Update Local Identity (adminDb)
             const userRef = doc(db, 'users', user.uid);
-            await updateDoc(userRef, {
+            const updatePromise = updateDoc(userRef, {
                 ...data,
                 updatedAt: new Date(),
             });
+
+            // 2. Update Master Identity (toolDb)
+            const toolUserRef = doc(toolDb, 'users', user.uid);
+            const toolUpdatePromise = updateDoc(toolUserRef, {
+                ...data,
+                updatedAt: new Date(),
+            });
+
+            await Promise.all([updatePromise, toolUpdatePromise]);
         },
         onSuccess: () => {
             setMessage({ type: 'success', text: 'Profile updated successfully!' });

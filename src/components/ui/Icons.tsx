@@ -65,7 +65,8 @@ import {
     TrendingDown,
     Folder,
     Edit,
-    Trash
+    Trash,
+    Calendar
 } from "lucide-react"
 
 // Twitter/X icon (removed from lucide-react v1)
@@ -171,5 +172,6 @@ export const Icons = {
     folder: Folder,
     edit: Edit,
     trash: Trash,
-    layoutGrid: LayoutGrid
+    layoutGrid: LayoutGrid,
+    calendar: Calendar
 }

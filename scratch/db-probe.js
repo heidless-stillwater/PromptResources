@@ -1,43 +1,64 @@
-const { initializeApp, cert } = require('firebase-admin/app');
+const admin = require('firebase-admin');
 const { getFirestore } = require('firebase-admin/firestore');
+const fs = require('fs');
+const path = require('path');
 
-// Minimal config for probing
-const projectId = process.env.FIREBASE_PROJECT_ID;
-const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
-const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n');
+const envPath = path.join(__dirname, '../.env.local');
+const envContent = fs.readFileSync(envPath, 'utf8');
 
-if (!projectId || !privateKey || !clientEmail) {
-    console.log('Missing env vars for probe');
-    process.exit(1);
+function getEnvVar(name) {
+    const match = envContent.match(new RegExp(`^${name}=(.*)$`, 'm'));
+    if (!match) return null;
+    let val = match[1].trim();
+    if (val.startsWith('"') && val.endsWith('"')) {
+        val = val.substring(1, val.length - 1);
+    }
+    return val;
 }
 
-const app = initializeApp({
-    credential: cert({ projectId, clientEmail, privateKey })
+const projectId = getEnvVar('FIREBASE_ADMIN_PROJECT_ID');
+const clientEmail = getEnvVar('FIREBASE_ADMIN_CLIENT_EMAIL');
+let privateKey = getEnvVar('FIREBASE_ADMIN_PRIVATE_KEY');
+if (privateKey) privateKey = privateKey.replace(/\\n/g, '\n');
+
+const app = admin.initializeApp({
+    credential: admin.credential.cert({ projectId, clientEmail, privateKey }),
 });
 
-async function probe() {
-    const dbs = ['(default)', 'promptresources-db-0', 'prompttool-db-0'];
-    
-    for (const dbName of dbs) {
-        try {
-            console.log(`\n--- Probing DB: ${dbName} ---`);
-            const db = getFirestore(app, dbName === '(default)' ? undefined : dbName);
-            
-            // Check resources
-            const resSnap = await db.collection('resources').limit(1).get();
-            console.log(`Resources collection exists: ${!resSnap.empty}`);
-            if (!resSnap.empty) {
-                const countSnap = await db.collection('resources').count().get();
-                console.log(`Total Resources: ${countSnap.data().count}`);
-            }
+const db = getFirestore(app, 'promptresources-db-0');
 
-            // Check users
-            const userSnap = await db.collection('users').limit(1).get();
-            console.log(`Users collection exists: ${!userSnap.empty}`);
-        } catch (err) {
-            console.log(`Error probing ${dbName}: ${err.message}`);
-        }
+async function probe() {
+    console.log('--- Probing Digital Assets ---');
+    const userSnap = await db.collection('users').get();
+    const digitalAssets = userSnap.docs.find(d => d.data().displayName === 'Digital Assets');
+    
+    if (!digitalAssets) {
+        console.log('Creator "Digital Assets" not found by name. Available creators:');
+        userSnap.docs.forEach(d => console.log(` - [${d.id}] ${d.data().displayName} (Slug: ${d.data().slug})`));
+        return;
     }
+
+    const doc = digitalAssets;
+    const userData = doc.data();
+    const uid = doc.id;
+
+    console.log('Profile Data (Denormalized):', {
+        uid: uid,
+        displayName: userData.displayName,
+        slug: userData.slug,
+        resourceCount: userData.resourceCount,
+        authoredCount: userData.authoredCount
+    });
+
+    const resourcesSnap = await db.collection('resources')
+        .where('attributedUserIds', 'array-contains', uid)
+        .get();
+    
+    console.log('Actual Resources Found in Registry:', resourcesSnap.size);
+    resourcesSnap.docs.forEach(doc => {
+        const d = doc.data();
+        console.log(` - [${doc.id}] ${d.title} (Status: ${d.status})`);
+    });
 }
 
-probe().then(() => process.exit(0));
+probe().catch(console.error);

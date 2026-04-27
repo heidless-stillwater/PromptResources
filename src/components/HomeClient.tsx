@@ -129,7 +129,7 @@ export default function HomeClient({ recentResources = [], featuredCreators = []
 
                             <div className="space-y-6">
                                 <div className="flex items-center justify-between">
-                                    <span className="text-[10px] font-black uppercase tracking-widest text-primary">Community Shared Collection</span>
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-primary">Sources Shared Collection</span>
                                     <div className="flex gap-1" aria-hidden="true">
                                         {[1, 2, 3].map(i => <div key={i} className="w-1.5 h-1.5 rounded-full bg-white/20" />)}
                                     </div>
@@ -208,7 +208,7 @@ export default function HomeClient({ recentResources = [], featuredCreators = []
                             <div className="flex items-center justify-between">
                                 <h3 className="text-xl font-bold uppercase tracking-widest flex items-center gap-3">
                                     <span className="w-8 h-px bg-primary/30" />
-                                    Our Top Creators
+                                    Our Top Sources
                                 </h3>
                                 <Link href="/creators" className="text-[10px] font-black uppercase tracking-widest text-primary hover:underline">
                                     View Directory →

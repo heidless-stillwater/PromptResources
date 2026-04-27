@@ -4,9 +4,11 @@ import { sanitize } from '@/lib/utils';
 import CreatorsDirectoryClient from './CreatorsDirectoryClient';
 
 export const metadata: Metadata = {
-    title: 'Creator Directory | PromptResources',
+    title: 'Sources Registry | PromptResources',
     description: 'Discover the creators and curators behind the best AI learning resources. Explore profiles, browse their collections, and find your next favourite creator.',
 };
+
+export const dynamic = 'force-dynamic';
 
 export default async function CreatorsPage() {
     const [featured, all] = await Promise.all([

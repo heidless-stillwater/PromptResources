@@ -249,7 +249,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
 
     const canSwitchRoles = profile?.role === 'su' || profile?.role === 'admin';
-    const isAdmin = activeRole === 'admin' || activeRole === 'su';
+    const isAdmin = activeRole === 'admin' || activeRole === 'su' || (user?.email === process.env.NEXT_PUBLIC_ADMIN_EMAIL);
     const isSu = activeRole === 'su';
 
     return (

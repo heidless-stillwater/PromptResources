@@ -14,7 +14,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     if (!creator) return { title: 'Creator Not Found | PromptResources' };
 
     return {
-        title: `${creator.displayName} — Creator Profile | PromptResources`,
+        title: `${creator.displayName} — Source Profile | PromptResources`,
         description: creator.bio || `Explore AI resources created and curated by ${creator.displayName} on PromptResources.`,
         openGraph: {
             title: `${creator.displayName} | PromptResources`,

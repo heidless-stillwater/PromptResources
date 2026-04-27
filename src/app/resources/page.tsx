@@ -32,7 +32,7 @@ export default async function ResourcesPage({ searchParams }: ResourcesPageProps
     const search = searchParams.search || null;
     const isFavorite = searchParams.isFavorite === 'true';
     const priorityRank = searchParams.priorityRank || '';
-    const sortBy = searchParams.sortBy || 'updatedAt';
+    const sortBy = searchParams.sortBy || 'createdAt';
     const sortOrder = (searchParams.sortOrder as 'asc' | 'desc') || 'desc';
     const page = parseInt(searchParams.page || '1');
     const pageSize = Math.min(parseInt(searchParams.pageSize || '96'), 96);

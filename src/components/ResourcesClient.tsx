@@ -65,7 +65,7 @@ export default function ResourcesClient({
     const [categoryFilter, setCategoryFilter] = useState(searchParams.get('category') || '');
     const [featuredOnly, setFeaturedOnly] = useState(searchParams.get('isFavorite') === 'true');
     const [priorityRank, setPriorityRank] = useState(searchParams.get('priorityRank') || '');
-    const [sortBy, setSortBy] = useState(searchParams.get('sortBy') || 'updatedAt');
+    const [sortBy, setSortBy] = useState(searchParams.get('sortBy') || 'createdAt');
     const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>((searchParams.get('sortOrder') as any) || 'desc');
     const [currentPage, setCurrentPage] = useState(parseInt(searchParams.get('page') || '1'));
     const [pageSize, setPageSize] = useState(parseInt(searchParams.get('pageSize') || '24'));
@@ -96,7 +96,7 @@ export default function ResourcesClient({
 
         params.delete('page');
         setLoading(true);
-        router.push(`/resources?${params.toString()}`);
+        router.push(`/resources?${params.toString()}`, { scroll: false });
     }, [router, searchParams]);
 
     // Handle clicks outside of collapsible column selector
@@ -122,7 +122,7 @@ export default function ResourcesClient({
         setCategoryFilter(searchParams.get('category') || '');
         setFeaturedOnly(searchParams.get('isFavorite') === 'true');
         setPriorityRank(searchParams.get('priorityRank') || '');
-        setSortBy(searchParams.get('sortBy') || 'updatedAt');
+        setSortBy(searchParams.get('sortBy') || 'createdAt');
         setSortOrder((searchParams.get('sortOrder') as any) || 'desc');
         setSelectedCreators(searchParams.get('creators') ? searchParams.get('creators')!.split(',').filter(Boolean) : []);
         setRegistryActive(searchParams.get('registryActive') !== 'false');
@@ -251,148 +251,227 @@ export default function ResourcesClient({
     };
 
     return (
-        <div className="page-wrapper dashboard-theme min-h-screen bg-[#020617] text-white selection:bg-primary/30 font-inter">
+        <div className="page-wrapper dashboard-theme min-h-screen selection:bg-primary/30 font-inter">
             <Navbar />
 
             <div className="main-content">
                 <div className="container mx-auto px-4 pt-12">
                     
-                    {/* ── PREMIUM HEADER (Aligned with Creators Page) ── */}
-                    <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-10 mb-12 mt-6">
-                        <div className="hero-section text-left flex-1">
-                            <div className="flex items-center gap-6 mb-8">
-                                <div className="p-3 bg-primary/10 rounded-2xl border border-primary/20 shadow-[0_0_50px_rgba(var(--primary-rgb),0.1)] relative group">
-                                    <Icons.database className="w-8 h-8 text-primary relative z-10" />
-                                    <div className="absolute inset-0 bg-primary/20 rounded-2xl blur-2xl opacity-0 group-hover:opacity-100 transition-opacity" />
+                    {/* Cinematic Header Container */}
+                    <div className="relative w-full overflow-hidden flex flex-col mb-10">
+                        {/* Background Layer */}
+                        <div className="absolute inset-0 z-0">
+                            <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-background to-background" />
+                            <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-primary/5 rounded-full blur-[120px] -mr-48 -mt-48" />
+                        </div>
+
+                        <div className="relative z-10 flex flex-col gap-6 pt-8">
+                        {/* Identity Pathing */}
+                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
+                            <div className="flex items-center gap-4">
+                                <div className="p-3 bg-white/5 border border-white/10 rounded-2xl">
+                                    <Icons.database size={20} className="text-primary" />
                                 </div>
                                 <div className="flex flex-col">
-                                    <div className="flex items-center gap-3 text-[10px] font-black uppercase tracking-[0.4em] text-primary mb-3 ml-1">
-                                        <Icons.trophy size={12} className="text-amber-400 animate-pulse" />
-                                        <span>Master Asset Registry</span>
+                                    <div className="text-[10px] font-black text-white/20 uppercase tracking-[0.3em] mb-1">
+                                        Ecosystem Registry / Assets
                                     </div>
-                                    <h1 className="text-4xl md:text-6xl font-black font-outfit tracking-tighter bg-gradient-to-br from-white via-white/90 to-white/30 bg-clip-text text-transparent leading-[0.85] py-2">
-                                        Resource <span className="text-primary italic">Library</span>
-                                    </h1>
+                                    <div className="flex items-center gap-2 text-xs font-bold text-white/60">
+                                        <span className="text-white uppercase tracking-widest">Resources</span>
+                                        <span className="opacity-20">/</span>
+                                        <span className="text-primary/60 font-black tracking-widest uppercase">Resources</span>
+                                    </div>
                                 </div>
                             </div>
-                            <div className="relative pl-8">
-                                <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-primary/50 to-transparent rounded-full" />
-                                <p className="text-white/40 text-xl md:text-2xl font-medium max-w-4xl leading-relaxed italic">
-                                    Explore <span className="text-primary font-black">{totalResources}</span> curated architectural templates and high-fidelity assets within the Stillwater sovereign knowledge graph.
-                                </p>
+                            
+                            <div className="flex items-center gap-4 p-3 px-4 bg-white/5 border border-white/10 rounded-2xl backdrop-blur-xl">
+                                <div className="flex flex-col items-end">
+                                    <div className="text-[9px] font-black text-white/20 uppercase tracking-widest leading-none mb-1">Central Registry</div>
+                                    <div className="text-xs font-bold text-primary tracking-widest">PROMPT-SYNC</div>
+                                </div>
+                                <div className="h-8 w-px bg-white/10" />
+                                <div className="flex items-center gap-2">
+                                    <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-white/40 italic">Asset Hub Active</span>
+                                </div>
                             </div>
                         </div>
 
-                        {/* Primary Actions */}
-                        <div className="flex flex-wrap items-center gap-4 shrink-0 lg:pb-4">
-                            <Link 
-                                href="/resources/new" 
-                                className="px-12 py-6 bg-primary text-white rounded-[2rem] text-sm font-black uppercase tracking-widest flex items-center gap-3 transition-all shadow-[0_20px_50px_rgba(var(--primary-rgb),0.3)] hover:scale-[1.03] active:scale-95 group"
-                            >
-                                Ingest New Asset
-                                <Icons.plus size={18} strokeWidth={3} className="group-hover:rotate-90 transition-transform" />
-                            </Link>
-                            {isAdmin && (
-                                <button 
-                                    onClick={() => setDedupOpen(true)}
-                                    className="p-6 rounded-[2rem] bg-white/5 border border-white/10 text-white/40 hover:bg-white/10 hover:text-white transition-all"
-                                    title="Audit Fragments"
-                                >
-                                    <Icons.search size={24} />
-                                </button>
-                            )}
+                        {/* Main Identity Glass Card */}
+                        <div className="glass-card p-8 shadow-2xl relative overflow-hidden group">
+                            <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-primary/5 rounded-full blur-[100px] -mr-48 -mt-48 group-hover:bg-primary/10 transition-all duration-1000" />
+                            
+                            <div className="relative z-10 grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
+                                <div>
+                                    <div className="text-[10px] font-black text-white/20 uppercase tracking-[0.3em] mb-4 flex items-center gap-2">
+                                        Directory Index / Resources
+                                        <span className="w-1 h-1 rounded-full bg-primary/50" />
+                                        <span className="text-primary/60 flex items-center gap-1">
+                                            <Icons.database size={10} />
+                                            prompttool-db-1
+                                        </span>
+                                    </div>
+                                    <h1 className="text-5xl md:text-8xl font-black tracking-tighter text-white mb-4 leading-none flex items-center gap-4">
+                                        <span>Resource <span className="text-primary">Registry</span></span>
+                                    </h1>
+                                    <p className="text-white/40 max-w-xl text-lg font-medium leading-relaxed italic">
+                                        Explore <span className="text-primary font-black">{totalResources}</span> curated architectural templates and high-fidelity assets within the Stillwater sovereign knowledge graph.
+                                    </p>
+                                    <div className="flex items-center gap-4 mt-8">
+                                        <Link 
+                                            href="/resources/new" 
+                                            className="px-8 py-4 bg-primary text-white rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center gap-3 transition-all shadow-[0_10px_30px_rgba(var(--primary-rgb),0.3)] hover:scale-[1.03] active:scale-95 group"
+                                        >
+                                            New Resource
+                                            <Icons.plus size={14} strokeWidth={3} className="group-hover:rotate-90 transition-transform" />
+                                        </Link>
+                                        {isAdmin && (
+                                            <button 
+                                                onClick={() => setDedupOpen(true)}
+                                                className="p-4 rounded-2xl bg-white/5 border border-white/10 text-white/40 hover:bg-white/10 hover:text-white transition-all"
+                                                title="Audit Fragments"
+                                            >
+                                                <Icons.search size={18} />
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* HUD - Embedded in Hero */}
+                                <div className="grid grid-cols-2 gap-3 h-full">
+                                    {[
+                                        { label: 'Total Assets', value: totalResources, icon: <Icons.database size={16} />, tooltip: 'Complete index of architectural fragments, prompts, and workflows available.' },
+                                        { label: 'Domains', value: initialCategories.length, icon: <Icons.grid size={16} />, tooltip: 'Number of distinct technological and creative specializations covered by the registry.' },
+                                        { label: 'Sources', value: creators.length, icon: <Icons.users size={16} />, tooltip: 'Number of verified creators and organizations contributing to this asset index.' },
+                                        { label: 'Verified Rank', value: resources.filter(r => r.rank).length, icon: <Icons.trophy size={16} />, tooltip: 'High-performance assets that have achieved priority ranking in technical benchmarks.' }
+                                    ].map((stat, i) => (
+                                        <div key={i} className="bg-white/5 border border-white/10 rounded-2xl p-5 flex flex-col items-center justify-center hover:bg-white/10 transition-all group/stat relative overflow-hidden" title={stat.tooltip}>
+                                            <div className="absolute top-0 right-0 p-2 text-primary/10 group-hover/stat:text-primary/30 transition-colors">
+                                                {stat.icon}
+                                            </div>
+                                            <div className="text-3xl font-black text-white group-hover/stat:scale-110 transition-transform duration-500 tracking-tighter">{stat.value}</div>
+                                            <div className="text-[9px] font-black text-white/20 uppercase tracking-[0.3em] mt-2 leading-none">{stat.label}</div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
                         </div>
                     </div>
 
-                    {/* ── REGISTRY STATS (Aligned with Creators Page) ── */}
-                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
-                        {[
-                            { label: 'Total Assets', value: totalResources, icon: <Icons.database size={20} />, color: 'from-primary/10 to-primary/5' },
-                            { label: 'Domains', value: initialCategories.length, icon: <Icons.grid size={20} />, color: 'from-white/10 to-transparent' },
-                            { label: 'Pioneers', value: creators.length, icon: <Icons.users size={20} />, color: 'from-primary/10 to-transparent' },
-                            { label: 'Verified Rank', value: resources.filter(r => r.rank).length, icon: <Icons.trophy size={20} />, color: 'from-white/10 to-transparent' }
-                        ].map((stat, i) => (
-                            <div key={i} className={`relative bg-gradient-to-br ${stat.color} border border-white/10 p-10 rounded-[2.5rem] flex flex-col items-center gap-4 hover:bg-white/5 transition-all group overflow-hidden`}>
-                                <div className="text-primary group-hover:scale-110 transition-transform duration-500 z-10 opacity-60">{stat.icon}</div>
-                            <div className="text-6xl font-black font-outfit text-white relative z-10 tracking-tighter">{stat.value}</div>
-                                <div className="text-[10px] uppercase font-black tracking-[0.3em] text-white/30 text-center z-10 leading-tight">{stat.label}</div>
-                            </div>
-                        ))}
-                    </div>
-
-                    {/* ── INTEGRATED CONTROL BELT (Aligned with Creators Page Style) ── */}
-                    <div className="flex flex-wrap items-center justify-between gap-6 p-4 bg-[#0a0a0f]/60 backdrop-blur-3xl border border-white/10 rounded-[2.5rem] mb-12 shadow-2xl relative overflow-hidden" id="registry-controls">
-                        {/* Decorative background glow */}
-                        <div className="absolute -top-24 -right-24 w-48 h-48 bg-primary/5 rounded-full blur-3xl pointer-events-none" />
-                        
-                        <div className="flex flex-wrap items-center gap-6 flex-1 min-w-[300px] relative z-10">
+                    {/* ── CONTROL BELT (Aligned with Sources Page) ── */}
+                    <div className="flex flex-wrap items-center justify-between gap-4 p-4 bg-background-secondary/30 backdrop-blur-xl border border-white/5 rounded-[2rem] mb-6 shadow-2xl relative overflow-hidden" id="registry-controls">
+                        <div className="flex flex-wrap items-center gap-4 flex-1 min-w-[300px] relative z-10">
                             {/* Search */}
-                            <div className="relative flex-1 max-w-xl group">
-                                <Icons.search className={`absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 transition-colors ${search ? 'text-primary' : 'text-white/20'}`} />
+                            <div className="relative flex-1 max-w-md group">
+                                <Icons.search className={`absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 transition-colors ${search ? 'text-primary' : 'text-white/20'}`} />
                                 <input
                                     type="text"
-                                    placeholder="Search architecture by name, type, or expertise..."
-                                    className="w-full h-14 pl-14 pr-12 bg-black/40 border border-white/5 rounded-2xl text-white text-sm outline-none focus:border-primary/50 transition-all font-medium tracking-tight placeholder:text-white/10"
+                                    placeholder="Search architectural fragments..."
+                                    className="w-full h-11 pl-12 pr-10 bg-black/40 border border-white/5 rounded-2xl text-sm outline-none focus:border-primary/50 transition-all font-medium placeholder:text-white/30"
                                     value={search}
                                     onChange={(e) => setSearch(e.target.value)}
                                     onKeyDown={handleSearchKeyDown}
                                     id="resource-search"
                                 />
                                 {search && (
-                                    <button onClick={() => { setSearch(''); syncFilters({ search: '' }); }} className="absolute right-5 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/80 p-1">
+                                    <button onClick={() => { setSearch(''); syncFilters({ search: '' }); }} className="absolute right-4 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/80">
                                         <Icons.close size={14} />
                                     </button>
                                 )}
                             </div>
                             
-                            <div className="h-10 w-px bg-white/10 hidden md:block"></div>
+                            <div className="h-8 w-px bg-white/5 hidden md:block"></div>
 
                             {/* View Mode Switcher */}
-                            <div className="flex items-center gap-2 bg-black/40 p-1.5 rounded-2xl border border-white/5 shadow-inner">
-                                {viewMode === 'grid' && (
-                                    <div className="relative" ref={colsRef}>
-                                        <button onClick={() => setColsOpen(!colsOpen)} className={`p-2.5 rounded-xl transition-all flex items-center gap-2 ${colsOpen ? 'bg-primary/20 text-primary border border-primary/30' : 'text-white/20 hover:text-white/60'}`}>
-                                            <Icons.grid size={18} />
-                                            <span className="text-[10px] font-black tracking-widest">{gridColumns}X</span>
-                                        </button>
-                                        {colsOpen && (
-                                            <div className="absolute left-0 md:right-0 top-full mt-4 w-56 bg-[#0f172a] border border-white/10 p-4 shadow-2xl rounded-3xl z-50 animate-fade-in-up backdrop-blur-3xl">
-                                                <div className="grid grid-cols-2 gap-3">
-                                                    {[2, 3, 4, 5].map(cols => (
-                                                        <button key={cols} onClick={() => { setGridColumns(cols); setColsOpen(false); }} className={`flex flex-col items-center gap-3 p-3 rounded-2xl transition-all border ${gridColumns === cols ? 'bg-primary/10 border-primary/30 text-primary' : 'text-white/20 hover:bg-white/5 border-transparent hover:border-white/10'}`}>
-                                                            <div className={`grid gap-0.5 w-full aspect-video bg-black/40 p-1 rounded-md`} style={{ gridTemplateColumns: `repeat(${cols}, 1fr)` }}>
-                                                                {[...Array(cols * 2)].map((_, i) => <div key={i} className={`h-full w-full rounded-[1px] ${gridColumns === cols ? 'bg-primary/40' : 'bg-white/10'}`} />)}
-                                                            </div>
-                                                            <span className="text-[10px] font-black">{cols} COL</span>
-                                                        </button>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        )}
-                                    </div>
-                                )}
-                                {viewMode === 'grid' && <div className="w-px h-6 bg-white/10 mx-1" />}
-                                <button onClick={() => setViewMode('grid')} className={`p-2.5 rounded-xl transition-all ${viewMode === 'grid' ? 'bg-white/10 text-primary shadow-inner' : 'text-white/20 hover:text-white/60'}`}><Icons.grid size={20} /></button>
-                                <button onClick={() => setViewMode('small')} className={`p-2.5 rounded-xl transition-all ${viewMode === 'small' ? 'bg-white/10 text-primary shadow-inner' : 'text-white/20 hover:text-white/60'}`}><Icons.feed size={20} /></button>
-                                <button onClick={() => setViewMode('list')} className={`p-2.5 rounded-xl transition-all ${viewMode === 'list' ? 'bg-white/10 text-primary shadow-inner' : 'text-white/20 hover:text-white/60'}`}><Icons.list size={20} /></button>
+                            <div className="flex p-1 bg-black/40 rounded-xl border border-white/5">
+                                <button 
+                                    onClick={() => setViewMode('grid')} 
+                                    className={`p-2 rounded-lg transition-all ${viewMode === 'grid' ? 'bg-white/10 text-white shadow-inner' : 'text-white/20 hover:text-white/40'}`}
+                                    title="Grid View"
+                                >
+                                    <Icons.grid size={18} />
+                                </button>
+                                <button 
+                                    onClick={() => setViewMode('small')} 
+                                    className={`p-2 rounded-lg transition-all ${viewMode === 'small' ? 'bg-white/10 text-white shadow-inner' : 'text-white/20 hover:text-white/40'}`}
+                                    title="Compact View"
+                                >
+                                    <Icons.feed size={18} />
+                                </button>
+                                <button 
+                                    onClick={() => setViewMode('list')} 
+                                    className={`p-2 rounded-lg transition-all ${viewMode === 'list' ? 'bg-white/10 text-white shadow-inner' : 'text-white/20 hover:text-white/40'}`}
+                                    title="List View"
+                                >
+                                    <Icons.list size={18} />
+                                </button>
                             </div>
+
+                            {viewMode === 'grid' && (
+                                <div className="relative" ref={colsRef}>
+                                    <button onClick={() => setColsOpen(!colsOpen)} className={`h-11 px-4 rounded-xl transition-all flex items-center gap-2 bg-black/40 border border-white/5 ${colsOpen ? 'text-primary border-primary/30' : 'text-white/20 hover:text-white/60'}`}>
+                                        <Icons.grid size={14} />
+                                        <span className="text-[10px] font-black tracking-widest">{gridColumns} COL</span>
+                                    </button>
+                                    {colsOpen && (
+                                        <div className="absolute left-0 top-full mt-4 w-56 bg-[#0f172a] border border-white/10 p-4 shadow-2xl rounded-3xl z-50 animate-fade-in-up backdrop-blur-3xl">
+                                            <div className="grid grid-cols-2 gap-3">
+                                                {[2, 3, 4, 5].map(cols => (
+                                                    <button key={cols} onClick={() => { setGridColumns(cols); setColsOpen(false); }} className={`flex flex-col items-center gap-3 p-3 rounded-2xl transition-all border ${gridColumns === cols ? 'bg-primary/10 border-primary/30 text-primary' : 'text-white/20 hover:bg-white/5 border-transparent hover:border-white/10'}`}>
+                                                        <div className={`grid gap-0.5 w-full aspect-video bg-black/40 p-1 rounded-md`} style={{ gridTemplateColumns: `repeat(${cols}, 1fr)` }}>
+                                                            {[...Array(cols * 2)].map((_, i) => <div key={i} className={`h-full w-full rounded-[1px] ${gridColumns === cols ? 'bg-primary/40' : 'bg-white/10'}`} />)}
+                                                        </div>
+                                                        <span className="text-[10px] font-black">{cols} COL</span>
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
                         </div>
 
-                        <div className="flex items-center gap-4 relative z-10">
+                        <div className="flex items-center gap-3 relative z-10">
+                            {/* Sort Dropdown */}
+                            <div className="relative group/sort hidden lg:block">
+                                <select 
+                                    value={sortBy}
+                                    onChange={(e) => syncFilters({ sortBy: e.target.value })}
+                                    className="h-11 bg-[#0a0a0f] border border-white/5 rounded-xl px-4 pr-10 text-[10px] font-black uppercase text-white/70 outline-none hover:bg-white/5 hover:border-primary/30 transition-all cursor-pointer min-w-[180px] appearance-none tracking-widest"
+                                >
+                                    <option value="updatedAt" className="bg-[#1e293b] text-white">Sort: Last Synced</option>
+                                    <option value="createdAt" className="bg-[#1e293b] text-white">Sort: Discovery Date</option>
+                                    <option value="title" className="bg-[#1e293b] text-white">Sort: Identity (A-Z)</option>
+                                    <option value="rank" className="bg-[#1e293b] text-white">Sort: Technical Rank</option>
+                                    <option value="averageRating" className="bg-[#1e293b] text-white">Sort: System Rating</option>
+                                </select>
+                                <Icons.chevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-3 h-3 text-white/20 pointer-events-none group-hover/sort:text-primary transition-colors" />
+                            </div>
+
+                            {/* Sort Order Toggle */}
+                            <button 
+                                onClick={() => syncFilters({ sortOrder: sortOrder === 'asc' ? 'desc' : 'asc' })}
+                                className="h-11 w-11 flex items-center justify-center bg-black/40 border border-white/5 rounded-xl text-white/20 hover:text-primary hover:border-primary/30 transition-all shadow-xl group"
+                                title={sortOrder === 'asc' ? 'Ascending Order' : 'Descending Order'}
+                            >
+                                {sortOrder === 'asc' ? <Icons.arrowUp size={16} /> : <Icons.arrowDown size={16} />}
+                            </button>
+
+                            <div className="h-8 w-px bg-white/5 hidden md:block"></div>
+
                             {hasActiveFilters && (
-                                <button onClick={clearAllFilters} className="h-14 px-8 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 rounded-2xl text-[10px] font-black uppercase tracking-widest text-rose-400 transition-all flex items-center gap-2">
-                                    <Icons.refresh size={14} /> Reset Filters
+                                <button onClick={clearAllFilters} className="h-11 px-6 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 rounded-xl text-[10px] font-black uppercase tracking-widest text-rose-400 transition-all flex items-center gap-2">
+                                    <Icons.refresh size={12} /> Reset
                                 </button>
                             )}
                             
-                            <div className="h-10 w-px bg-white/10 hidden md:block mx-1"></div>
-
-                            <div className="px-6 py-3 bg-primary/10 border border-primary/20 rounded-2xl hidden lg:block">
-                                <span className="text-xs font-black text-primary uppercase tracking-widest">{resources.length} Assets Found</span>
+                            <div className="px-4 py-2.5 bg-primary/10 border border-primary/20 rounded-xl hidden lg:block">
+                                <span className="text-[10px] font-black text-primary uppercase tracking-widest">{resources.length} Assets Found</span>
                             </div>
                         </div>
 
-                        {/* Filter Bar Integrated Below (or as part of the same block if needed) */}
+                        {/* Filter Console Integrated */}
                         <div className="w-full mt-2 relative z-10">
                             <FilterBar
                                 platformFilter={platformFilter}
@@ -439,11 +518,9 @@ export default function ResourcesClient({
                         </Card>
                     ) : (
                         <div className="space-y-12">
-                            <div className="flex items-center justify-between px-2">
-                                <p className="text-[11px] text-white/20 font-black uppercase tracking-[0.4em]">
-                                    Registry Records ({totalResources})
-                                </p>
-                                <div className="h-px flex-1 mx-8 bg-gradient-to-r from-white/10 to-transparent" />
+                            <div className="flex items-center gap-4 mb-8 px-2">
+                                <h2 className="text-[11px] font-black uppercase tracking-[0.4em] text-primary">Registry Records ({totalResources})</h2>
+                                <div className="flex-1 h-px bg-gradient-to-r from-primary/25 to-transparent" />
                             </div>
 
                             <div className={`

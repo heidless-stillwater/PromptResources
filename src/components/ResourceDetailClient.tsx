@@ -232,7 +232,7 @@ export default function ResourceDetailClient({ initialResource }: ResourceDetail
                                         rel="noopener noreferrer"
                                         className="px-10 py-5 bg-primary text-white rounded-2xl text-xs font-black uppercase tracking-widest shadow-xl shadow-primary/20 hover:scale-[1.03] active:scale-95 transition-all flex items-center gap-3 group"
                                     >
-                                        Launch Interface 
+                                        Open Resource 
                                         <Icons.external size={16} strokeWidth={3} className="group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
                                     </a>
                                     <div className="flex gap-3">

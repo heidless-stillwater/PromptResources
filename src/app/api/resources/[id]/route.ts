@@ -4,29 +4,44 @@ import { isYouTubeUrl, getYouTubeMetadataServer, isGenericYouTubeName, deduplica
 import { resolveAttributions, syncCreatorStats } from '@/lib/creators-server';
 import { Resource } from '@/lib/types';
 import { generateSearchKeywords } from '@/lib/utils';
+import { getResourceById } from '@/lib/resources-server';
 
 export async function GET(
     request: NextRequest,
     { params }: { params: { id: string } }
 ) {
     try {
-        const docRef = adminDb.collection('resources').doc(params.id);
-        const docSnap = await docRef.get();
+        // 1. Try to get enriched resource from server helper
+        let resource = await getResourceById(params.id);
 
-        if (!docSnap.exists) {
+        // 2. Fallback to raw fetch for non-published resources (if requester has access)
+        if (!resource) {
+            const docRef = adminDb.collection('resources').doc(params.id);
+            const docSnap = await docRef.get();
+
+            if (!docSnap.exists) {
+                return NextResponse.json(
+                    { success: false, error: 'Resource not found' },
+                    { status: 404 }
+                );
+            }
+
+            const data = docSnap.data();
+            resource = {
+                id: docSnap.id,
+                ...data,
+                createdAt: data?.createdAt?.toDate()?.toISOString() || null,
+                updatedAt: data?.updatedAt?.toDate()?.toISOString() || null,
+            } as Resource;
+        }
+
+        // 3. Final safety check
+        if (!resource) {
             return NextResponse.json(
                 { success: false, error: 'Resource not found' },
                 { status: 404 }
             );
         }
-
-        const data = docSnap.data();
-        let resource = {
-            id: docSnap.id,
-            ...data,
-            createdAt: data?.createdAt?.toDate()?.toISOString() || null,
-            updatedAt: data?.updatedAt?.toDate()?.toISOString() || null,
-        } as Resource;
 
         // --- SELF-HEALING LOGIC ---
         // If it's a YouTube resource and has generic attributions, auto-enrich and update in background
@@ -45,11 +60,21 @@ export async function GET(
                     resource.attributions = newAttributions;
 
                     // Update Firestore in background (fire and forget)
-                    adminDb.collection('resources').doc(params.id).update({
+                    const updatePayload: any = {
                         attributions: newAttributions,
                         attributionNames: newAttributions.map(a => a.name).filter(Boolean),
                         updatedAt: new Date()
-                    }).catch(e => console.error('Background self-healing update failed:', e));
+                    };
+
+                    // SELF-HEALING: If thumbnail is missing or is not the standard YT one, update it
+                    const expectedYTThumbnail = `https://img.youtube.com/vi/${extractYouTubeId(resource.url!) || ''}/hqdefault.jpg`;
+                    if (!resource.thumbnailUrl || (resource.thumbnailUrl !== expectedYTThumbnail && resource.thumbnailUrl.includes('img.youtube.com'))) {
+                        updatePayload.thumbnailUrl = expectedYTThumbnail;
+                        resource.thumbnailUrl = expectedYTThumbnail; // Update local copy
+                    }
+
+                    adminDb.collection('resources').doc(params.id).update(updatePayload)
+                        .catch(e => console.error('Background self-healing update failed:', e));
                 }
             } catch (err) {
                 console.error('Self-healing metadata enrichment failed:', err);
@@ -60,7 +85,7 @@ export async function GET(
         const needsAttributionResolution = resource.attributions?.length > 0 && (!resource.attributedUserIds || resource.attributedUserIds.length === 0);
         
         if (needsAttributionResolution) {
-            resolveAttributions(resource.attributions).then(async (resolved) => {
+            resolveAttributions(resource.attributions, resource.url || undefined).then(async (resolved) => {
                 if (resolved.attributedUserIds?.length > 0) {
                     await adminDb.collection('resources').doc(params.id).update({
                         attributions: resolved.resolvedAttributions,
@@ -133,7 +158,7 @@ export async function PATCH(
         let attributedUserIds = undefined;
 
         if (finalAttributions && Array.isArray(finalAttributions)) {
-            const resolved = await resolveAttributions(finalAttributions);
+            const resolved = await resolveAttributions(finalAttributions, body.url || resourceData?.url);
             finalAttributions = resolved.resolvedAttributions;
             attributedUserIds = resolved.attributedUserIds;
         }
@@ -153,7 +178,12 @@ export async function PATCH(
         }
 
         if (body.url !== undefined) {
-            updateData.youtubeVideoId = body.url ? extractYouTubeId(body.url) : null;
+            const ytId = body.url ? extractYouTubeId(body.url) : null;
+            updateData.youtubeVideoId = ytId;
+            // If URL changed and no new thumbnail provided, auto-derive it
+            if (ytId && !body.thumbnailUrl) {
+                updateData.thumbnailUrl = `https://img.youtube.com/vi/${ytId}/hqdefault.jpg`;
+            }
         }
 
         // Regenerate search keywords if title or categories change

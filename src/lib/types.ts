@@ -24,6 +24,7 @@ export interface Attribution {
     name: string;
     url: string;
     userId?: string;
+    photoURL?: string;
     role?: AttributionRole;
 }
 

@@ -56,7 +56,7 @@ export class ComplianceService {
             return { gated: false, status: 'green', breachedPolicies: [] };
 
         } catch (error: any) {
-            console.error('[ComplianceService] Sovereign Probe Failure:', error.message);
+            console.error('[ComplianceService] Sovereign Probe Failure:', error.message, error.stack);
             // In case of system failure, we fail-closed for safety.
             return { 
                 gated: true, 
