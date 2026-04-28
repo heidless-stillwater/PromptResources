@@ -213,6 +213,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         };
     }, [createNewProfile]);
 
+
+    // ──────────────────────────────────────────────────
+    // STATIC SAFETY VALVE: DEFCON 1
+    // ──────────────────────────────────────────────────
+    useEffect(() => {
+        const valve = setTimeout(() => {
+            if (loading) {
+                console.warn('[AuthContext] SAFETY_VALVE: Force-releasing blocked UI after 5s.');
+                setLoading(false);
+            }
+        }, 5000);
+        return () => clearTimeout(valve);
+    }, [loading]);
+
+
+
     const signIn = async (email: string, password: string) => {
         await signInWithEmailAndPassword(auth, email, password);
     };

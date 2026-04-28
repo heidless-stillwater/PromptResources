@@ -21,6 +21,9 @@ import ThumbnailPicker from '@/components/ThumbnailPicker';
 import { Icons } from '@/components/ui/Icons';
 import { FlagModal } from '@/components/FlagModal';
 import { useToast } from '@/components/Toast';
+import CreatorChip from '@/components/CreatorChip';
+import ConfirmationModal from '@/components/ConfirmationModal';
+import { triggerTicketFixAction } from './actions';
 
 export default function ResourceDetailPage() {
     const params = useParams();
@@ -44,6 +47,8 @@ export default function ResourceDetailPage() {
     const [noteMessage, setNoteMessage] = useState({ type: '', text: '' });
     const noteTextareaRef = useRef<HTMLTextAreaElement>(null);
     const [isPickerOpen, setIsPickerOpen] = useState(false);
+    const [fixModalOpen, setFixModalOpen] = useState(false);
+    const [activeFixPending, setActiveFixPending] = useState(false);
 
     // In-place Notes Editing State
     const [isEditingPublicNotes, setIsEditingPublicNotes] = useState(false);
@@ -56,6 +61,19 @@ export default function ResourceDetailPage() {
     const [tempPrompts, setTempPrompts] = useState('');
     const [isEditingRank, setIsEditingRank] = useState(false);
     const [tempRank, setTempRank] = useState<string>('');
+
+    const FIX_SUMMARIES: Record<string, string> = {
+      'encryption_enforcement_fix': 'Enforce AES-256-GCM encryption across all satellite shards.',
+      'encryption-enforcement': 'Enforce AES-256-GCM encryption across all satellite shards.',
+      'av_gateway_fix': 'Deploy a technical age-verification gateway on Port 3002.',
+      'fix-av-gateway': 'Deploy a technical age-verification gateway on Port 3002.',
+      'moderation_baseline_fix': 'Synchronize global content moderation and safety baselines.',
+      'fix-content-moderation': 'Synchronize global content moderation and safety baselines.',
+      'fix-data-audit': 'Restore administrative telemetry and clinical audit trails.',
+      'reinstate_content': 'Restore flagged resource to public view and remove user strikes.',
+      'archive_content': 'Move tainted resource to secure administrative archive.',
+      'fix-encryption': 'Harden database encryption settings.',
+    };
 
     // Confirmation Modal State
     const [confirmModal, setConfirmModal] = useState<{
@@ -106,6 +124,24 @@ export default function ResourceDetailPage() {
         }
     });
 
+    const effectiveTicketId = resource?.activeTicketId || ticketId;
+
+    // Fetch Active Ticket Data
+    const { data: ticketData } = useQuery({
+        queryKey: ['ticket', effectiveTicketId],
+        queryFn: async () => {
+            if (!effectiveTicketId) return null;
+            const response = await fetch(`/api/moderation/tickets/${effectiveTicketId}`);
+            const result = await response.json();
+            return result.success ? result.data : null;
+        },
+        enabled: !!effectiveTicketId
+    });
+
+    const hasActiveFix = !!ticketData?.remediation?.fixId;
+    const fixId = ticketData?.remediation?.fixId;
+    const predictiveAction = fixId ? (FIX_SUMMARIES[fixId] || 'Generic System Alignment') : 'Generic System Alignment';
+
     // Check if saved
     const { data: isSaved = false } = useQuery({
         queryKey: ['resource-saved-status', resourceId, user?.uid],
@@ -114,10 +150,33 @@ export default function ResourceDetailPage() {
             const response = await fetch(`/api/user-resources?uid=${user.uid}`);
             const result = await response.json();
             if (!result.success) return false;
-            return result.data.savedResources?.includes(resourceId) || false;
+            return result.data.some((r: any) => r.id === resourceId);
         },
         enabled: !!user,
     });
+
+    // Toggle save
+    const toggleSave = async () => {
+        if (!user) return;
+        try {
+            const token = await user.getIdToken();
+            const response = await fetch('/api/user-resources', {
+                method: isSaved ? 'DELETE' : 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ resourceId })
+            });
+            const result = await response.json();
+            if (result.success) {
+                queryClient.invalidateQueries({ queryKey: ['resource-saved-status', resourceId, user.uid] });
+                addToast(isSaved ? 'Removed from library' : 'Saved to library', 'success');
+            }
+        } catch (error) {
+            console.error('Save error:', error);
+        }
+    };
 
     // Fetch User Note
     const { data: noteData } = useQuery({
@@ -252,8 +311,8 @@ export default function ResourceDetailPage() {
 
     const [resolving, setResolving] = useState<string | null>(null);
 
-    const handleResolution = async (action: 'reinstate' | 'archive') => {
-        if (!ticketId) return;
+    const handleResolution = async (action: 'reinstate' | 'archive' | 'dismiss') => {
+        if (!effectiveTicketId) return;
         setResolving(action);
         try {
             const token = await user?.getIdToken();
@@ -265,7 +324,7 @@ export default function ResourceDetailPage() {
                 },
                 body: JSON.stringify({
                     resourceId,
-                    ticketId,
+                    ticketId: effectiveTicketId,
                     action
                 })
             });
@@ -293,6 +352,40 @@ export default function ResourceDetailPage() {
             addToast(error.message, 'error');
         } finally {
             setResolving(null);
+        }
+    };
+
+    // Dedicated dismiss for general feedback — never redirects, stays on page.
+    const [dismissingFeedback, setDismissingFeedback] = useState(false);
+    const handleDismissFeedback = async () => {
+        if (!effectiveTicketId || dismissingFeedback) return;
+        setDismissingFeedback(true);
+        try {
+            const token = await user?.getIdToken();
+            const response = await fetch('/api/moderation/resolve', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                    resourceId,
+                    ticketId: effectiveTicketId,
+                    action: 'dismiss'
+                })
+            });
+            const result = await response.json();
+            if (result.success) {
+                addToast('Feedback dismissed.', 'success');
+                queryClient.invalidateQueries({ queryKey: ['resource', resourceId] });
+                queryClient.invalidateQueries({ queryKey: ['ticket', effectiveTicketId] });
+            } else {
+                addToast(result.error || 'Could not dismiss feedback.', 'error');
+            }
+        } catch (error: any) {
+            addToast('Unexpected error dismissing feedback.', 'error');
+        } finally {
+            setDismissingFeedback(false);
         }
     };
 
@@ -665,14 +758,13 @@ export default function ResourceDetailPage() {
 return (
         <div className="page-wrapper dashboard-theme min-h-screen selection:bg-primary/30 font-inter text-white">
             <Navbar />
-            
-            {/* ── PREMIUM CINEMATIC COVER ── */}
+                {/* ── PREMIUM CINEMATIC COVER ── */}
             <div className="relative w-full overflow-hidden flex flex-col border-b border-white/5">
                 {/* Background Layer (Stillwater Brand Glow) */}
                 <div className="absolute inset-0 z-0">
                     <div className="w-full h-full">
-                        <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-background to-background opacity-60" />
-                        <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-primary/5 rounded-full blur-[120px] -mr-48 -mt-48" />
+                        <div className="absolute inset-0 bg-gradient-to-br from-teal-500/10 via-background to-background opacity-60" />
+                        <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-teal-500/5 rounded-full blur-[120px] -mr-48 -mt-48" />
                         {r.thumbnailUrl && (
                             <div className="absolute inset-0 opacity-10">
                                 <img src={r.thumbnailUrl} alt="" className="w-full h-full object-cover blur-3xl scale-110" />
@@ -682,195 +774,211 @@ return (
                     </div>
                 </div>
 
-                <div className="container relative z-10 pt-12 pb-40">
+                <div className="container relative z-10 pt-12 pb-24">
                     {/* Pathing breadcrumbs */}
                     <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.4em] text-white/30 mb-8">
-                        <Link href="/" className="hover:text-primary transition-colors">Sources Registry</Link>
+                        <Link href="/" className="hover:text-teal-400 transition-colors">Sources Registry</Link>
                         <Icons.chevronRight size={10} className="text-white/10" />
-                        <Link href="/resources" className="hover:text-primary transition-colors">Resources</Link>
+                        <Link href="/resources" className="hover:text-teal-400 transition-colors">Resources</Link>
                         <Icons.chevronRight size={10} className="text-white/10" />
-                        <span className="text-primary">{r.title}</span>
+                        <span className="text-teal-400">Identity Active</span>
                     </div>
 
-                    <div className="flex flex-col md:flex-row gap-10">
-                        {/* Identity & Key Data */}
-                        <div className="flex-1 flex flex-col justify-center py-4">
-                            <div className="flex flex-wrap items-center gap-3 mb-6">
-                                <span className="px-3 py-1 bg-primary text-white rounded-lg text-[10px] font-black uppercase tracking-widest flex items-center gap-2 shadow-lg shadow-primary/20">
-                                    <Icons.database size={12} /> {r.type}
-                                </span>
+                    <div className="flex flex-wrap items-center gap-3">
+                        <span className="px-3 py-1 bg-teal-500 text-white rounded-lg text-[10px] font-black uppercase tracking-widest flex items-center gap-2 shadow-lg shadow-teal-500/20">
+                            <Icons.database size={12} /> {r.type}
+                        </span>
+                        <div className="h-4 w-px bg-white/10" />
+                        <span className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest border border-white/10 backdrop-blur-md ${
+                            r.pricing === 'free' ? 'text-emerald-400 bg-emerald-500/5' : 
+                            r.pricing === 'paid' ? 'text-amber-500 bg-amber-500/5' : 
+                            'text-teal-400 bg-teal-500/5'
+                        }`}>
+                            {r.pricing}
+                        </span>
+                        {r.isFavorite && (
+                            <>
                                 <div className="h-4 w-px bg-white/10" />
-                                <span className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest border border-white/10 backdrop-blur-md ${
-                                    r.pricing === 'free' ? 'text-emerald-400 bg-emerald-500/5' : 
-                                    r.pricing === 'paid' ? 'text-amber-500 bg-amber-500/5' : 
-                                    'text-primary bg-primary/5'
-                                }`}>
-                                    {r.pricing}
-                                </span>
-                                {r.isFavorite && (
-                                    <>
-                                        <div className="h-4 w-px bg-white/10" />
-                                        <div className="flex items-center gap-2 px-3 py-1 bg-amber-500/10 border border-amber-500/20 text-amber-500 rounded-lg text-[10px] font-black uppercase tracking-widest">
-                                            <Icons.sparkles size={12} /> Featured
-                                        </div>
-                                    </>
-                                )}
-                            </div>
-
-                            <div className="mb-10">
-                                <div className="flex flex-col md:flex-row items-start md:items-center gap-8 mb-8">
-                                    {r.thumbnailUrl && (
-                                        <div className="w-24 h-24 md:w-32 md:h-32 rounded-[2rem] overflow-hidden border-4 border-white/10 shadow-2xl shrink-0 bg-white/5 relative group">
-                                            <img src={r.thumbnailUrl} alt="" className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
-                                            <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                                        </div>
-                                    )}
-                                    <div>
-                                        <h2 className="text-sm font-black text-white/30 uppercase tracking-[0.4em] mb-3 font-outfit">Architectural Asset</h2>
-                                        <h1 className="text-4xl md:text-7xl font-black tracking-tighter text-white leading-[0.9] font-outfit">
-                                            {r.title}
-                                        </h1>
-                                    </div>
+                                <div className="flex items-center gap-2 px-3 py-1 bg-amber-500/10 border border-amber-500/20 text-amber-500 rounded-lg text-[10px] font-black uppercase tracking-widest">
+                                    <Icons.sparkles size={12} /> Featured
                                 </div>
-                                <div className="flex flex-wrap items-center gap-6 text-white/40">
-                                    <Rating value={r.averageRating || 0} count={r.reviewCount || 0} />
-                                    <div className="h-4 w-px bg-white/10" />
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-lg">🌐</span>
-                                        <span className="text-[10px] font-black uppercase tracking-[0.4em]">{r.platform}</span>
-                                    </div>
-                                    <div className="h-4 w-px bg-white/10" />
-                                    <button 
-                                        onClick={handleSave}
-                                        className={`flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.3em] transition-all ${isSaved ? 'text-primary' : 'text-white/20 hover:text-white'}`}
-                                    >
-                                        {isSaved ? '★ Saved' : '☆ Save to Library'}
-                                    </button>
-                                </div>
-                            </div>
-
-                            <div className="flex flex-wrap items-center gap-4">
-                                <a 
-                                    href={r.url} 
-                                    target="_blank" 
-                                    rel="noopener noreferrer"
-                                    className="flex-1 md:flex-none px-12 py-4 bg-gradient-to-r from-primary to-accent text-white rounded-2xl font-black text-sm transition-all flex items-center justify-center gap-3 shadow-2xl shadow-primary/30 hover:scale-[1.02] active:scale-95"
-                                >
-                                    Open Resource <Icons.external size={18} strokeWidth={3} />
-                                </a>
-                                
-                                <button 
-                                    onClick={() => setIsFlagModalOpen(true)}
-                                    className="flex-1 md:flex-none px-8 py-4 bg-white/5 border border-white/10 rounded-2xl text-white/40 hover:bg-rose-500 hover:text-white hover:border-rose-400 transition-all flex items-center justify-center gap-3 group font-black text-[10px] uppercase tracking-widest"
-                                    title="Report Compliance Breach"
-                                >
-                                    <Icons.report size={18} />
-                                    Security Check
-                                </button>
-
-                                {(isAdmin || (user && r.addedBy === user.uid)) && (
-                                    <Link href={`/resources/${r.id}/edit`} className="p-4 bg-white/5 border border-white/10 rounded-2xl hover:bg-primary hover:text-white hover:border-primary transition-all text-white/40 group">
-                                        <Icons.edit size={20} />
-                                    </Link>
-                                )}
-                            </div>
-                        </div>
+                            </>
+                        )}
                     </div>
                 </div>
             </div>
 
-
-            <div className="main-content -mt-28 overflow-visible">
+            <div className="main-content -mt-12 overflow-visible">
                 <main className="container mx-auto px-4 pt-0 pb-20 relative z-30">
                     
-                    {/* ── SOVEREIGN MODERATION PANELS ── */}
-                    {r.status === 'flagged' && (
-                        <div className="mb-10 p-8 bg-rose-500/10 border border-rose-500/30 rounded-[2.5rem] flex flex-col md:flex-row items-center gap-8 animate-in fade-in slide-in-from-top-4 duration-700 backdrop-blur-xl">
-                            <div className="w-20 h-20 rounded-[2rem] bg-rose-500/20 flex items-center justify-center text-rose-500 shrink-0 shadow-inner">
-                                <Icons.report size={40} className="animate-pulse" />
+                    {/* ── GENERAL FEEDBACK PANEL ── */}
+                    {r.activeTicketId && r.reportType === 'other' && r.status !== 'flagged' && (
+                        <div className="mb-10 p-8 border border-indigo-500/30 rounded-[2.5rem] flex flex-col md:flex-row items-center gap-8 animate-in fade-in slide-in-from-top-4 duration-700 backdrop-blur-xl bg-indigo-500/10">
+                            <div className="w-20 h-20 rounded-[2rem] flex items-center justify-center shrink-0 shadow-inner bg-indigo-500/20 text-indigo-400">
+                                <Icons.check size={40} />
                             </div>
                             <div className="flex-1 text-center md:text-left">
-                                <h3 className="text-2xl font-black uppercase tracking-tighter text-rose-400 mb-2">Safety Review Active</h3>
-                                <p className="text-sm text-rose-300/70 font-medium leading-relaxed max-w-4xl">
-                                    This architectural asset has been flagged by the community for <span className="font-bold text-rose-400 italic">
-                                        {r.reportType === 'illegal' ? 'Safety Concerns' : 
-                                         r.reportType === 'harmful_children' ? 'Minor Protection' :
-                                         r.reportType === 'harassment' ? 'Community Standards' :
-                                         r.reportType === 'hate_speech' ? 'Inclusivity' :
-                                         r.reportType === 'misinformation' ? 'Quality Verification' :
-                                         r.reportType === 'spam' ? 'Platform Integrity' : 'Community Review'}
-                                    </span>. Access restricted during clinical verification.
+                                <h3 className="text-2xl font-black uppercase tracking-tighter mb-2 text-indigo-400">
+                                    Feedback Registered
+                                </h3>
+                                <p className="text-sm font-medium leading-relaxed max-w-4xl text-indigo-300/70">
+                                    Thank you — your feedback has been successfully logged and is available for review by our team. No action is required from you.
                                 </p>
                             </div>
-                            <div className="px-8 py-3 bg-rose-500/20 border border-rose-500/30 rounded-2xl text-xs font-black uppercase tracking-widest text-rose-400">
-                                Under Investigation
+                            <div className="flex flex-col gap-3 shrink-0">
+                                <Link
+                                    href={`http://localhost:3003/tickets/${r.activeTicketId}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="px-8 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all text-center shadow-lg bg-indigo-500 text-white hover:bg-indigo-600 shadow-indigo-500/20"
+                                >
+                                    View Feedback Ticket
+                                </Link>
+                                {isAdmin && (
+                                    <button
+                                        onClick={handleDismissFeedback}
+                                        className="px-8 py-3 bg-white/10 border border-white/20 text-white/60 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-white/20 transition-all text-center"
+                                        disabled={dismissingFeedback}
+                                    >
+                                        {dismissingFeedback ? 'Dismissing...' : 'Dismiss'}
+                                    </button>
+                                )}
                             </div>
                         </div>
                     )}
 
-                    {isAdmin && ticketId && (
-                        <div className="mb-10 p-8 rounded-[2.5rem] bg-primary/10 border border-primary/20 backdrop-blur-xl animate-in fade-in slide-in-from-top-4 duration-500">
-                            <div className="flex flex-col md:flex-row items-center justify-between gap-8">
-                                <div className="flex items-center gap-6">
-                                    <div className="w-16 h-16 rounded-[2rem] bg-primary/20 flex items-center justify-center text-primary shadow-inner">
-                                        <Icons.report size={32} className="animate-pulse" />
-                                    </div>
-                                    <div>
-                                        <h3 className="text-xl font-black text-white tracking-tight">Clinical Resolution Active</h3>
-                                        <p className="text-sm text-primary/70 font-medium tracking-wide">Reviewing Asset against Compliance Ticket #{ticketId.slice(-6)}</p>
-                                    </div>
+                    {/* ── CRITICAL SAFETY ALERT (all non-feedback safety reports) ── */}
+                    {(r.activeTicketId || r.status === 'flagged' || r.status === 'hidden') && r.reportType && r.reportType !== 'other' && (
+                        <div className={`mb-10 border rounded-[2.5rem] overflow-hidden animate-in fade-in slide-in-from-top-4 duration-700 ${
+                            ticketData?.status === 'resolved'
+                                ? 'bg-teal-500/10 border-teal-500/30'
+                                : 'bg-rose-950/60 border-rose-500/50 shadow-2xl shadow-rose-500/20'
+                        }`}>
+                            {/* Priority bar */}
+                            {ticketData?.status !== 'resolved' && (
+                                <div className="flex items-center gap-3 px-8 py-2.5 bg-rose-500/20 border-b border-rose-500/30">
+                                    <span className="inline-block w-2 h-2 rounded-full bg-rose-400 animate-pulse" />
+                                    <span className="text-[9px] font-black uppercase tracking-[0.35em] text-rose-300">
+                                        Critical Priority — Safety Incident Active
+                                    </span>
                                 </div>
-                                <div className="flex items-center gap-4">
-                                    <button 
-                                        className="px-8 py-4 bg-rose-500/10 border border-rose-500/20 text-rose-400 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-rose-500 hover:text-white transition-all disabled:opacity-50"
-                                        onClick={() => handleResolution('archive')}
-                                        disabled={!!resolving}
-                                    >
-                                        {resolving === 'archive' ? 'Archiving...' : '⚠️ Archive Tainted'}
-                                    </button>
-                                    <button 
-                                        className="px-10 py-4 bg-primary text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-primary/80 transition-all shadow-2xl shadow-primary/30 disabled:opacity-50"
-                                        onClick={() => handleResolution('reinstate')}
-                                        disabled={!!resolving}
-                                    >
-                                        {resolving === 'reinstate' ? 'Reinstating...' : '✅ Reinstate Asset'}
-                                    </button>
+                            )}
+
+                            <div className="p-8 flex flex-col md:flex-row items-start md:items-center gap-8">
+                                {/* Icon */}
+                                <div className={`w-20 h-20 rounded-[2rem] flex items-center justify-center shrink-0 shadow-inner ${
+                                    ticketData?.status === 'resolved'
+                                        ? 'bg-teal-500/20 text-teal-400'
+                                        : 'bg-rose-500/20 text-rose-400'
+                                }`}>
+                                    {ticketData?.status === 'resolved'
+                                        ? <Icons.check size={40} />
+                                        : <Icons.report size={40} className="animate-pulse" />}
                                 </div>
-                            </div>
-                            <div className="mt-6 pt-6 border-t border-white/5 flex items-center gap-3 text-[10px] text-white/30 uppercase tracking-[0.3em] font-black">
-                                <Icons.info size={12} /> Sovereign Moderation Protocol 15.2.2 Active
+
+                                {/* Text */}
+                                <div className="flex-1">
+                                    <div className="flex items-center gap-3 mb-2">
+                                        <h3 className={`text-2xl font-black uppercase tracking-tighter ${
+                                            ticketData?.status === 'resolved' ? 'text-teal-400' : 'text-rose-300'
+                                        }`}>
+                                            {ticketData?.status === 'resolved'
+                                                ? '✅ Safety Incident Resolved'
+                                                : '🚨 Safety Alert'}
+                                        </h3>
+                                        {ticketData?.status !== 'resolved' && (
+                                            <span className="px-3 py-1 bg-rose-500/30 border border-rose-500/40 rounded-lg text-[9px] font-black uppercase tracking-widest text-rose-300">
+                                                {r.reportType === 'illegal' ? 'Illegal Content'
+                                                    : r.reportType === 'harmful_children' ? 'Minor Protection'
+                                                    : r.reportType === 'harassment' ? 'Harassment'
+                                                    : r.reportType === 'hate_speech' ? 'Hate Speech'
+                                                    : r.reportType === 'misinformation' ? 'Misinformation'
+                                                    : r.reportType === 'spam' ? 'Spam / Abuse'
+                                                    : 'Safety Concern'}
+                                            </span>
+                                        )}
+                                    </div>
+                                    <p className={`text-sm font-medium leading-relaxed max-w-3xl ${
+                                        ticketData?.status === 'resolved' ? 'text-teal-300/70' : 'text-rose-200/70'
+                                    }`}>
+                                        {ticketData?.status === 'resolved'
+                                            ? 'This safety report has been reviewed and resolved. The asset has been cleared and is fully verified within Stillwater safety protocols.'
+                                            : `A critical safety concern has been reported for this resource. It has been ${
+                                                r.status === 'hidden' ? 'immediately removed from public view' : 'restricted pending investigation'
+                                              } and escalated for emergency review. No further action is required from you.`}
+                                    </p>
+                                </div>
+
+                                {/* Actions */}
+                                <div className="flex flex-col gap-3 shrink-0">
+                                    {(r.activeTicketId || effectiveTicketId) && (
+                                        <Link
+                                            href={`http://localhost:3003/tickets/${r.activeTicketId || effectiveTicketId}`}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className={`px-8 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all text-center shadow-lg ${
+                                                ticketData?.status === 'resolved'
+                                                    ? 'bg-teal-500 text-white hover:bg-teal-600 shadow-teal-500/20'
+                                                    : 'bg-rose-500 text-white hover:bg-rose-600 shadow-rose-500/30'
+                                            }`}
+                                        >
+                                            {ticketData?.status === 'resolved' ? 'View Final Report' : 'View Incident Ticket'}
+                                        </Link>
+                                    )}
+                                    {isAdmin && ticketData?.status === 'resolved' && (
+                                        <button
+                                            onClick={() => handleResolution('dismiss')}
+                                            className="px-8 py-3 bg-white/10 border border-white/20 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-white/20 transition-all text-center"
+                                            disabled={!!resolving}
+                                        >
+                                            {resolving === 'dismiss' ? 'Dismissing...' : 'Dismiss Resolution'}
+                                        </button>
+                                    )}
+                                    {isAdmin && ticketData?.status !== 'resolved' && (
+                                        <>
+                                            <button
+                                                className="px-8 py-3 bg-teal-500 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-teal-600 transition-all shadow-lg shadow-teal-500/20 disabled:opacity-50"
+                                                onClick={() => handleResolution('reinstate')}
+                                                disabled={!!resolving}
+                                            >
+                                                {resolving === 'reinstate' ? 'Reinstating...' : '✅ Reinstate Asset'}
+                                            </button>
+                                            {hasActiveFix && (
+                                                <button
+                                                    onClick={() => setFixModalOpen(true)}
+                                                    className="px-8 py-3 bg-white/10 border border-white/20 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-white/20 transition-all text-center"
+                                                    disabled={activeFixPending}
+                                                >
+                                                    {activeFixPending ? 'Initiating...' : '🚀 Initiate Active Fix'}
+                                                </button>
+                                            )}
+                                            <button
+                                                className="px-8 py-3 bg-rose-500/20 border border-rose-500/40 text-rose-300 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-rose-500 hover:text-white transition-all disabled:opacity-50"
+                                                onClick={() => handleResolution('archive')}
+                                                disabled={!!resolving}
+                                            >
+                                                {resolving === 'archive' ? 'Archiving...' : '⚠️ Archive Tainted Asset'}
+                                            </button>
+                                        </>
+                                    )}
+                                </div>
                             </div>
                         </div>
                     )}
 
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
-                        {/* Main Stream */}
+
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
+                        {/* ── COLUMN 1: IDENTITY & CORE ── */}
                         <div className="lg:col-span-2 space-y-10">
-                                <div className="bg-background-secondary/90 border border-white/10 rounded-3xl p-6 md:p-8 backdrop-blur-xl shadow-2xl relative overflow-hidden group mb-8">
-                                    <div className="absolute top-0 right-0 p-8 w-64 h-64 bg-primary/10 rounded-full blur-3xl pointer-events-none group-hover:bg-primary/20 transition-all duration-700"></div>
-                                    
-                                    <div className="flex flex-col md:flex-row gap-8 items-start mb-8">
-                                        <div className="relative shrink-0">
-                                            <div className="absolute -inset-1 bg-gradient-to-r from-primary to-accent rounded-2xl blur opacity-20 group-hover:opacity-40 transition duration-1000"></div>
-                                            <div className="relative w-24 h-24 rounded-2xl border border-white/10 overflow-hidden bg-black/40 backdrop-blur-xl shadow-xl">
-                                                <img 
-                                                    src={r.thumbnailUrl || '/placeholder-resource.jpg'} 
-                                                    alt={r.title}
-                                                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
-                                                />
-                                            </div>
-                                        </div>
-                                        
-                                        <div className="flex-1">
+                            <div className="space-y-6">
                                 {isEditingTitle ? (
-                                    <div className="animate-in fade-in zoom-in duration-200" style={{ width: '100%', marginBottom: 'var(--space-4)' }}>
+                                    <div className="animate-in fade-in zoom-in duration-200">
                                         <input 
                                             type="text" 
-                                            className="form-input" 
+                                            className="form-input text-4xl font-black bg-white/5 border-white/10 p-4 rounded-2xl w-full mb-4" 
                                             value={tempTitle}
                                             onChange={(e) => setTempTitle(e.target.value)}
                                             autoFocus
-                                            style={{ fontSize: '2rem', fontWeight: 800, padding: 'var(--space-4)', background: 'var(--bg-input)' }}
                                             onKeyDown={(e) => {
                                                 if (e.key === 'Enter') {
                                                     handleUpdateField('title', tempTitle);
@@ -880,617 +988,304 @@ return (
                                                 }
                                             }}
                                         />
-                                        <div style={{ display: 'flex', gap: 'var(--space-3)', marginTop: 'var(--space-3)' }}>
-                                            <button 
-                                                className="btn btn-primary btn-sm"
-                                                onClick={async () => {
-                                                    await handleUpdateField('title', tempTitle);
-                                                    setIsEditingTitle(false);
-                                                }}
-                                            >
-                                                Save Title
-                                            </button>
-                                            <button 
-                                                className="btn btn-secondary btn-sm"
-                                                onClick={() => setIsEditingTitle(false)}
-                                            >
-                                                Cancel
-                                            </button>
+                                        <div className="flex gap-3">
+                                            <button className="btn btn-primary btn-sm" onClick={() => { handleUpdateField('title', tempTitle); setIsEditingTitle(false); }}>Save</button>
+                                            <button className="btn btn-secondary btn-sm" onClick={() => setIsEditingTitle(false)}>Cancel</button>
                                         </div>
                                     </div>
                                 ) : (
-                                    <h1 className="text-3xl md:text-5xl font-black tracking-tighter bg-gradient-to-r from-white to-white/60 bg-clip-text text-transparent flex items-center gap-4 mb-4">
-                                        {(r.isFavorite || isAdmin || (user && r.addedBy === user.uid)) && (
-                                            <span 
-                                                title={r.isFavorite ? "Featured Resource (Click to unfeature)" : "Feature this resource"}
-                                                onClick={(e) => {
-                                                    if (isAdmin || (user && r.addedBy === user.uid)) {
-                                                        e.stopPropagation();
-                                                        handleUpdateField('isFavorite', !r.isFavorite);
-                                                    }
-                                                }}
-                                                style={{ 
-                                                    cursor: (isAdmin || (user && r.addedBy === user.uid)) ? 'pointer' : 'default',
-                                                    opacity: r.isFavorite ? 1 : 0.3,
-                                                    filter: r.isFavorite ? 'drop-shadow(0 0 8px rgba(250, 204, 21, 0.5))' : 'grayscale(100%)',
-                                                    transition: 'all 0.2s ease',
-                                                }}
-                                                className="hover:scale-110"
-                                            >
-                                                ⭐
-                                            </span>
-                                        )}
-                                        <span
-                                            style={{ cursor: (isAdmin || (user && r.addedBy === user.uid)) ? 'pointer' : 'default', display: 'flex', alignItems: 'center' }}
-                                            onClick={() => {
-                                                if (isAdmin || (user && r.addedBy === user.uid)) {
-                                                    setIsEditingTitle(true);
-                                                    setTempTitle(r.title);
-                                                }
-                                            }}
-                                            className="font-outfit"
+                                    <div className="flex flex-col gap-4">
+                                        <h1 
+                                            className="text-4xl md:text-6xl font-black tracking-tighter text-white font-outfit leading-none flex flex-wrap items-center gap-4 text-left group cursor-pointer"
+                                            onClick={() => { if (isAdmin || (user && r.addedBy === user.uid)) { setIsEditingTitle(true); setTempTitle(r.title); } }}
                                         >
+                                            {r.isFavorite && <span className="text-amber-400 drop-shadow-[0_0_10px_rgba(251,191,36,0.4)]">⭐</span>}
                                             {r.title}
-                                            {(isAdmin || (user && r.addedBy === user.uid)) && (
-                                                <span style={{ fontSize: '14px', marginLeft: 'var(--space-2)' }}>✏️</span>
+                                            {(isAdmin || (user && r.addedBy === user.uid)) && <Icons.edit size={20} className="text-white/10 group-hover:text-teal-400 transition-colors" />}
+                                        </h1>
+                                        
+                                        <div className="flex items-center gap-6">
+                                            {isEditingRank ? (
+                                                <div className="p-4 bg-white/5 border border-white/10 rounded-2xl flex flex-col gap-3">
+                                                    <span className="text-[10px] font-black uppercase tracking-widest text-white/40">Priority Ranking</span>
+                                                    <div className="flex items-center gap-2">
+                                                        <input 
+                                                            type="number" 
+                                                            className="form-input w-24 text-center font-bold" 
+                                                            value={tempRank} 
+                                                            onChange={(e) => setTempRank(e.target.value)}
+                                                        />
+                                                        <button className="btn btn-primary btn-sm" onClick={() => { handleUpdateField('rank', parseInt(tempRank)); setIsEditingRank(false); }}>Set</button>
+                                                        <button className="btn btn-secondary btn-sm" onClick={() => setIsEditingRank(false)}>X</button>
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <div 
+                                                    className="px-4 py-1.5 rounded-full bg-white/5 border border-white/10 text-[10px] font-black uppercase tracking-widest text-teal-400 cursor-pointer hover:bg-white/10 transition-colors"
+                                                    onClick={() => { if (isAdmin || (user && r.addedBy === user.uid)) { setIsEditingRank(true); setTempRank(r.rank?.toString() || ''); } }}
+                                                >
+                                                    Asset Priority #{r.rank || 'None'}
+                                                </div>
                                             )}
-                                        </span>
-                                        {isEditingRank ? (
-                                            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)', background: 'var(--bg-secondary)', padding: 'var(--space-3)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', marginTop: 'var(--space-2)' }}>
-                                                <div style={{ fontSize: '10px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--text-muted)' }}>Quick Select Priority</div>
-                                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-2)' }}>
-                                                    {[1, 5, 10, 25, 50, 100].map(val => (
-                                                        <button 
-                                                            key={val}
-                                                            className={`btn btn-sm ${parseInt(tempRank) === val ? 'btn-primary' : 'btn-secondary'}`}
-                                                            style={{ padding: '4px 8px', fontSize: '11px', fontWeight: 'bold' }}
-                                                            onClick={() => setTempRank(val.toString())}
-                                                        >
-                                                            Top {val}
-                                                        </button>
-                                                    ))}
-                                                </div>
-                                                
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
-                                                    <button 
-                                                        className="btn btn-secondary"
-                                                        style={{ padding: '0', width: '36px', height: '36px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}
-                                                        onClick={() => setTempRank(Math.max(1, (parseInt(tempRank) || 2) - 1).toString())}
-                                                    >
-                                                        -
-                                                    </button>
-                                                    <input 
-                                                        type="number" 
-                                                        className="form-input" 
-                                                        style={{ width: '80px', height: '36px', padding: '0', textAlign: 'center', fontSize: '16px', fontWeight: 'bold' }} 
-                                                        value={tempRank} 
-                                                        onChange={(e) => setTempRank(e.target.value)} 
-                                                        placeholder="Rank"
-                                                        autoFocus
-                                                    />
-                                                    <button 
-                                                        className="btn btn-secondary"
-                                                        style={{ padding: '0', width: '36px', height: '36px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}
-                                                        onClick={() => setTempRank(((parseInt(tempRank) || 0) + 1).toString())}
-                                                    >
-                                                        +
-                                                    </button>
-                                                </div>
-
-                                                <div style={{ display: 'flex', gap: 'var(--space-2)', paddingTop: 'var(--space-2)', borderTop: '1px solid var(--border)' }}>
-                                                    <button 
-                                                        className="btn btn-primary btn-sm"
-                                                        onClick={async () => {
-                                                            const numRank = parseInt(tempRank);
-                                                            await handleUpdateField('rank', isNaN(numRank) ? null : numRank);
-                                                            setIsEditingRank(false);
-                                                        }}
-                                                    >
-                                                        Save Rank
-                                                    </button>
-                                                    <button 
-                                                        className="btn btn-secondary btn-sm" 
-                                                        onClick={() => setIsEditingRank(false)}
-                                                    >
-                                                        Cancel
-                                                    </button>
-                                                    <button 
-                                                        className="btn btn-secondary btn-sm"
-                                                        style={{ marginLeft: 'auto' }}
-                                                        onClick={() => setTempRank('')}
-                                                    >
-                                                        Clear
-                                                    </button>
-                                                </div>
+                                            <div className="h-4 w-px bg-white/10" />
+                                            <div className="text-[10px] font-black uppercase tracking-widest text-white/30">
+                                                Added by <span className="text-white/60">{r.creator?.displayName || 'Community'}</span>
                                             </div>
-                                        ) : (
-                                            <span 
-                                                className="detail-rank" 
-                                                style={{ cursor: (isAdmin || (user && r.addedBy === user.uid)) ? 'pointer' : 'default', padding: '0 var(--space-2)', borderRadius: 'var(--radius-sm)' }}
-                                                onClick={() => {
-                                                    if (isAdmin || (user && r.addedBy === user.uid)) {
-                                                        setIsEditingRank(true);
-                                                        setTempRank(r.rank ? r.rank.toString() : '');
-                                                    }
-                                                }}
-                                                title={(isAdmin || (user && r.addedBy === user.uid)) ? "Click to set priority rank" : ""}
-                                            >
-                                                {(isAdmin || (user && r.addedBy === user.uid)) && !r.rank ? 'Set Ranking' : `Rank #${r.rank}`}
-                                            </span>
-                                        )}
-                                    </h1>
+                                        </div>
+                                    </div>
                                 )}
-                                
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-4)' }}>
-                                    <Rating value={r.averageRating || 0} count={r.reviewCount || 0} />
-                                </div>
+                            </div>
 
-                                <div className="flex flex-wrap items-center gap-3 mt-6 pt-6 border-t border-white/10">
-                                    <button
-                                        className="btn btn-secondary"
-                                        onClick={() => setIsNoteModalOpen(true)}
-                                        id="open-notes"
-                                    >
-                                        {noteContent ? '📝 Edit Note' : '➕ Add Note'}
-                                    </button>
-
-                                    {(isAdmin || (user && r.addedBy === user.uid)) && (
-                                        <>
-                                            <Link href={`/resources/${r.id}/edit`} className="btn btn-secondary" id="edit-resource-top">
-                                                ✏️ Edit
-                                            </Link>
-                                            <button
-                                                className="btn btn-danger"
-                                                onClick={handleDelete}
-                                                disabled={deleting}
-                                                id="delete-resource-top"
-                                                title="Delete Resource"
-                                                style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}
-                                            >
-                                                {deleting ? '...' : '🗑 Delete'}
-                                            </button>
-                                        </>
-                                    )}
-
-                                    <div style={{ position: 'relative' }} ref={shareRef}>
-                                        <button
-                                            className="btn btn-secondary"
-                                            onClick={() => setShareOpen(!shareOpen)}
-                                            id="share-resource"
-                                        >
-                                            📤 Share
-                                        </button>
-
-                                        {shareOpen && (
-                                            <div className="share-menu">
-                                                <button className="share-menu-item" onClick={handleCopyLink}>
-                                                    {copyStatus === 'Copy Link' ? '🔗 ' + copyStatus : '✅ ' + copyStatus}
-                                                </button>
-                                                <button className="share-menu-item" onClick={handleShareTwitter}>
-                                                    🐦 Share on X
-                                                </button>
-                                                <button className="share-menu-item" onClick={handleShareLinkedIn}>
-                                                    💼 Share on LinkedIn
-                                                </button>
-                                                <button className="share-menu-item" onClick={handleShareEmail}>
-                                                    ✉️ Share via Email
-                                                </button>
-                                            </div>
-                                        )}
+                            {/* Large Thumbnail Content */}
+                            <div className="relative group rounded-[2.5rem] overflow-hidden border border-white/10 shadow-2xl bg-black/40 backdrop-blur-xl">
+                                {r.thumbnailUrl ? (
+                                    <div className="aspect-video relative">
+                                        <img src={r.thumbnailUrl} alt={r.title} className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-105" />
+                                        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
                                     </div>
+                                ) : (
+                                    <div className="aspect-video flex items-center justify-center bg-teal-500/5">
+                                        <Icons.database size={64} className="text-teal-500/10" />
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Description Block */}
+                            <div className="glass-card p-10 border-teal-500/10">
+                                <h3 className="text-xs font-black uppercase tracking-[0.3em] text-white/40 mb-6 flex items-center gap-3">
+                                    <Icons.info size={14} className="text-teal-500" /> Architectural Intelligence
+                                </h3>
+                                <div className="text-lg text-slate-300 leading-relaxed font-medium whitespace-pre-wrap text-left">
+                                    {r.description || 'No metadata description provided for this architectural asset.'}
                                 </div>
                             </div>
-                        </div>
-                    </div>
 
-
-
-
-                            {/* Recommended Nanobanana Prompt (Editable in-place) */}
+                            {/* Nanobanana Prompts */}
                             {(r.prompts && r.prompts.length > 0 || isAdmin || (user && r.addedBy === user.uid)) && (
-                                <div className="detail-section animate-fade-in group">
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                        <h3 className="detail-section-title">🚀 Recommended Nanobanana Prompt</h3>
+                                <div className="space-y-6">
+                                    <div className="flex items-center justify-between px-2">
+                                        <h3 className="text-xs font-black uppercase tracking-[0.3em] text-white/40 flex items-center gap-3">
+                                            <Icons.sparkles size={14} className="text-teal-500" /> Recommended Nanobanana Prompts
+                                        </h3>
                                         {(isAdmin || (user && r.addedBy === user.uid)) && !isEditingPrompts && (
-                                            <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
-                                                <button 
-                                                    className="btn btn-secondary btn-sm transition-opacity"
-                                                    onClick={() => {
-                                                        setIsEditingPrompts(true);
-                                                        setTempPrompts(r.prompts?.join('\n') || '');
-                                                    }}
-                                                    style={{ padding: '2px 8px', fontSize: '10px' }}
-                                                >
-                                                    ✏️ Edit Prompt
-                                                </button>
-                                                {r.prompts && r.prompts.length > 0 && (
-                                                    <button 
-                                                        className="btn btn-primary btn-sm"
-                                                        onClick={() => {
-                                                            navigator.clipboard.writeText(r.prompts?.join('\n') || '');
-                                                            alert('Prompt copied!');
-                                                        }}
-                                                        style={{ padding: '2px 8px', fontSize: '10px' }}
-                                                    >
-                                                        📋 Copy
-                                                    </button>
-                                                )}
-                                            </div>
+                                            <button className="btn-ghost text-[10px] font-black uppercase tracking-widest text-teal-400" onClick={() => { setIsEditingPrompts(true); setTempPrompts(r.prompts?.join('\n') || ''); }}>Edit Prompts</button>
                                         )}
                                     </div>
-                                    <div className="glass-card" style={{ padding: 'var(--space-5)', background: 'rgba(0,0,0,0.4)', border: '1px solid var(--accent-primary)', boxShadow: 'var(--shadow-glow-sm)' }}>
+                                    
+                                    <div className="glass-card p-8 bg-black/40 border-teal-500/20 relative overflow-hidden group">
+                                        <div className="absolute top-0 left-0 w-1 h-full bg-teal-500/40" />
                                         {isEditingPrompts ? (
-                                            <div className="animate-in fade-in zoom-in duration-200">
-                                                <textarea
-                                                    className="form-textarea"
-                                                    value={tempPrompts}
-                                                    onChange={(e) => setTempPrompts(e.target.value)}
-                                                    placeholder="Paste scenario prompts here (one per line)..."
-                                                    rows={6}
-                                                    autoFocus
-                                                    style={{ fontSize: 'var(--text-sm)', fontFamily: 'var(--font-mono)', lineHeight: '1.6' }}
-                                                />
-                                                <div style={{ display: 'flex', gap: 'var(--space-3)', marginTop: 'var(--space-3)', justifyContent: 'flex-end' }}>
-                                                    <button 
-                                                        className="btn btn-secondary btn-sm"
-                                                        onClick={() => setIsEditingPrompts(false)}
-                                                    >
-                                                        Cancel
-                                                    </button>
-                                                    <button 
-                                                        className="btn btn-primary btn-sm"
-                                                        onClick={async () => {
-                                                            const promptsArray = tempPrompts.split('\n').map(p => p.trim()).filter(Boolean);
-                                                            await handleUpdateField('prompts', promptsArray);
-                                                            setIsEditingPrompts(false);
-                                                        }}
-                                                    >
-                                                        Save Prompt
-                                                    </button>
+                                            <div className="space-y-4">
+                                                <textarea className="form-textarea font-mono text-sm leading-loose bg-black/60 p-6 border-white/5 rounded-2xl w-full" rows={6} value={tempPrompts} onChange={(e) => setTempPrompts(e.target.value)} />
+                                                <div className="flex gap-3 justify-end">
+                                                    <button className="btn btn-primary" onClick={async () => { const promptsArray = tempPrompts.split('\n').map(p => p.trim()).filter(Boolean); await handleUpdateField('prompts', promptsArray); setIsEditingPrompts(false); }}>Save Prompts</button>
+                                                    <button className="btn btn-secondary" onClick={() => setIsEditingPrompts(false)}>Cancel</button>
                                                 </div>
                                             </div>
                                         ) : (
-                                            <div style={{ fontSize: 'var(--text-sm)', lineHeight: '1.6', color: 'var(--accent-300)', fontFamily: 'var(--font-mono)', whiteSpace: 'pre-wrap' }}>
-                                                {r.prompts && r.prompts.length > 0 ? (
-                                                    r.prompts.join('\n')
-                                                ) : (isAdmin || (user && r.addedBy === user.uid)) ? (
-                                                    <em style={{ color: 'var(--text-muted)', cursor: 'pointer' }} onClick={() => {
-                                                        setIsEditingPrompts(true);
-                                                        setTempPrompts('');
-                                                    }}>Add scenario prompts for this r...</em>
-                                                ) : null}
+                                            <div className="text-sm font-mono text-teal-400/80 leading-loose whitespace-pre-wrap text-left">
+                                                {r.prompts && r.prompts.length > 0 ? r.prompts.join('\n') : 'No prompts defined for this asset.'}
                                             </div>
                                         )}
                                     </div>
                                 </div>
                             )}
 
-                            {r.pricingDetails && (
-                                <div className="detail-section">
-                                    <h3 className="detail-section-title">Licensing & Cost</h3>
-                                    <div className="glass-card" style={{ padding: 'var(--space-4)', fontSize: 'var(--text-sm)', borderStyle: 'dashed' }}>
-                                        {r.pricingDetails}
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Public Notes (Editable in-place) */}
-                            <div className="detail-section animate-fade-in group">
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                    <h3 className="detail-section-title">📖 Important Notes & Instructions</h3>
+                            {/* Public Notes */}
+                            <div className="space-y-6">
+                                <div className="flex items-center justify-between px-2">
+                                    <h3 className="text-xs font-black uppercase tracking-[0.3em] text-white/40 flex items-center gap-3">
+                                        <Icons.edit size={14} className="text-teal-500" /> Implementation Notes
+                                    </h3>
                                     {(isAdmin || (user && r.addedBy === user.uid)) && !isEditingPublicNotes && (
-                                        <button 
-                                            className="btn btn-secondary btn-sm transition-opacity"
-                                            onClick={() => {
-                                                setIsEditingPublicNotes(true);
-                                                setTempPublicNotes(r.notes || '');
-                                            }}
-                                            style={{ padding: '2px 8px', fontSize: '10px' }}
-                                        >
-                                            ✏️ Edit
-                                        </button>
+                                        <button className="btn-ghost text-[10px] font-black uppercase tracking-widest text-teal-400" onClick={() => { setIsNoteModalOpen(true); }}>Edit Notes</button>
                                     )}
                                 </div>
-                                <div className="glass-card" style={{ padding: 'var(--space-5)', background: 'var(--bg-secondary)', borderLeft: '3px solid var(--primary-light)' }}>
-                                    {isEditingPublicNotes ? (
-                                        <div className="animate-in fade-in zoom-in duration-200">
-                                            <textarea
-                                                className="form-textarea"
-                                                value={tempPublicNotes}
-                                                onChange={(e) => setTempPublicNotes(e.target.value)}
-                                                placeholder="Publicly visible notes..."
-                                                rows={4}
-                                                autoFocus
-                                                style={{ fontSize: 'var(--text-sm)' }}
-                                            />
-                                            <div style={{ display: 'flex', gap: 'var(--space-3)', marginTop: 'var(--space-3)', justifyContent: 'flex-end' }}>
-                                                <button 
-                                                    className="btn btn-secondary btn-sm"
-                                                    onClick={() => setIsEditingPublicNotes(false)}
-                                                >
-                                                    Cancel
-                                                </button>
-                                                <button 
-                                                    className="btn btn-primary btn-sm"
-                                                    onClick={async () => {
-                                                        await handleUpdateField('notes', tempPublicNotes);
-                                                        setIsEditingPublicNotes(false);
-                                                    }}
-                                                >
-                                                    Save Changes
-                                                </button>
-                                            </div>
-                                        </div>
-                                    ) : (
-                                        <div style={{ fontSize: 'var(--text-sm)', lineHeight: '1.6', color: 'var(--text-secondary)' }}>
-                                            {r.notes ? (
-                                                <ReactMarkdown 
-                                                    remarkPlugins={[remarkGfm]}
-                                                    components={{
-                                                        a: ({ node, ...props }) => <a {...props} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--primary-light)', textDecoration: 'underline' }} />
-                                                    }}
-                                                >
-                                                    {r.notes}
-                                                </ReactMarkdown>
-                                            ) : (isAdmin || (user && r.addedBy === user.uid)) ? (
-                                                <em style={{ color: 'var(--text-muted)', cursor: 'pointer' }} onClick={() => {
-                                                    setIsEditingPublicNotes(true);
-                                                    setTempPublicNotes('');
-                                                }}>Add public notes or instructions...</em>
-                                            ) : null}
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-
-                            {/* Internal Admin Notes (Editable in-place) */}
-                            {(isAdmin || (user && r.addedBy === user.uid)) && (
-                                <div className="detail-section animate-fade-in group">
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                        <h3 className="detail-section-title">🔒 Internal Curator Notes</h3>
-                                        {!isEditingAdminNotes && (
-                                            <button 
-                                                className="btn btn-secondary btn-sm transition-opacity"
-                                                onClick={() => {
-                                                    setIsEditingAdminNotes(true);
-                                                    setTempAdminNotes(r.adminNotes || '');
-                                                }}
-                                                style={{ padding: '2px 8px', fontSize: '10px' }}
-                                            >
-                                                ✏️ Edit
-                                            </button>
-                                        )}
-                                    </div>
-                                    <div className="glass-card" style={{ padding: 'var(--space-5)', background: 'rgba(249, 115, 22, 0.05)', border: '1px dashed var(--accent-orange)' }}>
-                                        {isEditingAdminNotes ? (
-                                            <div className="animate-in fade-in zoom-in duration-200">
-                                                <textarea
-                                                    className="form-textarea"
-                                                    value={tempAdminNotes}
-                                                    onChange={(e) => setTempAdminNotes(e.target.value)}
-                                                    placeholder="Internal curator notes..."
-                                                    rows={3}
-                                                    autoFocus
-                                                    style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}
-                                                />
-                                                <div style={{ display: 'flex', gap: 'var(--space-3)', marginTop: 'var(--space-3)', justifyContent: 'flex-end' }}>
-                                                    <button 
-                                                        className="btn btn-secondary btn-sm"
-                                                        onClick={() => setIsEditingAdminNotes(false)}
-                                                    >
-                                                        Cancel
-                                                    </button>
-                                                    <button 
-                                                        className="btn btn-primary btn-sm"
-                                                        onClick={async () => {
-                                                            await handleUpdateField('adminNotes', tempAdminNotes);
-                                                            setIsEditingAdminNotes(false);
-                                                        }}
-                                                    >
-                                                        Save
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        ) : (
-                                            <div style={{ fontSize: 'var(--text-xs)', lineHeight: '1.6', color: 'var(--text-muted)' }}>
-                                                {r.adminNotes ? (
-                                                    <ReactMarkdown 
-                                                        remarkPlugins={[remarkGfm]}
-                                                        components={{
-                                                            a: ({ node, ...props }) => <a {...props} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent-orange)', textDecoration: 'underline' }} />
-                                                        }}
-                                                    >
-                                                        {r.adminNotes}
-                                                    </ReactMarkdown>
-                                                ) : (
-                                                    <em style={{ cursor: 'pointer' }} onClick={() => {
-                                                        setIsEditingAdminNotes(true);
-                                                        setTempAdminNotes('');
-                                                    }}>Add internal notes...</em>
-                                                )}
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                            )}
-
-                            {noteContent && (
-                                <div className="detail-section">
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-4)' }}>
-                                        <h3 className="detail-section-title" style={{ margin: 0 }}>My Private Notes</h3>
-                                        <button 
-                                            className="btn btn-secondary btn-sm" 
-                                            onClick={() => setIsNoteModalOpen(true)}
-                                            style={{ padding: 'var(--space-2) var(--space-4)', fontSize: 'var(--text-xs)' }}
-                                        >
-                                            ✏️ Edit
-                                        </button>
-                                    </div>
-                                    <div className="glass-card" style={{ padding: 'var(--space-6)', borderLeft: '4px solid var(--accent-primary)', background: 'var(--bg-secondary)' }}>
-                                        <div style={{ fontSize: 'var(--text-sm)', color: 'var(--text-secondary)' }}>
-                                            <ReactMarkdown
+                                <div className="glass-card p-10 bg-white/5 border-white/10">
+                                    <div className="text-sm text-slate-400 leading-relaxed whitespace-pre-wrap text-left">
+                                        {r.notes ? (
+                                            <ReactMarkdown 
                                                 remarkPlugins={[remarkGfm]}
                                                 components={{
                                                     a: ({ node, ...props }) => <a {...props} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--primary-light)', textDecoration: 'underline' }} />
                                                 }}
                                             >
-                                                {noteContent}
+                                                {r.notes}
                                             </ReactMarkdown>
+                                        ) : 'No implementation notes provided.'}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Internal Curator Notes */}
+                            {(isAdmin || (user && r.addedBy === user.uid)) && (
+                                <div className="space-y-6">
+                                    <div className="flex items-center justify-between px-2">
+                                        <h3 className="text-xs font-black uppercase tracking-[0.3em] text-rose-400/60 flex items-center gap-3">
+                                            <Icons.shield size={14} className="text-rose-500" /> Internal Curator Intelligence
+                                        </h3>
+                                        {!isEditingAdminNotes && (
+                                            <button className="btn-ghost text-[10px] font-black uppercase tracking-widest text-rose-500" onClick={() => { setIsEditingAdminNotes(true); setTempAdminNotes(r.adminNotes || ''); }}>Edit Curator Data</button>
+                                        )}
+                                    </div>
+                                    <div className="glass-card p-10 bg-rose-500/5 border-rose-500/20">
+                                        {isEditingAdminNotes ? (
+                                            <div className="space-y-4">
+                                                <textarea className="form-textarea text-xs leading-relaxed bg-black/40 p-6 border-white/5 rounded-2xl w-full" rows={4} value={tempAdminNotes} onChange={(e) => setTempAdminNotes(e.target.value)} />
+                                                <div className="flex gap-3 justify-end">
+                                                    <button className="btn btn-primary" onClick={async () => { await handleUpdateField('adminNotes', tempAdminNotes); setIsEditingAdminNotes(false); }}>Save</button>
+                                                    <button className="btn btn-secondary" onClick={() => setIsEditingAdminNotes(false)}>Cancel</button>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div className="text-xs text-rose-300/60 leading-relaxed italic whitespace-pre-wrap text-left">
+                                                {r.adminNotes || 'No internal curated intelligence recorded.'}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Personal Insight Anchor */}
+                            {noteContent && (
+                                <div className="space-y-6">
+                                    <div className="flex items-center justify-between px-2">
+                                        <h3 className="text-xs font-black uppercase tracking-[0.3em] text-teal-400 flex items-center gap-3">
+                                            <Icons.user size={14} className="text-teal-400" /> Your Sovereign Insights
+                                        </h3>
+                                        <button className="btn-ghost text-[10px] font-black uppercase tracking-widest text-teal-400" onClick={() => setIsNoteModalOpen(true)}>Refine Insight</button>
+                                    </div>
+                                    <div className="glass-card p-10 bg-teal-500/5 border-teal-500/20">
+                                        <div className="text-sm text-slate-300 leading-relaxed font-medium text-left">
+                                            <ReactMarkdown remarkPlugins={[remarkGfm]}>{noteContent}</ReactMarkdown>
                                         </div>
                                     </div>
                                 </div>
                             )}
 
-                            {/* Community Section */}
-                            <CommentSection resourceId={resourceId} />
+                            {/* Community Engagement */}
+                            <div className="pt-10 border-t border-white/5">
+                                <CommentSection resourceId={resourceId} />
+                            </div>
                         </div>
 
-                        {/* Sidebar */}
-                        <aside className="space-y-10">
-                            {/* Access Control */}
-                            <div className="glass-card p-8">
-                                <div className="flex items-center gap-3 mb-6">
-                                    <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
-                                        <Icons.external size={16} />
-                                    </div>
-                                    <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-white/40">Access Protocol</h3>
-                                </div>
-                                
+                        {/* ── COLUMN 2: ACTION & INTELLIGENCE HUB ── */}
+                        <div className="lg:col-span-1 space-y-10">
+                            {/* Primary Actions */}
+                            <div className="space-y-4">
                                 <a 
                                     href={r.url} 
                                     target="_blank" 
                                     rel="noopener noreferrer"
-                                    className="block p-4 bg-white/5 border border-white/10 rounded-2xl hover:bg-white/10 transition-all group/link mb-4"
+                                    className="w-full py-5 bg-gradient-to-r from-teal-500 to-emerald-500 text-white rounded-2xl font-black text-sm transition-all flex items-center justify-center gap-3 shadow-2xl shadow-teal-500/20 hover:scale-[1.02] active:scale-95"
                                 >
-                                    <div className="flex justify-between items-center">
-                                        <div className="min-w-0">
-                                            <div className="text-white font-bold truncate">
-                                                {(() => {
-                                                    try {
-                                                        return r.url ? new URL(r.url).hostname : 'External Interface';
-                                                    } catch (e) {
-                                                        return r.url || 'External Interface';
-                                                    }
-                                                })()}
-                                            </div>
-                                            <div className="text-[10px] text-white/30 uppercase tracking-widest mt-1">Direct Interface</div>
-                                        </div>
-                                        <Icons.external size={16} className="text-white/20 group-hover/link:text-primary group-hover/link:translate-x-0.5 group-hover/link:-translate-y-0.5 transition-all" />
-                                    </div>
+                                    Open Resource <Icons.external size={18} strokeWidth={3} />
                                 </a>
-
-                                <button
-                                    onClick={(e) => { e.preventDefault(); navigator.clipboard.writeText(r.url); alert('URL Copied!'); }}
-                                    className="w-full py-3 bg-black/20 border border-white/5 rounded-xl text-[10px] font-black uppercase tracking-widest text-white/40 hover:text-white transition-all"
-                                >
-                                    📋 Copy Interface URL
-                                </button>
+                                
+                                <div className="grid grid-cols-2 gap-4">
+                                    <button 
+                                        onClick={() => setIsFlagModalOpen(true)}
+                                        className="py-4 bg-white/5 border border-white/10 rounded-2xl text-white/40 hover:bg-rose-500 hover:text-white hover:border-rose-400 transition-all flex items-center justify-center gap-3 font-black text-[10px] uppercase tracking-widest"
+                                    >
+                                        <Icons.report size={16} /> Report
+                                    </button>
+                                    <button 
+                                        onClick={handleSave}
+                                        className={`py-4 border rounded-2xl transition-all flex items-center justify-center gap-3 font-black text-[10px] uppercase tracking-widest ${isSaved ? 'bg-teal-500/20 border-teal-500/40 text-teal-400' : 'bg-white/5 border-white/10 text-white/40 hover:text-white hover:bg-white/10'}`}
+                                    >
+                                        {isSaved ? <Icons.check size={16} /> : <Icons.plus size={16} />} {isSaved ? 'Saved' : 'Save'}
+                                    </button>
+                                </div>
+                                
+                                <div className="flex gap-4">
+                                    <button onClick={() => setShareOpen(!shareOpen)} className="flex-1 py-4 bg-white/5 border border-white/10 rounded-2xl text-white/40 hover:text-white transition-all text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-3">
+                                        <Icons.share size={16} /> Share
+                                    </button>
+                                    {(isAdmin || (user && r.addedBy === user.uid)) && (
+                                        <button onClick={handleDelete} className="p-4 bg-rose-500/10 border border-rose-500/20 text-rose-500 rounded-2xl hover:bg-rose-500 hover:text-white transition-all">
+                                            <Icons.trash size={18} />
+                                        </button>
+                                    )}
+                                </div>
                             </div>
 
-                            {/* Classification */}
-                            <div className="glass-card p-8">
-                                <div className="flex items-center gap-3 mb-6">
-                                    <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
-                                        <Icons.rows size={16} />
+                            {/* Ratings & Metadata */}
+                            <div className="glass-card p-8 space-y-8 border-white/5">
+                                <div className="space-y-4">
+                                    <h4 className="text-[10px] font-black uppercase tracking-widest text-white/30">Community Evaluation</h4>
+                                    <div className="flex items-center justify-between">
+                                        <Rating value={r.averageRating || 0} count={r.reviewCount || 0} />
+                                        <div className="text-[10px] font-black text-teal-400 uppercase tracking-widest">Verified Metrics</div>
                                     </div>
-                                    <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-white/40">Classification</h3>
                                 </div>
+
+                                <div className="h-px bg-white/5" />
 
                                 <div className="space-y-6">
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-[10px] font-black uppercase tracking-widest text-white/30">Architecture</span>
+                                        <span className="text-xs font-bold text-white capitalize">{r.platform}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-[10px] font-black uppercase tracking-widest text-white/30">Pricing Model</span>
+                                        <span className="text-xs font-bold text-teal-400 capitalize">{r.pricing}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-[10px] font-black uppercase tracking-widest text-white/30">Intelligence Type</span>
+                                        <span className="text-xs font-bold text-white capitalize">{r.type}</span>
+                                    </div>
+                                </div>
+
+                                <div className="h-px bg-white/5" />
+
+                                <div className="space-y-4">
+                                    <h4 className="text-[10px] font-black uppercase tracking-widest text-white/30">Primary Categories</h4>
                                     <div className="flex flex-wrap gap-2">
-                                        {(isAdmin || (user && r.addedBy === user.uid)) ? (
-                                            <>
-                                                <select 
-                                                    className={`px-3 py-1.5 bg-primary/5 border border-primary/10 rounded-lg text-[10px] font-bold text-primary/80 outline-none cursor-pointer hover:bg-primary/10 transition-all appearance-none`}
-                                                    value={r.pricing} 
-                                                    onChange={(e) => handleUpdateField('pricing', e.target.value)}
-                                                >
-                                                    {['free', 'paid', 'freemium', 'enterprise'].map(opt => <option key={opt} value={opt} className="bg-background">{opt.toUpperCase()}</option>)}
-                                                </select>
-                                                <select 
-                                                    className="px-3 py-1.5 bg-white/5 border border-white/10 rounded-lg text-[10px] font-bold text-white/60 outline-none cursor-pointer hover:bg-white/10 transition-all appearance-none"
-                                                    value={r.platform} 
-                                                    onChange={(e) => handleUpdateField('platform', e.target.value)}
-                                                >
-                                                    {['web', 'ios', 'android', 'macos', 'windows', 'multi'].map(opt => <option key={opt} value={opt} className="bg-background">{opt.toUpperCase()}</option>)}
-                                                </select>
-                                            </>
-                                        ) : (
-                                            <>
-                                                <span className={`px-3 py-1.5 bg-primary/5 border border-primary/10 rounded-lg text-[10px] font-bold text-primary/80 uppercase`}>{r.pricing}</span>
-                                                <span className="px-3 py-1.5 bg-white/5 border border-white/10 rounded-lg text-[10px] font-bold text-white/60 uppercase">{r.platform}</span>
-                                            </>
+                                        {r.categories?.map(cat => (
+                                            <span key={cat} className="px-3 py-1 bg-white/5 border border-white/5 rounded-lg text-[10px] font-black text-white/60 uppercase tracking-tighter">
+                                                {cat}
+                                            </span>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                <div className="h-px bg-white/5" />
+
+                                <div className="space-y-4">
+                                    <h4 className="text-[10px] font-black uppercase tracking-widest text-white/30">Intelligence Tags</h4>
+                                    <div className="flex flex-wrap gap-2">
+                                        {r.tags?.map(tag => (
+                                            <span key={tag} className="text-[10px] font-bold text-white/30 italic hover:text-teal-400 transition-colors">#{tag}</span>
+                                        ))}
+                                        {(isAdmin || (user && r.addedBy === user.uid)) && (
+                                            <button onClick={() => setIsTagInputOpen(true)} className="w-6 h-6 rounded bg-white/5 flex items-center justify-center text-white/20 hover:text-white transition-all">+</button>
                                         )}
-                                    </div>
-
-                                    <div>
-                                        <div className="text-[9px] font-black uppercase tracking-widest text-white/20 mb-3">Topic Categories</div>
-                                        <div className="flex flex-wrap gap-2">
-                                            {r.categories?.map(cat => (
-                                                <button
-                                                    key={cat}
-                                                    onClick={() => {(isAdmin || (user && r.addedBy === user.uid)) ? handleRemoveCategory(cat) : null}}
-                                                    className={`px-3 py-1.5 bg-primary/5 border border-primary/10 rounded-lg text-[10px] font-bold text-primary/80 transition-all ${ (isAdmin || (user && r.addedBy === user.uid)) ? 'hover:border-red-500/40 hover:text-red-400' : ''}`}
-                                                >
-                                                    {cat}
-                                                </button>
-                                            ))}
-                                            {(isAdmin || (user && r.addedBy === user.uid)) && (
-                                               <button onClick={() => setIsCategoryInputOpen(true)} className="px-3 py-1.5 bg-white/5 border border-white/10 rounded-lg text-[10px] font-bold text-white/40 hover:text-white">+</button>
-                                            )}
-                                        </div>
-                                    </div>
-
-                                    <div>
-                                        <div className="text-[9px] font-black uppercase tracking-widest text-white/20 mb-3">Community Tags</div>
-                                        <div className="flex flex-wrap gap-2">
-                                            {r.tags?.map(tag => (
-                                                <button 
-                                                    key={tag} 
-                                                    onClick={() => {(isAdmin || (user && r.addedBy === user.uid)) ? handleRemoveTag(tag) : null}}
-                                                    className={`text-[10px] font-bold text-white/30 italic hover:text-primary transition-colors`}
-                                                >
-                                                    #{tag}
-                                                </button>
-                                            ))}
-                                            {(isAdmin || (user && r.addedBy === user.uid)) && (
-                                                <button onClick={() => setIsTagInputOpen(true)} className="w-6 h-6 rounded bg-white/5 flex items-center justify-center text-white/20 hover:text-white transition-all">+</button>
-                                            )}
-                                        </div>
                                     </div>
                                 </div>
                             </div>
 
-                            {/* Management Protocol (Curator Only) */}
+                            {/* Curation Workbench */}
                             {(isAdmin || (user && r.addedBy === user.uid)) && (
-                                <div className="glass-card p-8 border-primary/20 bg-primary/5">
+                                <div className="glass-card p-8 border-teal-500/20 bg-teal-500/5">
                                     <div className="flex items-center gap-3 mb-6">
-                                        <div className="w-8 h-8 rounded-lg bg-primary/20 flex items-center justify-center text-primary">
+                                        <div className="w-8 h-8 rounded-lg bg-teal-500/20 flex items-center justify-center text-teal-500">
                                             <Icons.settings size={16} />
                                         </div>
-                                        <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">Curation Workbench</h3>
+                                        <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-teal-400">Curation Workbench</h3>
                                     </div>
                                     <div className="space-y-3">
                                         <Link href={`/resources/${r.id}/edit`} className="flex items-center justify-between p-4 bg-white/5 border border-white/10 rounded-2xl hover:bg-white/10 transition-all group/edit">
                                             <span className="text-[10px] font-black uppercase tracking-widest text-white/60 group-hover/edit:text-white">Hard Refactor</span>
-                                            <Icons.edit size={14} className="text-white/20 group-hover/edit:text-primary" />
+                                            <Icons.edit size={14} className="text-white/20 group-hover/edit:text-teal-400" />
                                         </Link>
-                                        <button 
-                                            onClick={handleDelete}
-                                            disabled={deleting}
-                                            className="w-full flex items-center justify-between p-4 bg-red-500/5 border border-red-500/10 rounded-2xl hover:bg-red-500/10 transition-all group/del"
-                                        >
-                                            <span className="text-[10px] font-black uppercase tracking-widest text-red-400/60 group-hover/del:text-red-400">{deleting ? 'Terminating...' : 'Decommission Asset'}</span>
-                                            <Icons.delete size={14} className="text-red-400/20 group-hover/del:text-red-400" />
-                                        </button>
                                     </div>
                                 </div>
                             )}
 
-                            {/* Attribution Stats */}
+                            {/* Intelligence Origin */}
                             <div className="glass-card p-8">
                                 <div className="flex items-center gap-3 mb-6">
-                                    <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
+                                    <div className="w-8 h-8 rounded-lg bg-teal-500/10 flex items-center justify-center text-teal-500">
                                         <Icons.user size={16} />
                                     </div>
                                     <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-white/40">Intelligence Origin</h3>
@@ -1499,7 +1294,7 @@ return (
                                     {deduplicateAttributions(r.attributions || []).map((attr, idx) => (
                                         <div key={idx} className="flex items-center justify-between p-3 bg-white/5 border border-white/5 rounded-xl group/attr">
                                             <div className="flex items-center gap-3">
-                                                <div className="w-8 h-8 rounded-lg bg-primary text-white flex items-center justify-center font-black text-xs shadow-lg shadow-primary/20 overflow-hidden">
+                                                <div className="w-8 h-8 rounded-lg bg-teal-500 text-white flex items-center justify-center font-black text-xs shadow-lg shadow-teal-500/20 overflow-hidden">
                                                     {attr.photoURL ? (
                                                         <img src={attr.photoURL} alt={attr.name} className="w-full h-full object-cover" />
                                                     ) : (
@@ -1507,39 +1302,19 @@ return (
                                                     )}
                                                 </div>
                                                 <div className="min-w-0">
-                                                    {attr.userId ? (
-                                                        <Link href={`/creators/${attr.userId}`} className="text-xs font-bold text-white hover:text-primary transition-colors truncate block">
-                                                            {attr.name}
-                                                        </Link>
-                                                    ) : attr.url ? (
-                                                        <a href={attr.url} target="_blank" rel="noopener noreferrer" className="text-xs font-bold text-white hover:text-primary transition-colors truncate block">
-                                                            {attr.name}
-                                                        </a>
-                                                    ) : (
-                                                        <div className="text-xs font-bold text-white truncate">{attr.name}</div>
-                                                    )}
+                                                    <div className="text-xs font-bold text-white truncate">{attr.name}</div>
                                                     <div className="text-[8px] font-black uppercase text-white/20">{attr.role || 'Contributor'}</div>
                                                 </div>
                                             </div>
-                                            {(attr.userId || attr.url) && (
-                                                <Link 
-                                                    href={attr.userId ? `/creators/${attr.userId}` : attr.url!} 
-                                                    className="p-2 text-white/20 hover:text-primary transition-all group-hover/attr:translate-x-1"
-                                                    target={attr.userId ? undefined : "_blank"}
-                                                >
-                                                    {attr.userId ? <Icons.arrowRight size={14} /> : <Icons.external size={14} />}
-                                                </Link>
-                                            )}
                                         </div>
                                     ))}
                                 </div>
                             </div>
-                        </aside>
+                        </div>
                     </div>
                 </main>
             </div>
-            
-            {/* Note Editor Modal */}
+        {/* Note Editor Modal */}
             <Modal
                 isOpen={isNoteModalOpen}
                 onClose={() => {
@@ -1834,6 +1609,32 @@ return (
                 />
             )}
 
+            <ConfirmationModal
+                isOpen={fixModalOpen}
+                title="Initiate Sovereign Active Fix"
+                message={`Are you sure you want to trigger the automated remediation protocol for this issue? This will perform the following predictive action: \n\n"${predictiveAction}"`}
+                confirmText="Trigger Fix"
+                onConfirm={async () => {
+                    setFixModalOpen(false);
+                    setActiveFixPending(true);
+                    try {
+                        const result = await triggerTicketFixAction(effectiveTicketId!);
+                        if (result.success) {
+                            addToast('Active Fix applied successfully. Systemic integrity restored.', 'success');
+                            queryClient.invalidateQueries({ queryKey: ['resource', resourceId] });
+                            queryClient.invalidateQueries({ queryKey: ['ticket', effectiveTicketId] });
+                            router.refresh();
+                        } else {
+                            addToast(`Fix failed: ${result.message}`, 'error');
+                        }
+                    } catch (error) {
+                        addToast('Critical error triggering fix protocol.', 'error');
+                    } finally {
+                        setActiveFixPending(false);
+                    }
+                }}
+                onClose={() => setFixModalOpen(false)}
+            />
             <Footer />
         </div>
     );

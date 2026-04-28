@@ -27,12 +27,13 @@ export default function CreatorsDirectoryClient({ featured, creators }: Props) {
     const [sortBy, setSortBy] = useState<'authored' | 'curated' | 'total' | 'newest' | 'name'>('authored');
     const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
     const [showVerifiedOnly, setShowVerifiedOnly] = useState(false);
-    const [viewMode, setViewMode] = useState<'grid' | 'wide' | 'list' | 'table' | 'small'>('grid');
+    const [isFeaturedOpen, setIsFeaturedOpen] = useState(false);
+    const [viewMode, setViewMode] = useState<'grid-2' | 'grid-3' | 'grid-4' | 'grid-5' | 'grid-6' | 'list' | 'table'>('grid-3');
 
     // Preference Persistence
     useEffect(() => {
         const savedMode = localStorage.getItem('creators_view_mode');
-        if (savedMode && ['grid', 'wide', 'list', 'table', 'small'].includes(savedMode)) {
+        if (savedMode && ['grid-2', 'grid-3', 'grid-4', 'list', 'table'].includes(savedMode)) {
             setViewMode(savedMode as any);
         }
     }, []);
@@ -202,42 +203,30 @@ export default function CreatorsDirectoryClient({ featured, creators }: Props) {
                             
                             <div className="h-8 w-px bg-white/5 hidden md:block"></div>
 
-                            {/* View Mode Switcher */}
-                            <div className="flex p-1 bg-black/40 rounded-xl">
-                                <button 
-                                    onClick={() => setViewMode('grid')}
-                                    className={`p-2 rounded-lg transition-all ${viewMode === 'grid' ? 'bg-white/10 text-white shadow-inner' : 'text-white/20 hover:text-white/40'}`}
-                                    title="Grid View"
-                                >
-                                    <Icons.grid size={18} />
-                                </button>
-                                <button 
-                                    onClick={() => setViewMode('wide')}
-                                    className={`p-2 rounded-lg transition-all ${viewMode === 'wide' ? 'bg-white/10 text-white shadow-inner' : 'text-white/20 hover:text-white/40'}`}
-                                    title="Wide View (2 per row)"
-                                >
-                                    <Icons.stack size={18} />
-                                </button>
-                                <button 
-                                    onClick={() => setViewMode('small')}
-                                    className={`p-2 rounded-lg transition-all ${viewMode === 'small' ? 'bg-white/10 text-white shadow-inner' : 'text-white/20 hover:text-white/40'}`}
-                                    title="Compact View"
-                                >
-                                    <Icons.feed size={18} />
-                                </button>
+                            {/* Density Selector Architecture */}
+                            <div className="flex p-1 bg-black/40 rounded-xl border border-white/5">
+                                {(['grid-2', 'grid-3', 'grid-4'] as any[]).map(m => (
+                                    <button 
+                                        key={m}
+                                        onClick={() => setViewMode(m)}
+                                        className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase transition-all ${viewMode === m ? 'bg-white/10 text-white shadow-inner' : 'text-white/20 hover:text-white'}`}
+                                    >
+                                        {m.split('-')[1]}C
+                                    </button>
+                                ))}
                                 <button 
                                     onClick={() => setViewMode('list')}
-                                    className={`p-2 rounded-lg transition-all ${viewMode === 'list' ? 'bg-white/10 text-white shadow-inner' : 'text-white/20 hover:text-white/40'}`}
+                                    className={`p-1.5 rounded-lg transition-all ${viewMode === 'list' ? 'bg-white/10 text-white shadow-inner' : 'text-white/20 hover:text-white'}`}
                                     title="List View"
                                 >
-                                    <Icons.text size={18} />
+                                    <Icons.list className="w-4 h-4" />
                                 </button>
                                 <button 
                                     onClick={() => setViewMode('table')}
-                                    className={`p-2 rounded-lg transition-all ${viewMode === 'table' ? 'bg-white/10 text-white shadow-inner' : 'text-white/20 hover:text-white/40'}`}
+                                    className={`p-1.5 rounded-lg transition-all ${viewMode === 'table' ? 'bg-white/10 text-white shadow-inner' : 'text-white/20 hover:text-white'}`}
                                     title="Table View"
                                 >
-                                    <Icons.rows size={18} />
+                                    <Icons.rows className="w-4 h-4" />
                                 </button>
                             </div>
                         </div>
@@ -320,16 +309,34 @@ export default function CreatorsDirectoryClient({ featured, creators }: Props) {
                         </div>
                     ) : (
                         <div className="space-y-12">
-                            {/* Featured (only show in Grid view as a special section) */}
-                            {featured.length > 0 && !search && filterType === 'all' && viewMode === 'grid' && (
-                                <section>
-                                    <div className="flex items-center gap-4 mb-8">
-                                        <h2 className="text-[11px] font-black uppercase tracking-[0.4em] text-primary">Featured Sources</h2>
-                                        <div className="flex-1 h-px bg-gradient-to-r from-primary/25 to-transparent" />
-                                    </div>
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                                        {featured.map(c => <CreatorCard key={c.uid} creator={c} featured viewMode="grid" />)}
-                                    </div>
+                            {featured.length > 0 && !search && filterType === 'all' && viewMode.startsWith('grid') && (
+                                <section className="mb-12">
+                                    <button 
+                                        onClick={() => setIsFeaturedOpen(!isFeaturedOpen)}
+                                        className="flex items-center gap-4 mb-8 w-full group/toggle text-left"
+                                    >
+                                        <h2 className="text-[11px] font-black uppercase tracking-[0.4em] text-primary group-hover:text-primary transition-colors">Featured Sources</h2>
+                                        <div className="flex-1 h-px bg-gradient-to-r from-primary/25 to-transparent opacity-50" />
+                                        <div className={`p-2 rounded-xl bg-white/5 border border-white/10 text-white/20 group-hover:text-primary transition-all ${isFeaturedOpen ? 'rotate-180' : ''}`}>
+                                            <Icons.chevronDown size={14} />
+                                        </div>
+                                    </button>
+                                    
+                                    {isFeaturedOpen && (
+                                        <div className={`grid gap-4 animate-fade-in-up ${
+                                            viewMode === 'grid-2' ? 'grid-cols-1 sm:grid-cols-2' : 
+                                            'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3'
+                                        }`}>
+                                            {featured.map(c => (
+                                                <CreatorCard 
+                                                    key={c.uid} 
+                                                    creator={c} 
+                                                    featured 
+                                                    viewMode={viewMode === 'list' ? 'list' : (viewMode === 'grid-4') ? 'small' : 'grid'} 
+                                                />
+                                            ))}
+                                        </div>
+                                    )}
                                 </section>
                             )}
 
@@ -402,13 +409,21 @@ export default function CreatorsDirectoryClient({ featured, creators }: Props) {
                                         </table>
                                     </div>
                                 ) : (
-                                    <div className={`grid gap-6 ${
-                                        viewMode === 'grid' ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3' : 
-                                        viewMode === 'wide' ? 'grid-cols-1 md:grid-cols-2' :
-                                        viewMode === 'small' ? 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5' :
+                                    <div className={`grid ${
+                                        (viewMode === 'grid-4') ? 'gap-4' : 'gap-6'
+                                    } ${
+                                        viewMode === 'grid-2' ? 'grid-cols-1 md:grid-cols-2' :
+                                        viewMode === 'grid-3' ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3' : 
+                                        viewMode === 'grid-4' ? 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-4' :
                                         'grid-cols-1'
                                     }`}>
-                                        {filtered.map(c => <CreatorCard key={c.uid} creator={c} viewMode={viewMode} />)}
+                                        {filtered.map(c => (
+                                            <CreatorCard 
+                                                key={c.uid} 
+                                                creator={c} 
+                                                viewMode={viewMode === 'list' ? 'list' : (viewMode === 'grid-4') ? 'small' : (viewMode === 'grid-5' || viewMode === 'grid-6') ? 'minimal' : 'grid'} 
+                                            />
+                                        ))}
                                     </div>
                                 )}
                             </section>
@@ -421,7 +436,7 @@ export default function CreatorsDirectoryClient({ featured, creators }: Props) {
     );
 }
 
-function CreatorCard({ creator, featured = false, viewMode = 'grid' }: { creator: UserProfile; featured?: boolean, viewMode?: 'grid' | 'wide' | 'list' | 'table' | 'small' }) {
+function CreatorCard({ creator, featured = false, viewMode = 'grid' }: { creator: UserProfile; featured?: boolean, viewMode?: 'grid' | 'list' | 'small' | 'minimal' }) {
     const initials = creator.displayName
         .split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
 
@@ -429,55 +444,94 @@ function CreatorCard({ creator, featured = false, viewMode = 'grid' }: { creator
         return (
             <Link
                 href={`/creators/${creator.slug || creator.uid}`}
-                className="group flex flex-col p-4 rounded-2xl bg-white/[0.03] border border-white/10 hover:border-primary/30 hover:bg-white/[0.05] transition-all h-full relative"
+                className="group flex flex-col !p-0 rounded-2xl bg-white/[0.03] border border-white/10 hover:border-primary/30 hover:bg-white/[0.05] transition-all h-full relative"
             >
-                 {/* Quick Actions (Hover Only) */}
-                <div className="absolute top-2 right-2 z-20 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button 
-                        onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            navigator.clipboard.writeText(`${window.location.origin}/creators/${creator.slug || creator.uid}`);
-                            alert(`Link copied!`);
-                        }}
-                        className="p-1.5 bg-black/60 backdrop-blur-xl border border-white/10 rounded-lg text-white/40 hover:text-white hover:bg-primary transition-all"
-                    >
-                        <Icons.share size={10} />
-                    </button>
-                </div>
+                <div className="p-2 flex flex-col h-full">
+                    {/* Quick Actions (Hover Only) */}
+                    <div className="absolute top-2 right-2 z-20 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button 
+                            onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                navigator.clipboard.writeText(`${window.location.origin}/creators/${creator.slug || creator.uid}`);
+                                alert(`Link copied!`);
+                            }}
+                            className="p-1.5 bg-black/60 backdrop-blur-xl border border-white/10 rounded-lg text-white/40 hover:text-white hover:bg-primary transition-all"
+                        >
+                            <Icons.share size={10} />
+                        </button>
+                    </div>
 
-                <div className="flex items-start gap-3 mb-3">
-                    <div className="relative w-12 h-12 rounded-xl overflow-hidden shrink-0">
-                        {creator.photoURL ? (
-                            <img src={creator.photoURL} alt="" className="w-full h-full object-cover" />
-                        ) : (
-                            <div className="w-full h-full bg-primary/20 flex items-center justify-center text-xs font-black text-primary">
-                                {initials}
-                            </div>
-                        )}
-                        {creator.isVerified && (
-                            <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-emerald-500 rounded-full flex items-center justify-center border-2 border-background">
-                                <Icons.check size={8} strokeWidth={4} />
-                            </div>
-                        )}
+                    <div className="flex items-start gap-1.5 mb-1.5">
+                        <div className="relative w-12 h-12 rounded-xl overflow-hidden shrink-0">
+                            {creator.photoURL ? (
+                                <img src={creator.photoURL} alt="" className="w-full h-full object-cover" />
+                            ) : (
+                                <div className="w-full h-full bg-primary/20 flex items-center justify-center text-xs font-black text-primary">
+                                    {initials}
+                                </div>
+                            )}
+                            {creator.isVerified && (
+                                <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-emerald-500 rounded-full flex items-center justify-center border-2 border-background">
+                                    <Icons.check size={8} strokeWidth={4} />
+                                </div>
+                            )}
+                        </div>
+                        <div className="min-w-0">
+                            <h3 className="text-xs font-bold text-white group-hover:text-primary transition-colors truncate">{creator.displayName}</h3>
+                            <div className="text-[9px] text-white/20 font-black uppercase tracking-tighter truncate">/{creator.slug || 'user'}</div>
+                        </div>
                     </div>
-                    <div className="min-w-0">
-                        <h3 className="text-xs font-bold text-white group-hover:text-primary transition-colors truncate">{creator.displayName}</h3>
-                        <div className="text-[9px] text-white/20 font-black uppercase tracking-tighter truncate">/{creator.slug || 'user'}</div>
+
+                    <div className="mt-auto flex items-center justify-between pt-3 border-t border-white/5">
+                        <div className="flex items-center gap-1.5">
+                            <Icons.wand size={10} className="text-primary/50" />
+                            <span className="text-[10px] font-black text-white/60">{creator.authoredCount || 0}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                            <Icons.grid size={10} className="text-emerald-400/50" />
+                            <span className="text-[10px] font-black text-white/60">{creator.curatedCount || 0}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 text-primary/40">
+                             {profileTypeIcon(creator.profileType, 10)}
+                        </div>
                     </div>
                 </div>
+            </Link>
+        )
+    }
 
-                <div className="mt-auto flex items-center justify-between pt-3 border-t border-white/5">
-                    <div className="flex items-center gap-1.5">
-                        <Icons.wand size={10} className="text-primary/50" />
-                        <span className="text-[10px] font-black text-white/60">{creator.authoredCount || 0}</span>
+    if (viewMode === 'minimal') {
+        return (
+            <Link
+                href={`/creators/${creator.slug || creator.uid}`}
+                className="group flex flex-col !p-0 rounded-lg bg-white/[0.03] border border-white/10 hover:border-primary/30 hover:bg-white/[0.05] transition-all h-full relative border-t-2 border-t-transparent hover:border-t-primary"
+            >
+                <div className="p-0.5 flex flex-col h-full">
+                    <div className="flex items-start gap-1 mb-1">
+                        <div className="relative w-7 h-7 rounded-md overflow-hidden shrink-0">
+                            {creator.photoURL ? (
+                                <img src={creator.photoURL} alt="" className="w-full h-full object-cover" />
+                            ) : (
+                                <div className="w-full h-full bg-primary/20 flex items-center justify-center text-[8px] font-black text-primary">
+                                    {initials}
+                                </div>
+                            )}
+                        </div>
+                        <div className="min-w-0">
+                            <h3 className="text-[9px] font-bold text-white group-hover:text-primary transition-colors truncate leading-tight">{creator.displayName}</h3>
+                            <div className="text-[7px] text-white/20 font-black uppercase tracking-tighter truncate">/{creator.slug || 'user'}</div>
+                        </div>
                     </div>
-                    <div className="flex items-center gap-1.5">
-                        <Icons.grid size={10} className="text-emerald-400/50" />
-                        <span className="text-[10px] font-black text-white/60">{creator.curatedCount || 0}</span>
-                    </div>
-                    <div className="flex items-center gap-1.5 text-primary/40">
-                         {profileTypeIcon(creator.profileType, 10)}
+
+                    <div className="mt-auto flex items-center justify-between pt-1 border-t border-white/5">
+                        <div className="flex items-center gap-1">
+                            <Icons.wand size={7} className="text-primary/50" />
+                            <span className="text-[7px] font-black text-white/60">{creator.authoredCount || 0}</span>
+                        </div>
+                        <div className="flex items-center gap-1 text-primary/40">
+                             {profileTypeIcon(creator.profileType, 7)}
+                        </div>
                     </div>
                 </div>
             </Link>
@@ -622,7 +676,7 @@ function CreatorCard({ creator, featured = false, viewMode = 'grid' }: { creator
     // Premium Grid Mode
     return (
         <div
-            className={`group glass-card relative overflow-hidden transition-all duration-300 flex flex-col hover:border-primary/30 shadow-2xl ${
+            className={`group glass-card !p-0 relative overflow-hidden transition-all duration-300 flex flex-col hover:border-primary/30 shadow-2xl ${
                 featured ? 'bg-primary/5 ring-1 ring-primary/20' : ''
             }`}
         >
@@ -636,8 +690,8 @@ function CreatorCard({ creator, featured = false, viewMode = 'grid' }: { creator
                 </button>
             </div>
 
-            <Link href={`/creators/${creator.slug || creator.uid}`} className="p-6 flex flex-col h-full">
-                <div className="flex items-start gap-4 mb-6">
+            <Link href={`/creators/${creator.slug || creator.uid}`} className="p-3 flex flex-col h-full">
+                <div className="flex items-start gap-2 mb-3">
                     <div className="relative flex-shrink-0">
                         <div className="w-16 h-16 rounded-[1.25rem] p-[2px] bg-gradient-to-br from-white/20 to-transparent shadow-2xl">
                             <div className="w-full h-full rounded-[1.15rem] overflow-hidden bg-background">

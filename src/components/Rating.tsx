@@ -5,7 +5,7 @@ import React from 'react';
 interface RatingProps {
     value: number;
     count?: number;
-    size?: 'sm' | 'md' | 'lg';
+    size?: 'xs' | 'sm' | 'md' | 'lg';
     showLabel?: boolean;
 }
 
@@ -14,7 +14,7 @@ export default function Rating({ value, count, size = 'md', showLabel = true }: 
     const hasHalfStar = value % 1 >= 0.5;
     const emptyStars = 5 - fullStars - (hasHalfStar ? 1 : 0);
 
-    const sizeClass = size === 'sm' ? 'text-xs' : size === 'lg' ? 'text-lg' : 'text-base';
+    const sizeClass = size === 'xs' ? 'text-[8px] gap-0.5' : size === 'sm' ? 'text-xs' : size === 'lg' ? 'text-lg' : 'text-base';
 
     return (
         <div className={`flex items-center gap-1.5 ${sizeClass}`}>

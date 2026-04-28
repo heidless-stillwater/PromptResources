@@ -34,6 +34,7 @@ export async function POST(req: NextRequest) {
             // 1. Update Resource
             await adminDb.collection('resources').doc(resourceId).update({
                 status: 'published',
+                activeTicketId: null,
                 reportType: null,
                 updatedAt: new Date()
             });
@@ -57,7 +58,9 @@ export async function POST(req: NextRequest) {
         } else if (action === 'archive') {
             // 1. Update Resource
             await adminDb.collection('resources').doc(resourceId).update({
-                status: 'tainted',
+                status: 'archived',
+                activeTicketId: null,
+                reportType: null,
                 updatedAt: new Date()
             });
 
@@ -69,6 +72,25 @@ export async function POST(req: NextRequest) {
                 'remediation.resolvedBy': decodedToken.email,
                 'remediation.notes': `Resource archived as "tainted". Strike remains active.`
             });
+        } else if (action === 'dismiss') {
+            // Clear the ticket association from the resource
+            await adminDb.collection('resources').doc(resourceId).update({
+                activeTicketId: null,
+                reportType: null,
+                updatedAt: new Date()
+            });
+            // Also close the ticket in Accreditation (silently - it may already be deleted)
+            try {
+                await accreditationDb.collection('tickets').doc(ticketId).update({
+                    status: 'wont_fix',
+                    updatedAt: new Date(),
+                    'remediation.resolvedAt': new Date(),
+                    'remediation.resolvedBy': decodedToken.email,
+                    'remediation.notes': 'Feedback acknowledged and dismissed by admin.'
+                });
+            } catch (_) {
+                // Ticket may already be deleted — that's fine
+            }
         } else {
             return NextResponse.json({ success: false, error: 'Invalid action' }, { status: 400 });
         }

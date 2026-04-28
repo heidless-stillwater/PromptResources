@@ -1,21 +1,19 @@
-# Session Snapshot — 2026-04-12
+# Session Snapshot — 2026-04-27
 
 ## ✅ Completed This Session
-- **Architectural State Rewind & Baking**: Variations promoted to "Hero" now automatically restore and "bake" their specific input variables into the Raw Prompt defaults (`{{key:value}}`).
-- **Hero State Deep Sync Bug Fix**: Resolved data collision where input fields and the raw template failed to visually update to reflect the newly promoted node parameters. The system now overrides inputs perfectly and automatically focuses the Architect Tab immediately.
-- **Legacy Variation Backwards Compatibility**: Designed a fallback mode for older generations that lack mapped variables. Promoting an older generic image now elegantly collapses the raw prompt to the literal string while cleanly dropping floating variable tags.
-- **Registry Modernization**: Implemented multi-view navigation system including high-density grids (up to 6 columns) and a data-focused List view.
-- **Registry Synchronization**: Built a manual "Sync Registry" function and effectively removed restrictive filters incorrectly purging "Blueprint Exemplar" clone tasks.
+- **Harden Active Fix Orchestration**: Synchronized resolution logic between `PromptResources` and `PromptAccreditation` to ensure tickets are correctly marked as `resolved` across both databases.
+- **Banner Success Resolution**: Updated UI banners (Amber and Rose) to show a teal "Compliance Resolved" state with a "Dismiss" option for admins and direct links to final reports.
+- **Moderation Protocol Hardening**: Reordered ticket creation to happen before resource linking to prevent 404 race conditions and added verbose file-based logging for automated remediation.
 
 ## 📍 Current State
-- **Primary Logic**: `PromptMaster.tsx` in `PromptMasterSPA` handles the newly fortified Hero promotion workflow and navigation structure.
-- **Tests**: Manual UI testing completed, Architect tab auto-focuses appropriately.
-- **Build**: All Local environments (`PromptTool`, `PromptMasterSPA`, `PromptResources`) are active unhindered.
+- **Last file changed:** `src/lib/services/moderation-service.ts`
+- **Tests:** Manual verification of ticket resolution flow in progress.
+- **Build:** Local dev server on port 3002 is active.
 
 ## ▶️ Next Action
 > Start here when you resume:
-> 1. Continue refinement of Blueprint Master application logic if further workflow automation features are desired.
-> 2. Look into optimization of loading massive libraries in ultra-dense (Grid 6) mode if latency is noted.
+> 1. Verify the "Dismiss Resolution" button correctly clears the `activeTicketId` on a resolved resource.
+> 2. Check the `debug_fix.log` for any systemic errors during the next automated fix trigger.
 
 ## ⚠️ Open Issues / Blockers
-- None at this time.
+- **"Initiate Active Fix" lag**: Investigating why some automated fixes may not be immediately reflected in the ticket status (added logging to diagnose).

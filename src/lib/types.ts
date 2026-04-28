@@ -98,6 +98,7 @@ export interface Resource {
     adminNotes?: string | null;   // Internal administrative-only notes
     averageRating?: number;
     reviewCount?: number;
+    activeTicketId?: string | null; // ID of the currently open compliance ticket
 }
 
 export interface Comment {

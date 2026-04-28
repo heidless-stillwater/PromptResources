@@ -1,4 +1,4 @@
-import { adminDb, toolDbAdmin } from '@/lib/firebase-admin';
+import { adminDb, toolDbAdmin, accreditationDb } from '@/lib/firebase-admin';
 import { Resource } from '@/lib/types';
 import { Filter } from 'firebase-admin/firestore';
 import { extractYouTubeId } from '@/lib/youtube';
@@ -260,6 +260,39 @@ export async function getResourcesAction(options: GetResourcesOptions) {
             creator: r.addedBy ? creatorProfiles[r.addedBy] : { displayName: 'Community' }
         }));
 
+        // ── ENRICH WITH ACTIVE TICKETS ──
+        const resourceIds = resourcesWithCreators.map(r => r.id);
+        if (resourceIds.length > 0) {
+            try {
+                // Fetch all open tickets for these resources in chunks of 10 (Firestore limit)
+                const ticketMap: Record<string, string> = {};
+                const chunks = [];
+                for (let i = 0; i < resourceIds.length; i += 10) {
+                    chunks.push(resourceIds.slice(i, i + 10));
+                }
+
+                await Promise.all(chunks.map(async (chunk) => {
+                    const ticketsSnap = await accreditationDb.collection('tickets')
+                        .where('remediation.resourceId', 'in', chunk)
+                        .where('status', 'in', ['open', 'in_progress'])
+                        .get();
+                    
+                    ticketsSnap.docs.forEach(doc => {
+                        const data = doc.data();
+                        if (data.remediation?.resourceId) {
+                            ticketMap[data.remediation.resourceId] = doc.id;
+                        }
+                    });
+                }));
+
+                resourcesWithCreators.forEach((r: any) => {
+                    r.activeTicketId = ticketMap[r.id] || null;
+                });
+            } catch (ticketError) {
+                console.error('[ResourcesServer] Failed to enrich with tickets:', ticketError);
+            }
+        }
+
         return {
             resources: resourcesWithCreators as Resource[],
             total,
@@ -365,6 +398,21 @@ export async function getResourceById(id: string) {
                 }
                 return attr;
             });
+        }
+
+        // --- ENRICH WITH ACTIVE TICKET ---
+        try {
+            const ticketsSnap = await accreditationDb.collection('tickets')
+                .where('remediation.resourceId', '==', id)
+                .where('status', 'in', ['open', 'in_progress'])
+                .limit(1)
+                .get();
+            
+            if (!ticketsSnap.empty) {
+                resource.activeTicketId = ticketsSnap.docs[0].id;
+            }
+        } catch (ticketError) {
+            console.error('[ResourcesServer] Failed to enrich detail with ticket:', ticketError);
         }
 
         return resource;

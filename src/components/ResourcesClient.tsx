@@ -73,10 +73,19 @@ export default function ResourcesClient({
         searchParams.get('creators') ? searchParams.get('creators')!.split(',').filter(Boolean) : []
     );
     const [registryActive, setRegistryActive] = useState(searchParams.get('registryActive') !== 'false');
-    const [viewMode, setViewMode] = useState<'grid' | 'list' | 'small'>('grid');
-    const [gridColumns, setGridColumns] = useState<number>(3);
-    const [colsOpen, setColsOpen] = useState(false);
-    const colsRef = useRef<HTMLDivElement>(null);
+    const [viewMode, setViewMode] = useState<'grid-2' | 'grid-3' | 'grid-4' | 'grid-5' | 'grid-6' | 'list'>('grid-3');
+    
+    // Preference Persistence
+    useEffect(() => {
+        const savedMode = localStorage.getItem('resources_view_mode');
+        if (savedMode && ['grid-2', 'grid-3', 'grid-4', 'grid-5', 'grid-6', 'list'].includes(savedMode)) {
+            setViewMode(savedMode as any);
+        }
+    }, []);
+
+    useEffect(() => {
+        localStorage.setItem('resources_view_mode', viewMode);
+    }, [viewMode]);
 
     // Unified filter sync to URL
     const syncFilters = useCallback((newFilters: any) => {
@@ -99,18 +108,7 @@ export default function ResourcesClient({
         router.push(`/resources?${params.toString()}`, { scroll: false });
     }, [router, searchParams]);
 
-    // Handle clicks outside of collapsible column selector
-    useEffect(() => {
-        function handleClickOutside(event: MouseEvent) {
-            if (colsRef.current && !colsRef.current.contains(event.target as Node)) {
-                setColsOpen(false);
-            }
-        }
-        document.addEventListener('mousedown', handleClickOutside);
-        return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, []);
-
-    // Sync state from server props when they change
+    // Sync filters from URL
     useEffect(() => {
         setResources(initialResources);
         setCurrentPage(parseInt(searchParams.get('page') || '1'));
@@ -383,53 +381,25 @@ export default function ResourcesClient({
                             
                             <div className="h-8 w-px bg-white/5 hidden md:block"></div>
 
-                            {/* View Mode Switcher */}
+                            {/* Density Selector Architecture */}
                             <div className="flex p-1 bg-black/40 rounded-xl border border-white/5">
+                                {(['grid-2', 'grid-3', 'grid-4', 'grid-5', 'grid-6'] as any[]).map(m => (
+                                    <button 
+                                        key={m}
+                                        onClick={() => setViewMode(m)}
+                                        className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase transition-all ${viewMode === m ? 'bg-white/10 text-white shadow-inner' : 'text-white/20 hover:text-white'}`}
+                                    >
+                                        {m.split('-')[1]}C
+                                    </button>
+                                ))}
                                 <button 
-                                    onClick={() => setViewMode('grid')} 
-                                    className={`p-2 rounded-lg transition-all ${viewMode === 'grid' ? 'bg-white/10 text-white shadow-inner' : 'text-white/20 hover:text-white/40'}`}
-                                    title="Grid View"
-                                >
-                                    <Icons.grid size={18} />
-                                </button>
-                                <button 
-                                    onClick={() => setViewMode('small')} 
-                                    className={`p-2 rounded-lg transition-all ${viewMode === 'small' ? 'bg-white/10 text-white shadow-inner' : 'text-white/20 hover:text-white/40'}`}
-                                    title="Compact View"
-                                >
-                                    <Icons.feed size={18} />
-                                </button>
-                                <button 
-                                    onClick={() => setViewMode('list')} 
-                                    className={`p-2 rounded-lg transition-all ${viewMode === 'list' ? 'bg-white/10 text-white shadow-inner' : 'text-white/20 hover:text-white/40'}`}
+                                    onClick={() => setViewMode('list')}
+                                    className={`p-1.5 rounded-lg transition-all ${viewMode === 'list' ? 'bg-white/10 text-white shadow-inner' : 'text-white/20 hover:text-white'}`}
                                     title="List View"
                                 >
-                                    <Icons.list size={18} />
+                                    <Icons.list className="w-4 h-4" />
                                 </button>
                             </div>
-
-                            {viewMode === 'grid' && (
-                                <div className="relative" ref={colsRef}>
-                                    <button onClick={() => setColsOpen(!colsOpen)} className={`h-11 px-4 rounded-xl transition-all flex items-center gap-2 bg-black/40 border border-white/5 ${colsOpen ? 'text-primary border-primary/30' : 'text-white/20 hover:text-white/60'}`}>
-                                        <Icons.grid size={14} />
-                                        <span className="text-[10px] font-black tracking-widest">{gridColumns} COL</span>
-                                    </button>
-                                    {colsOpen && (
-                                        <div className="absolute left-0 top-full mt-4 w-56 bg-[#0f172a] border border-white/10 p-4 shadow-2xl rounded-3xl z-50 animate-fade-in-up backdrop-blur-3xl">
-                                            <div className="grid grid-cols-2 gap-3">
-                                                {[2, 3, 4, 5].map(cols => (
-                                                    <button key={cols} onClick={() => { setGridColumns(cols); setColsOpen(false); }} className={`flex flex-col items-center gap-3 p-3 rounded-2xl transition-all border ${gridColumns === cols ? 'bg-primary/10 border-primary/30 text-primary' : 'text-white/20 hover:bg-white/5 border-transparent hover:border-white/10'}`}>
-                                                        <div className={`grid gap-0.5 w-full aspect-video bg-black/40 p-1 rounded-md`} style={{ gridTemplateColumns: `repeat(${cols}, 1fr)` }}>
-                                                            {[...Array(cols * 2)].map((_, i) => <div key={i} className={`h-full w-full rounded-[1px] ${gridColumns === cols ? 'bg-primary/40' : 'bg-white/10'}`} />)}
-                                                        </div>
-                                                        <span className="text-[10px] font-black">{cols} COL</span>
-                                                    </button>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    )}
-                                </div>
-                            )}
                         </div>
 
                         <div className="flex items-center gap-3 relative z-10">
@@ -524,13 +494,12 @@ export default function ResourcesClient({
                             </div>
 
                             <div className={`
-                                ${viewMode === 'grid' ? 
-                                    (gridColumns === 2 ? 'grid grid-cols-1 md:grid-cols-2 gap-10' :
-                                     gridColumns === 3 ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10' :
-                                     gridColumns === 4 ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-10' :
-                                     'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-10') : 
-                                  viewMode === 'small' ? 'grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6' :
-                                  'flex flex-col gap-10'}
+                                ${viewMode === 'grid-2' ? 'grid grid-cols-1 sm:grid-cols-2 gap-5' :
+                                  viewMode === 'grid-3' ? 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5' :
+                                  viewMode === 'grid-4' ? 'grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2' :
+                                  viewMode === 'grid-5' ? 'grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2' :
+                                  viewMode === 'grid-6' ? 'grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-2' :
+                                  'flex flex-col gap-5'}
                             `}>
                                 {resources.map((resource) => (
                                     <ResourceCard
@@ -540,7 +509,7 @@ export default function ResourcesClient({
                                         onToggleSave={handleToggleSave}
                                         onDelete={handleDeleteResource}
                                         onToggleFavorite={handleToggleFavorite}
-                                        viewMode={viewMode}
+                                        viewMode={viewMode === 'list' ? 'list' : (viewMode === 'grid-4') ? 'small' : (viewMode === 'grid-5' || viewMode === 'grid-6') ? 'minimal' : 'grid'}
                                     />
                                 ))}
                             </div>

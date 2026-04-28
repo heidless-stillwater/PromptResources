@@ -16,7 +16,7 @@ interface ResourceCardProps {
     onToggleSave?: (e: React.MouseEvent, resourceId: string) => void;
     onDelete?: (e: React.MouseEvent, resourceId: string) => void;
     onToggleFavorite?: (e: React.MouseEvent, resourceId: string, currentStatus: boolean) => void;
-    viewMode?: 'grid' | 'list' | 'small';
+    viewMode?: 'grid' | 'list' | 'small' | 'minimal';
 }
 
 export default function ResourceCard({ resource, savedIds = new Set(), onToggleSave, onDelete, onToggleFavorite, viewMode = 'grid' }: ResourceCardProps) {
@@ -76,10 +76,10 @@ export default function ResourceCard({ resource, savedIds = new Set(), onToggleS
         return (
             <div
                 id={`resource-card-${resource.id}`}
-                className="group glass-card bg-white/[0.03] border border-white/10 rounded-2xl overflow-hidden hover:border-primary/30 transition-all flex flex-col h-full cursor-pointer shadow-md font-inter"
+                className="group glass-card !p-0 bg-white/[0.03] border border-white/10 rounded-2xl overflow-hidden hover:border-primary/30 transition-all flex flex-col h-full cursor-pointer shadow-lg font-inter"
                 onClick={handleCardClick}
             >
-                <div className="relative aspect-video overflow-hidden shrink-0 m-2 rounded-xl">
+                <div className="relative aspect-video overflow-hidden shrink-0 m-1 rounded-xl">
                     {resource.thumbnailUrl || resource.youtubeVideoId ? (
                         <NextImage
                             src={resource.thumbnailUrl || `https://img.youtube.com/vi/${resource.youtubeVideoId}/hqdefault.jpg`}
@@ -99,14 +99,26 @@ export default function ResourceCard({ resource, savedIds = new Set(), onToggleS
                             {resource.pricing}
                         </span>
                         {resource.status === 'flagged' && (
-                            <span className="text-[8px] font-black uppercase px-2 py-0.5 rounded-lg bg-rose-500 text-white border border-white/20 backdrop-blur-sm flex items-center gap-1 animate-pulse-rose whitespace-nowrap z-30 shadow-lg">
-                                <Icons.report size={8} /> {resource.reportType ? reportLabels[resource.reportType] : 'Safety'}
-                            </span>
+                            resource.activeTicketId ? (
+                                <Link 
+                                    href={`http://localhost:3003/tickets/${resource.activeTicketId}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="text-[8px] font-black uppercase px-2 py-0.5 rounded-lg bg-rose-500 text-white border border-white/20 backdrop-blur-sm flex items-center gap-1 animate-pulse-rose whitespace-nowrap z-30 shadow-lg hover:scale-105 transition-transform"
+                                >
+                                    <Icons.report size={8} /> {resource.reportType ? reportLabels[resource.reportType] : 'Safety'} / View Ticket
+                                </Link>
+                            ) : (
+                                <span className="text-[8px] font-black uppercase px-2 py-0.5 rounded-lg bg-rose-500 text-white border border-white/20 backdrop-blur-sm flex items-center gap-1 animate-pulse-rose whitespace-nowrap z-30 shadow-lg">
+                                    <Icons.report size={8} /> {resource.reportType ? reportLabels[resource.reportType] : 'Safety'}
+                                </span>
+                            )
                         )}
                     </div>
                 </div>
-                <div className="px-4 pb-4 flex flex-col flex-grow">
-                    <h3 className="text-xs font-black font-outfit tracking-tighter text-white group-hover:text-primary transition-colors line-clamp-1 mb-3">
+                <div className="px-2 pb-2 flex flex-col flex-grow">
+                    <h3 className="text-[11px] font-bold font-outfit tracking-tight text-white group-hover:text-primary transition-colors line-clamp-2 mb-3 leading-tight min-h-[2.2em]">
                         {resource.title}
                     </h3>
                     <div className="mt-auto flex items-center justify-between gap-2 pt-3 border-t border-white/5">
@@ -115,6 +127,48 @@ export default function ResourceCard({ resource, savedIds = new Set(), onToggleS
                             <span className="text-[9px] font-black uppercase tracking-widest text-white/30 truncate">{resource.platform}</span>
                         </div>
                         <Rating value={resource.averageRating || 0} size="sm" showLabel={false} />
+                    </div>
+                </div>
+            </div>
+        );
+    }
+    
+    if (viewMode === 'minimal') {
+        return (
+            <div
+                id={`resource-card-${resource.id}`}
+                className="group glass-card !p-0 bg-white/[0.03] border border-white/10 rounded-lg overflow-hidden hover:border-primary/30 transition-all flex flex-col h-full cursor-pointer shadow-md font-inter border-t-2 border-t-transparent hover:border-t-primary"
+                onClick={handleCardClick}
+            >
+                <div className="relative aspect-video overflow-hidden shrink-0">
+                    {resource.thumbnailUrl || resource.youtubeVideoId ? (
+                        <NextImage
+                            src={resource.thumbnailUrl || `https://img.youtube.com/vi/${resource.youtubeVideoId}/hqdefault.jpg`}
+                            alt={resource.title}
+                            fill
+                            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                            className="object-cover transition-transform duration-700 group-hover:scale-110"
+                        />
+                    ) : (
+                        <div className="w-full h-full flex items-center justify-center bg-white/5 text-lg opacity-20">
+                            {typeIcons[resource.type as keyof typeof typeIcons] || typeIcons.other}
+                        </div>
+                    )}
+                    <div className="absolute top-1 left-1 flex gap-0.5 z-10">
+                         <span className={`text-[6px] font-black uppercase px-1 py-0.5 rounded bg-black/60 text-white/80 border border-white/5 backdrop-blur-sm flex items-center gap-0.5`}>
+                            {pricingIcons[resource.pricing] || '💰'}
+                        </span>
+                    </div>
+                </div>
+                <div className="p-0.5 px-1 pb-1.5 flex flex-col flex-grow">
+                    <h3 className="text-[9px] font-bold font-outfit tracking-tight text-white group-hover:text-primary transition-colors line-clamp-2 mb-1.5 leading-tight min-h-[2.2em]">
+                        {resource.title}
+                    </h3>
+                    <div className="mt-auto flex items-center justify-between gap-1 pt-1 border-t border-white/5">
+                        <div className="flex items-center gap-1 min-w-0">
+                            <span className="text-[7px] font-black uppercase tracking-tighter text-white/20 truncate">{resource.platform}</span>
+                        </div>
+                        <Rating value={resource.averageRating || 0} size="xs" showLabel={false} />
                     </div>
                 </div>
             </div>
@@ -154,9 +208,21 @@ export default function ResourceCard({ resource, savedIds = new Set(), onToggleS
                             {resource.pricing}
                         </span>
                         {resource.status === 'flagged' && (
-                            <span className="bg-rose-500 text-white border border-white/20 rounded-xl px-3 py-1 text-[9px] font-black uppercase tracking-widest flex items-center gap-2 animate-pulse-rose whitespace-nowrap z-30 shadow-lg">
-                                <Icons.report size={10} /> Security Review Active
-                            </span>
+                            resource.activeTicketId ? (
+                                <Link 
+                                    href={`http://localhost:3003/tickets/${resource.activeTicketId}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="bg-rose-500 text-white border border-white/20 rounded-xl px-3 py-1 text-[9px] font-black uppercase tracking-widest flex items-center gap-2 animate-pulse-rose whitespace-nowrap z-30 shadow-lg hover:scale-105 transition-transform"
+                                >
+                                    <Icons.report size={10} /> Security Review / View Ticket
+                                </Link>
+                            ) : (
+                                <span className="bg-rose-500 text-white border border-white/20 rounded-xl px-3 py-1 text-[9px] font-black uppercase tracking-widest flex items-center gap-2 animate-pulse-rose whitespace-nowrap z-30 shadow-lg">
+                                    <Icons.report size={10} /> Security Review Active
+                                </span>
+                            )
                         )}
                     </div>
                 </div>
@@ -244,7 +310,7 @@ export default function ResourceCard({ resource, savedIds = new Set(), onToggleS
     return (
         <div
             id={`resource-card-${resource.id}`}
-            className={`group glass-card relative overflow-hidden transition-all duration-500 flex flex-col h-full hover:border-primary/40 shadow-2xl rounded-3xl bg-white/[0.03] font-inter ${
+            className={`group glass-card !p-0 relative overflow-hidden transition-all duration-500 flex flex-col h-full hover:border-primary/40 shadow-2xl rounded-3xl bg-white/[0.03] font-inter ${
                 resource.isFavorite ? 'bg-primary/[0.04] ring-1 ring-primary/20' : ''
             }`}
             onClick={handleCardClick}
@@ -268,7 +334,7 @@ export default function ResourceCard({ resource, savedIds = new Set(), onToggleS
             </div>
 
             {/* Thumbnail Header */}
-            <div className="relative aspect-video m-4 rounded-[1.5rem] overflow-hidden border border-white/5 shadow-2xl">
+            <div className="relative aspect-video m-2 rounded-[1.5rem] overflow-hidden shrink-0 border border-white/5 shadow-2xl">
                 {resource.thumbnailUrl || resource.youtubeVideoId ? (
                     <NextImage
                         src={resource.thumbnailUrl || `https://img.youtube.com/vi/${resource.youtubeVideoId}/hqdefault.jpg`}
@@ -291,14 +357,26 @@ export default function ResourceCard({ resource, savedIds = new Set(), onToggleS
                         {resource.pricing}
                     </span>
                     {resource.status === 'flagged' && (
-                        <span className="px-3 py-1 bg-rose-500 border border-white/20 rounded-xl text-[9px] font-black uppercase tracking-widest text-white flex items-center gap-2 animate-pulse shadow-xl">
-                            <Icons.report size={12} /> Security Review
-                        </span>
+                        resource.activeTicketId ? (
+                            <Link 
+                                href={`http://localhost:3003/tickets/${resource.activeTicketId}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                                className="px-3 py-1 bg-rose-500 border border-white/20 rounded-xl text-[9px] font-black uppercase tracking-widest text-white flex items-center gap-2 animate-pulse shadow-xl hover:scale-105 transition-transform"
+                            >
+                                <Icons.report size={12} /> Security Review / View Ticket
+                            </Link>
+                        ) : (
+                            <span className="px-3 py-1 bg-rose-500 border border-white/20 rounded-xl text-[9px] font-black uppercase tracking-widest text-white flex items-center gap-2 animate-pulse shadow-xl">
+                                <Icons.report size={12} /> Security Review
+                            </span>
+                        )
                     )}
                 </div>
             </div>
 
-            <div className="px-7 pb-7 pt-2 flex flex-col flex-grow">
+            <div className="px-3 pb-3 pt-1 flex flex-col flex-grow">
                 <div className="flex justify-between items-start gap-4 mb-4">
                     <h3 className="text-xl font-black font-outfit tracking-tighter leading-tight text-white group-hover:text-primary transition-all line-clamp-2">
                         {resource.title}
