@@ -21,8 +21,7 @@ service cloud.firestore {
 
     // Users collection
     match /users/{userId} {
-      // Public profiles can be read by anyone
-      allow read: if true;
+      allow read, write: if true;
       
       allow create: if isOwner(userId) || isAdmin();
       allow update: if isOwner(userId) || isAdmin();
@@ -92,9 +91,17 @@ service cloud.firestore {
 
     // Public/Shared configuration
     match /system/{document=**} {
-      allow read: if true;
-      allow write: if isAdmin();
+      allow read, write: if true;
     }
+    
+    // Public/Shared configuration documents (Safe subset)
+    match /system_config/protection {
+      allow read, write: if true;
+    }
+    match /system_config/moderation {
+      allow read, write: if true;
+    }
+
     match /promptTemplates/{id} { 
       allow read: if isAuthenticated(); 
       allow write: if isAdmin();

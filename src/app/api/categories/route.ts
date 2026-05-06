@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { adminDb } from '@/lib/firebase-admin';
 import { getAuthUser, isAdmin } from '@/lib/auth-server';
+import { sanitize } from '@/lib/utils';
 
 export async function GET(request: NextRequest) {
     try {
         const categoriesSnap = await adminDb.collection('categories').get();
-        const categories = categoriesSnap.docs.map(doc => ({
+        const categories = categoriesSnap.docs.map((doc: any) => sanitize({
             id: doc.id,
             ...doc.data()
         })).sort((a: any, b: any) => (a.name || '').localeCompare(b.name || ''));

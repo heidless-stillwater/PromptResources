@@ -18,9 +18,19 @@ export async function getAuthUser(request: NextRequest) {
 }
 
 export async function isAdmin(uid: string) {
-    const { toolDbAdmin: db } = await import('./firebase-admin');
-    const userDoc = await db.collection('users').doc(uid).get();
-    if (!userDoc.exists) return false;
-    const userData = userDoc.data();
-    return userData?.role === 'admin' || userData?.role === 'su';
+    const { toolDbAdmin, adminDb } = await import('./firebase-admin');
+    
+    // 1. Try Master Registry (PromptTool)
+    const masterDoc = await toolDbAdmin.collection('users').doc(uid).get();
+    if (masterDoc.exists && (masterDoc.data()?.role === 'admin' || masterDoc.data()?.role === 'su')) {
+        return true;
+    }
+
+    // 2. Fallback to Local Registry (PromptResources)
+    const localDoc = await adminDb.collection('users').doc(uid).get();
+    if (localDoc.exists && (localDoc.data()?.role === 'admin' || localDoc.data()?.role === 'su')) {
+        return true;
+    }
+
+    return false;
 }

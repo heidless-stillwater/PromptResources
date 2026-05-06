@@ -6,7 +6,7 @@ import { getAllCreators } from '@/lib/creators-server';
 import { sanitize } from '@/lib/utils';
 
 // Revalidate every hour
-export const revalidate = 60;
+export const dynamic = 'force-dynamic';
 
 export default async function HomePage() {
     let recentResources: Resource[] = [];
@@ -23,12 +23,20 @@ export default async function HomePage() {
 
         recentResources = resourceSnap.docs.map((doc) => {
             const data = doc.data();
+            const parseDate = (val: any) => {
+                if (!val) return new Date();
+                if (typeof val.toDate === 'function') return val.toDate();
+                if (val instanceof Date) return val;
+                if (typeof val === 'string') return new Date(val);
+                return new Date();
+            };
+            
             return {
                 id: doc.id,
                 status: 'published', // Default for legacy data
                 ...data,
-                createdAt: data.createdAt?.toDate() || new Date(),
-                updatedAt: data.updatedAt?.toDate() || new Date(),
+                createdAt: parseDate(data.createdAt),
+                updatedAt: parseDate(data.updatedAt),
             };
         }) as Resource[];
 

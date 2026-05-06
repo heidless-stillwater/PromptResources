@@ -20,24 +20,26 @@ function initAdmin(): App | null {
     return adminApp;
   }
 
-  const projectId = process.env.FIREBASE_PROJECT_ID || process.env.FIREBASE_ADMIN_PROJECT_ID;
+  const projectId = process.env.FIREBASE_PROJECT_ID || process.env.FIREBASE_ADMIN_PROJECT_ID || 'heidless-apps-2';
   const clientEmail = process.env.FIREBASE_CLIENT_EMAIL || process.env.FIREBASE_ADMIN_CLIENT_EMAIL;
   let privateKey = process.env.FIREBASE_PRIVATE_KEY || process.env.FIREBASE_ADMIN_PRIVATE_KEY;
 
-  if (!projectId || !privateKey || !clientEmail) {
-    return null;
-  }
-
   try {
-    const formattedKey = privateKey.replace(/\\n/g, '\n').replace(/^["']|["']$/g, '').trim();
-    // initializeApp is sync, but we wrap it in a try/catch to avoid boot-time crashes
-    adminApp = initializeApp({
-      credential: cert({ projectId, clientEmail, privateKey: formattedKey }),
-    });
-    console.log('[FirebaseAdmin] Handshake_SUCCESS: Sovereign App Initialized.');
+    if (projectId && clientEmail && privateKey) {
+      console.log('[FirebaseAdmin] Handshake: Initializing with Explicit Service Account');
+      const formattedKey = privateKey.replace(/\\n/g, '\n').replace(/^["']|["']$/g, '').trim();
+      adminApp = initializeApp({
+        credential: cert({ projectId, clientEmail, privateKey: formattedKey }),
+      });
+    } else {
+      console.log('[FirebaseAdmin] Handshake: Initializing with Zero-Config (ADC)');
+      adminApp = initializeApp();
+    }
     return adminApp;
   } catch (error: any) {
     console.error('[FirebaseAdmin] Handshake_CRASH:', error.message);
+    const retryApps = getApps();
+    if (retryApps.length > 0) return retryApps[0];
     return null;
   }
 }

@@ -1,4 +1,5 @@
 module.exports = {
+    output: 'standalone',
     images: {
         remotePatterns: [
             {
@@ -31,4 +32,17 @@ module.exports = {
         ignoreBuildErrors: true,
     },
     optimizeFonts: false,
+    async headers() {
+        return [
+            {
+                source: '/(.*)',
+                headers: [
+                    {
+                        key: 'Cross-Origin-Opener-Policy',
+                        value: 'same-origin-allow-popups',
+                    },
+                ],
+            },
+        ];
+    },
 };

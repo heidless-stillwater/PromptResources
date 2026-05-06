@@ -2,6 +2,7 @@
 // PLACEHOLDER: Uses API_SECRET_KEY for auth. Replace with proper auth in production.
 import { NextRequest, NextResponse } from 'next/server';
 import { adminDb, toolDbAdmin } from '@/lib/firebase-admin';
+import { sanitize } from '@/lib/utils';
 
 export async function GET(
     request: NextRequest,
@@ -44,12 +45,20 @@ export async function GET(
                 try {
                     const rDoc = await adminDb.collection('resources').doc(id).get();
                     if (rDoc.exists) {
+                        const formatDate = (val: any) => {
+                            if (!val) return null;
+                            if (typeof val.toDate === 'function') return val.toDate().toISOString();
+                            if (val instanceof Date) return val.toISOString();
+                            if (typeof val === 'string') return val;
+                            return null;
+                        };
+
                         const data = rDoc.data();
                         savedResourceDetails.push({
                             id: rDoc.id,
                             ...data,
-                            createdAt: data?.createdAt?.toDate()?.toISOString() || null,
-                            updatedAt: data?.updatedAt?.toDate()?.toISOString() || null,
+                            createdAt: formatDate(data?.createdAt),
+                            updatedAt: formatDate(data?.updatedAt),
                         });
                     }
                 } catch (err) {
@@ -61,14 +70,10 @@ export async function GET(
 
         return NextResponse.json({
             success: true,
-            data: {
+            data: sanitize({
                 profile: {
                     uid: userDoc.id,
-                    email: userData?.email,
-                    displayName: userData?.displayName,
-                    role: userData?.role,
-                    subscriptionType: userData?.subscriptionType,
-                    createdAt: userData?.createdAt?.toDate()?.toISOString() || null,
+                    ...userData
                 },
                 savedResources: savedResourceDetails,
                 notes: userResData?.notes || {},
@@ -78,7 +83,7 @@ export async function GET(
                     totalCompleted: Object.values(userResData?.progress || {}).filter((s) => s === 'completed').length,
                     totalInProgress: Object.values(userResData?.progress || {}).filter((s) => s === 'in-progress').length,
                 },
-            },
+            }),
         });
     } catch (error: any) {
         console.error('API Error:', error);

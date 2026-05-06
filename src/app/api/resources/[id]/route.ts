@@ -27,11 +27,19 @@ export async function GET(
             }
 
             const data = docSnap.data();
+            const formatDate = (val: any) => {
+                if (!val) return null;
+                if (typeof val.toDate === 'function') return val.toDate().toISOString();
+                if (val instanceof Date) return val.toISOString();
+                if (typeof val === 'string') return val;
+                return null;
+            };
+
             resource = {
                 id: docSnap.id,
                 ...data,
-                createdAt: data?.createdAt?.toDate()?.toISOString() || null,
-                updatedAt: data?.updatedAt?.toDate()?.toISOString() || null,
+                createdAt: formatDate(data?.createdAt),
+                updatedAt: formatDate(data?.updatedAt),
             } as Resource;
         }
 

@@ -25,11 +25,19 @@ export async function GET(
         
         const comments = querySnapshot.docs.map(doc => {
             const data = doc.data() as any;
+            const formatDate = (val: any) => {
+                if (!val) return new Date().toISOString();
+                if (typeof val.toDate === 'function') return val.toDate().toISOString();
+                if (val instanceof Date) return val.toISOString();
+                if (typeof val === 'string') return val;
+                return new Date().toISOString();
+            };
+
             return {
                 id: doc.id,
                 ...data,
-                createdAt: data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : (data.createdAt || new Date().toISOString()),
-                updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate().toISOString() : (data.updatedAt || new Date().toISOString()),
+                createdAt: formatDate(data.createdAt),
+                updatedAt: formatDate(data.updatedAt),
             };
         }) as Comment[];
 

@@ -1,21 +1,44 @@
 {
-  "firestore": {
-    "rules": "firestore.rules",
-    "indexes": "firestore.indexes.json"
-  },
+  "firestore": [
+    {
+      "database": "promptresources-db-0",
+      "rules": "firestore.rules",
+      "indexes": "firestore.indexes.json"
+    },
+    {
+      "database": "prompttool-db-0",
+      "rules": "firestore.rules"
+    },
+    {
+      "database": "suiteutils-db-0",
+      "rules": "firestore.rules"
+    },
+    {
+      "database": "(default)",
+      "rules": "firestore.rules"
+    }
+  ],
   "storage": {
     "rules": "storage.rules"
   },
   "hosting": [
     {
-      "site": "promptresources-v0",
-      "source": ".",
+      "site": "heidless-apps-2",
+      "public": "public",
       "ignore": [
         "firebase.json",
         "**/.*",
         "**/node_modules/**"
       ],
-      "frameworksBackend": {}
+      "rewrites": [
+        {
+          "source": "**",
+          "run": {
+            "serviceId": "ssrpromptresourcesv1",
+            "region": "us-central1"
+          }
+        }
+      ]
     }
   ],
   "emulators": {

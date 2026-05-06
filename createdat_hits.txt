@@ -1,0 +1,83 @@
+/home/heidless/projects/PromptResources/src/lib/types.ts:    createdAt: Date;
+/home/heidless/projects/PromptResources/src/lib/types.ts:    createdAt: Date;
+/home/heidless/projects/PromptResources/src/lib/types.ts:    createdAt: Date;
+/home/heidless/projects/PromptResources/src/lib/types.ts:    createdAt: Date | string;
+/home/heidless/projects/PromptResources/src/lib/types.ts:    createdAt: Date;
+/home/heidless/projects/PromptResources/src/lib/types.ts:    createdAt: Date;
+/home/heidless/projects/PromptResources/src/lib/services/moderation-service.ts:                createdAt: new Date(),
+/home/heidless/projects/PromptResources/src/lib/services/moderation-service.ts:                createdAt: new Date(),
+/home/heidless/projects/PromptResources/src/lib/resources-server.ts:                createdAt: formatDate(data.createdAt),
+/home/heidless/projects/PromptResources/src/lib/resources-server.ts:            createdAt: formatDate(data.createdAt),
+/home/heidless/projects/PromptResources/src/lib/assets-server.ts:        let query: any = adminDb.collection('thumbnailAssets').orderBy('createdAt', 'desc');
+/home/heidless/projects/PromptResources/src/lib/assets-server.ts:                createdAt: formatDate(data.createdAt),
+/home/heidless/projects/PromptResources/src/lib/assets-server.ts:export async function createThumbnailAsset(data: Omit<ThumbnailAsset, 'id' | 'createdAt' | 'updatedAt'>) {
+/home/heidless/projects/PromptResources/src/lib/assets-server.ts:            createdAt: now,
+/home/heidless/projects/PromptResources/src/lib/assets-server.ts:        delete (updateData as any).createdAt;
+/home/heidless/projects/PromptResources/src/lib/creators-server.ts:                createdAt: toolData.createdAt?.toDate?.() || new Date(toolData.createdAt),
+/home/heidless/projects/PromptResources/src/lib/creators-server.ts:            createdAt: data.createdAt?.toDate?.() || new Date(data.createdAt),
+/home/heidless/projects/PromptResources/src/lib/creators-server.ts:                createdAt: data.createdAt?.toDate?.() || new Date(data.createdAt),
+/home/heidless/projects/PromptResources/src/lib/creators-server.ts:                createdAt: new Date(),
+/home/heidless/projects/PromptResources/src/lib/creators-server.ts:                createdAt: newStub.createdAt,
+/home/heidless/projects/PromptResources/src/lib/creators-server.ts:            .orderBy('createdAt', 'desc')
+/home/heidless/projects/PromptResources/src/lib/creators-server.ts:            .orderBy('createdAt', 'desc')
+/home/heidless/projects/PromptResources/src/lib/creators-server.ts:            .orderBy('createdAt', 'desc')
+/home/heidless/projects/PromptResources/src/lib/creators-server.ts:        let createdAt: Date;
+/home/heidless/projects/PromptResources/src/lib/creators-server.ts:        if (typeof data.createdAt?.toDate === 'function') {
+/home/heidless/projects/PromptResources/src/lib/creators-server.ts:            createdAt = data.createdAt.toDate();
+/home/heidless/projects/PromptResources/src/lib/creators-server.ts:        } else if (data.createdAt instanceof Date) {
+/home/heidless/projects/PromptResources/src/lib/creators-server.ts:            createdAt = data.createdAt;
+/home/heidless/projects/PromptResources/src/lib/creators-server.ts:        } else if (typeof data.createdAt === 'string') {
+/home/heidless/projects/PromptResources/src/lib/creators-server.ts:            createdAt = new Date(data.createdAt);
+/home/heidless/projects/PromptResources/src/lib/creators-server.ts:            createdAt = new Date();
+/home/heidless/projects/PromptResources/src/lib/creators-server.ts:            createdAt,
+/home/heidless/projects/PromptResources/src/lib/creators-server.ts:        .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+/home/heidless/projects/PromptResources/src/lib/creators-server.ts:            createdAt: data.createdAt?.toDate?.() || new Date(data.createdAt),
+/home/heidless/projects/PromptResources/src/lib/creators-server.ts:                        createdAt: data.createdAt?.toDate?.() || new Date(),
+/home/heidless/projects/PromptResources/src/lib/creators-server.ts:                    createdAt: new Date(),
+/home/heidless/projects/PromptResources/src/components/ThumbnailPicker.tsx:            const q = query(collection(db, 'thumbnailAssets'), orderBy('createdAt', 'desc'));
+/home/heidless/projects/PromptResources/src/components/FilterBar.tsx:    createdAt: number;
+/home/heidless/projects/PromptResources/src/components/FilterBar.tsx:            createdAt: Date.now()
+/home/heidless/projects/PromptResources/src/components/ResourceCard.tsx:                                {resource.createdAt && (
+/home/heidless/projects/PromptResources/src/components/ResourceCard.tsx:                                        {new Date(resource.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+/home/heidless/projects/PromptResources/src/components/ResourcesClient.tsx:    const [sortBy, setSortBy] = useState(searchParams.get('sortBy') || 'createdAt');
+/home/heidless/projects/PromptResources/src/components/ResourcesClient.tsx:        setSortBy(searchParams.get('sortBy') || 'createdAt');
+/home/heidless/projects/PromptResources/src/components/ResourcesClient.tsx:                                    <option value="createdAt" className="bg-[#1e293b] text-white">Sort: Discovery Date</option>
+/home/heidless/projects/PromptResources/src/components/HomeClient.tsx:  createdAt?: any;
+/home/heidless/projects/PromptResources/src/components/CommentSection.tsx:                                                {comment.createdAt ? new Date(comment.createdAt).toLocaleDateString() : 'Just now'}
+/home/heidless/projects/PromptResources/src/app/dashboard/page.tsx:                                                    <span>{new Date(resource.updatedAt || resource.createdAt).toLocaleDateString()}</span>
+/home/heidless/projects/PromptResources/src/app/dashboard/page.tsx:                                <div style={{ fontSize: 'var(--text-sm)', fontWeight: 500 }}>{profile?.createdAt ? new Date(profile.createdAt).toLocaleDateString() : 'N/A'}</div>
+/home/heidless/projects/PromptResources/src/app/page.tsx:            .orderBy('createdAt', 'desc')
+/home/heidless/projects/PromptResources/src/app/page.tsx:                createdAt: parseDate(data.createdAt),
+/home/heidless/projects/PromptResources/src/app/api-docs/page.tsx:      "createdAt": "2024-..."
+/home/heidless/projects/PromptResources/src/app/admin/page.tsx:                createdAt: new Date(),
+/home/heidless/projects/PromptResources/src/app/admin/page.tsx:                                                    {u.createdAt ? new Date(u.createdAt).toLocaleDateString() : 'N/A'}
+/home/heidless/projects/PromptResources/src/app/admin/creators/page.tsx:                createdAt: serverTimestamp(),
+/home/heidless/projects/PromptResources/src/app/admin/creators/page.tsx:                return getTime(b.createdAt) - getTime(a.createdAt);
+/home/heidless/projects/PromptResources/src/app/api/admin/last-tickets/route.ts:            .orderBy('createdAt', 'desc')
+/home/heidless/projects/PromptResources/src/app/api/admin/users/route.ts:                createdAt: u.metadata.creationTime,
+/home/heidless/projects/PromptResources/src/app/api/resources/route.ts:            createdAt: now,
+/home/heidless/projects/PromptResources/src/app/api/resources/route.ts:            data: { ...docData, id: docRef.id, createdAt: now.toISOString(), updatedAt: now.toISOString() }
+/home/heidless/projects/PromptResources/src/app/api/resources/[id]/route.ts:                createdAt: formatDate(data?.createdAt),
+/home/heidless/projects/PromptResources/src/app/api/resources/[id]/route.ts:        delete updateData.createdAt;
+/home/heidless/projects/PromptResources/src/app/api/resources/[id]/comments/route.ts:                createdAt: formatDate(data.createdAt),
+/home/heidless/projects/PromptResources/src/app/api/resources/[id]/comments/route.ts:            const dateA = new Date(a.createdAt).getTime();
+/home/heidless/projects/PromptResources/src/app/api/resources/[id]/comments/route.ts:            const dateB = new Date(b.createdAt).getTime();
+/home/heidless/projects/PromptResources/src/app/api/resources/[id]/comments/route.ts:                createdAt: FieldValue.serverTimestamp(),
+/home/heidless/projects/PromptResources/src/app/api/resources/bulk/route.ts:                        createdAt: formatDate(data.createdAt),
+/home/heidless/projects/PromptResources/src/app/api/member/[uid]/route.ts:                            createdAt: formatDate(data?.createdAt),
+/home/heidless/projects/PromptResources/src/app/api/member/[uid]/route.ts:                    createdAt: (typeof userData?.createdAt?.toDate === 'function') ? userData.createdAt.toDate().toISOString() : (userData?.createdAt || null),
+/home/heidless/projects/PromptResources/src/app/creators/CreatorsDirectoryClient.tsx:                comparison = getTime(b.createdAt) - getTime(a.createdAt);
+/home/heidless/projects/PromptResources/src/app/resources/page.tsx:    const sortBy = searchParams.sortBy || 'createdAt';
+/home/heidless/projects/PromptResources/src/app/resources/[id]/page.tsx:                createdAt: data.createdAt ? new Date(data.createdAt) : new Date(),
+/home/heidless/projects/PromptResources/src/app/resources/admin/assets/page.tsx:            const q = query(collection(db, 'thumbnailAssets'), orderBy('createdAt', 'desc'));
+/home/heidless/projects/PromptResources/src/app/resources/admin/assets/page.tsx:                    createdAt: parseDate(docData.createdAt),
+/home/heidless/projects/PromptResources/src/app/resources/admin/assets/page.tsx:                createdAt: new Date(),
+/home/heidless/projects/PromptResources/src/app/resources/admin/assets/page.tsx:                                    createdAt: new Date(),
+/home/heidless/projects/PromptResources/src/app/resources/admin/assets/page.tsx:                                    createdAt: assetData.createdAt,
+/home/heidless/projects/PromptResources/src/scripts/restore-all-collections.ts:        if (finalData.createdAt) finalData.createdAt = Timestamp.fromDate(new Date(finalData.createdAt));
+/home/heidless/projects/PromptResources/src/scripts/intelligent-remap.ts:      createdAt: Timestamp.fromDate(new Date(oldRes.createdAt)),
+/home/heidless/projects/PromptResources/src/scripts/intelligent-remap.ts:      createdAt: Timestamp.fromDate(new Date(cat.createdAt))
+/home/heidless/projects/PromptResources/src/scripts/intelligent-remap.ts:      createdAt: Timestamp.fromDate(new Date(tag.createdAt))
+/home/heidless/projects/PromptResources/src/scripts/intelligent-remap.ts:      createdAt: Timestamp.fromDate(new Date(link.createdAt)),
+/home/heidless/projects/PromptResources/src/contexts/AuthContext.tsx:            createdAt: serverTimestamp(),
+/home/heidless/projects/PromptResources/src/contexts/AuthContext.tsx:                                createdAt: parseDate(data.createdAt),

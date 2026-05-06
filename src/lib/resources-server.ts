@@ -80,13 +80,8 @@ export async function getResourcesAction(options: GetResourcesOptions) {
             }
         } else if (!userIsAdmin) {
             // Strictly exclude hidden content from public view if no specific status requested.
-            // NOTE: Firestore allows only one disjunction (in, not-in, array-contains-any) per query.
-            // If search or creator filters are active (using array-contains-any), we must avoid 'not-in'.
-            if (search || (creators && creators.length > 0)) {
-                query = query.where('status', '==', 'published');
-            } else {
-                query = query.where('status', 'not-in', ['hidden', 'draft', 'pending']);
-            }
+            // Using equality 'published' to avoid complex range/inequality filter clashing.
+            query = query.where('status', '==', 'published');
         }
 
         // Apply specified filters
@@ -323,12 +318,21 @@ export async function getResourceById(id: string) {
         if (data.status === 'hidden' || data.status === 'draft' || data.status === 'pending') {
             return null;
         }
+
+        const formatDate = (val: any) => {
+            if (!val) return null;
+            if (typeof val.toDate === 'function') return val.toDate().toISOString();
+            if (val instanceof Date) return val.toISOString();
+            if (typeof val === 'string') return val;
+            return null;
+        };
+
         const resource = {
             id: docRef.id,
             status: 'published',
             ...data,
-            createdAt: data.createdAt?.toDate()?.toISOString() || null,
-            updatedAt: data.updatedAt?.toDate()?.toISOString() || null,
+            createdAt: formatDate(data.createdAt),
+            updatedAt: formatDate(data.updatedAt),
         } as Resource;
 
         if (resource.addedBy) {

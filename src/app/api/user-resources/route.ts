@@ -1,21 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { adminDb } from '@/lib/firebase-admin';
+import { getAuthUser } from '@/lib/auth-server';
+import { sanitize } from '@/lib/utils';
 
 // GET /api/user-resources?uid=...
 export async function GET(request: NextRequest) {
     try {
-        const { searchParams } = new URL(request.url);
-        const uid = searchParams.get('uid');
-
-        if (!uid) {
-            return NextResponse.json(
-                { success: false, error: 'User ID is required' },
-                { status: 400 }
-            );
+        const decodedToken = await getAuthUser(request);
+        if (!decodedToken) {
+            return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
         }
 
-        const userResRef = adminDb.collection('userResources').doc(uid);
-        const userResSnap = await userResRef.get();
+        const uid = decodedToken.uid;
+        const userResSnap = await adminDb.collection('userResources').doc(uid).get();
 
         if (!userResSnap.exists) {
             return NextResponse.json({

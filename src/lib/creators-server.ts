@@ -335,9 +335,11 @@ export async function getCreatorResources(userId: string, options: PaginationOpt
         
         // Ensure date objects are handled correctly for sorting
         let createdAt: Date;
-        if (data.createdAt?.toDate) {
+        if (typeof data.createdAt?.toDate === 'function') {
             createdAt = data.createdAt.toDate();
-        } else if (data.createdAt) {
+        } else if (data.createdAt instanceof Date) {
+            createdAt = data.createdAt;
+        } else if (typeof data.createdAt === 'string') {
             createdAt = new Date(data.createdAt);
         } else {
             createdAt = new Date();
@@ -347,7 +349,7 @@ export async function getCreatorResources(userId: string, options: PaginationOpt
             id: doc.id,
             ...data,
             createdAt,
-            updatedAt: data.updatedAt?.toDate?.() || new Date(data.updatedAt || Date.now())
+            updatedAt: (typeof data.updatedAt?.toDate === 'function') ? data.updatedAt.toDate() : (data.updatedAt ? new Date(data.updatedAt) : new Date())
         } as Resource);
     };
 

@@ -42,7 +42,12 @@ export default function Navbar() {
                         </div>
                     </div>
                     <div>
-                        <h1 className="text-lg font-black tracking-tighter text-white group-hover:text-primary transition-colors uppercase leading-none">Stillwater Resources</h1>
+                        <div className="flex items-center gap-2">
+                            <h1 className="text-lg font-black tracking-tighter text-white group-hover:text-primary transition-colors uppercase leading-none">Stillwater Resources</h1>
+                            <span className="text-[10px] font-mono font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded border border-primary/20 uppercase tracking-wider">
+                                v0.1.0
+                            </span>
+                        </div>
                         <p className="text-[10px] font-black text-white/30 uppercase tracking-[0.2em] mt-1.5">Ecosystem Node</p>
                     </div>
                 </Link>

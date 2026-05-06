@@ -1,0 +1,16 @@
+/home/heidless/projects/PromptResources/src/lib/resources-server.ts:                if (typeof val.toDate === 'function') return val.toDate().toISOString();
+/home/heidless/projects/PromptResources/src/lib/resources-server.ts:            if (typeof val.toDate === 'function') return val.toDate().toISOString();
+/home/heidless/projects/PromptResources/src/lib/assets-server.ts:                if (typeof val.toDate === 'function') return val.toDate().toISOString();
+/home/heidless/projects/PromptResources/src/lib/creators-server.ts:            createdAt = data.createdAt.toDate();
+/home/heidless/projects/PromptResources/src/lib/creators-server.ts:            updatedAt: (typeof data.updatedAt?.toDate === 'function') ? data.updatedAt.toDate() : (data.updatedAt ? new Date(data.updatedAt) : new Date())
+/home/heidless/projects/PromptResources/src/lib/utils.ts:        return (data as any).toDate().toISOString() as unknown as T;
+/home/heidless/projects/PromptResources/src/app/page.tsx:                if (typeof val.toDate === 'function') return val.toDate();
+/home/heidless/projects/PromptResources/src/app/admin/creators/page.tsx:                    if (typeof val?.toDate === 'function') return val.toDate().getTime();
+/home/heidless/projects/PromptResources/src/app/api/resources/[id]/route.ts:                if (typeof val.toDate === 'function') return val.toDate().toISOString();
+/home/heidless/projects/PromptResources/src/app/api/resources/[id]/comments/route.ts:                if (typeof val.toDate === 'function') return val.toDate().toISOString();
+/home/heidless/projects/PromptResources/src/app/api/resources/bulk/route.ts:                        if (typeof val.toDate === 'function') return val.toDate().toISOString();
+/home/heidless/projects/PromptResources/src/app/api/member/[uid]/route.ts:                            if (typeof val.toDate === 'function') return val.toDate().toISOString();
+/home/heidless/projects/PromptResources/src/app/api/member/[uid]/route.ts:                    createdAt: (typeof userData?.createdAt?.toDate === 'function') ? userData.createdAt.toDate().toISOString() : (userData?.createdAt || null),
+/home/heidless/projects/PromptResources/src/app/creators/CreatorsDirectoryClient.tsx:                    if (typeof val?.toDate === 'function') return val.toDate().getTime();
+/home/heidless/projects/PromptResources/src/app/resources/admin/assets/page.tsx:                    if (typeof val.toDate === 'function') return val.toDate();
+/home/heidless/projects/PromptResources/src/contexts/AuthContext.tsx:                                if (typeof val.toDate === 'function') return val.toDate();

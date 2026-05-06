@@ -412,6 +412,8 @@ export default function ResourcesClient({
                                 >
                                     <option value="updatedAt" className="bg-[#1e293b] text-white">Sort: Last Synced</option>
                                     <option value="createdAt" className="bg-[#1e293b] text-white">Sort: Discovery Date</option>
+                                    <option value="createdAt" className="bg-[#1e293b] text-white">Sort: Timestamp Created</option>
+                                    <option value="updatedAt" className="bg-[#1e293b] text-white">Sort: Timestamp Updated</option>
                                     <option value="title" className="bg-[#1e293b] text-white">Sort: Identity (A-Z)</option>
                                     <option value="rank" className="bg-[#1e293b] text-white">Sort: Technical Rank</option>
                                     <option value="averageRating" className="bg-[#1e293b] text-white">Sort: System Rating</option>

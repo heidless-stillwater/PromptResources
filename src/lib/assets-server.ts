@@ -10,12 +10,23 @@ export async function getThumbnailAssets(tags?: string[]) {
         }
 
         const snapshot = await query.get();
-        return snapshot.docs.map((doc: any) => ({
-            id: doc.id,
-            ...doc.data(),
-            createdAt: doc.data().createdAt?.toDate()?.toISOString() || null,
-            updatedAt: doc.data().updatedAt?.toDate()?.toISOString() || null,
-        })) as ThumbnailAsset[];
+        return snapshot.docs.map((doc: any) => {
+            const data = doc.data();
+            const formatDate = (val: any) => {
+                if (!val) return null;
+                if (typeof val.toDate === 'function') return val.toDate().toISOString();
+                if (val instanceof Date) return val.toISOString();
+                if (typeof val === 'string') return val;
+                return null;
+            };
+
+            return {
+                id: doc.id,
+                ...data,
+                createdAt: formatDate(data.createdAt),
+                updatedAt: formatDate(data.updatedAt),
+            };
+        }) as ThumbnailAsset[];
     } catch (error) {
         console.error('Error fetching thumbnail assets:', error);
         return [];

@@ -29,8 +29,10 @@ export async function GET(request: NextRequest) {
 
         const decodedToken = await getAuthUser(request);
         const userUid = decodedToken?.uid;
+        const userEmail = decodedToken?.email;
+        
         // Dual-vector admin check: Firestore role OR verified email match
-        const userIsAdmin = userUid ? (await isAdmin(userUid) || decodedToken?.email === 'heidlessemail18@gmail.com') : false;
+        const userIsAdmin = userUid ? (await isAdmin(userUid) || userEmail === 'heidlessemail18@gmail.com' || userEmail === 'lockhart.r@gmail.com') : false;
 
         const { resources, total, hasMore } = await getResourcesAction({
             platform,

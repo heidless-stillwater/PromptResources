@@ -6,13 +6,15 @@ import {
     signInWithEmailAndPassword,
     createUserWithEmailAndPassword,
     signInWithPopup,
+    getRedirectResult,
     GoogleAuthProvider,
     signOut as firebaseSignOut,
     User,
     updateProfile,
 } from 'firebase/auth';
-import { doc, getDoc, setDoc, onSnapshot, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, onSnapshot, serverTimestamp } from 'firebase/firestore';
 import { auth, db, toolDb } from '@/lib/firebase';
+import { sanitize } from '@/lib/utils';
 import { UserProfile, UserRole } from '@/lib/types';
 
 interface AuthContextType {
@@ -60,11 +62,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const protectionRef = doc(db, 'system_config', 'protection');
         const unsubscribeProt = onSnapshot(protectionRef, (snap) => {
             if (snap.exists()) {
-                const data = snap.data();
-                setProtection({
-                    avEnabled: !!data.avEnabled,
-                    avStrictness: data.avStrictness || 'soft'
-                });
+                setProtection(sanitize(snap.data()) as any);
             }
         }, (err) => {
             console.error('[AuthContext] Protection monitor denied:', err.message);
@@ -74,11 +72,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const moderationRef = doc(db, 'system_config', 'moderation');
         const unsubscribeMod = onSnapshot(moderationRef, (snap) => {
             if (snap.exists()) {
-                const data = snap.data();
-                setModeration({
-                    flaggingEnabled: !!data.flaggingEnabled,
-                    aiScreening: !!data.aiScreening
-                });
+                setModeration(sanitize(snap.data()) as any);
             }
         }, (err) => {
             console.error('[AuthContext] Moderation monitor denied:', err.message);
@@ -146,6 +140,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         let unsubscribeSnapshot: (() => void) | null = null;
 
         const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
+            // Check for redirect result on mount as a fallback
+            getRedirectResult(auth).catch((err) => {
+                console.warn('[AuthContext] Redirect result error:', err.message);
+            });
+
             // Clean up previous snapshot listener when user changes
             if (unsubscribeSnapshot) {
                 unsubscribeSnapshot();
@@ -166,7 +165,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                     // Subscribe to real-time updates on the user document
                     unsubscribeSnapshot = onSnapshot(userRef, (docSnap) => {
                         if (docSnap.exists()) {
-                            const data = docSnap.data();
+                            const data = sanitize(docSnap.data());
+                            
+                            const parseDate = (val: any) => {
+                                if (!val) return new Date();
+                                if (typeof val.toDate === 'function') return val.toDate();
+                                if (val instanceof Date) return val;
+                                if (typeof val === 'string') return new Date(val);
+                                return new Date();
+                            };
+
                             const userProfile: UserProfile = {
                                 uid: firebaseUser.uid,
                                 email: data.email,
@@ -185,8 +193,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                                 resourceCount: data.resourceCount,
                                 authoredCount: data.authoredCount,
                                 curatedCount: data.curatedCount,
-                                createdAt: data.createdAt?.toDate() || new Date(),
-                                updatedAt: data.updatedAt?.toDate() || new Date(),
+                                createdAt: parseDate(data.createdAt),
+                                updatedAt: parseDate(data.updatedAt),
                             };
                             setProfile(userProfile);
                             setActiveRole(userProfile.role);
@@ -212,6 +220,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             if (unsubscribeSnapshot) unsubscribeSnapshot();
         };
     }, [createNewProfile]);
+
+
 
 
     // ──────────────────────────────────────────────────
@@ -243,12 +253,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         try {
             await signInWithPopup(auth, provider);
         } catch (err: any) {
-            // User closed the popup — not an error, ignore silently
-            if (err?.code === 'auth/popup-closed-by-user' ||
-                err?.code === 'auth/cancelled-popup-request') {
-                return;
-            }
-            throw err; // Re-throw genuine errors
+            console.error('[AuthContext] Google sign in error:', err);
+            throw err;
         }
     };
 

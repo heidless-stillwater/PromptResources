@@ -1,0 +1,113 @@
+/home/heidless/projects/PromptResources/src/lib/suggestions.ts:    const extra = context ? Object.values(context).filter(Boolean).join(' ') : '';
+/home/heidless/projects/PromptResources/src/lib/suggestions.ts:        .sort((a, b) => b.score - a.score)
+/home/heidless/projects/PromptResources/src/lib/suggestions.ts:    return Object.keys(CATEGORY_KEYWORDS).sort();
+/home/heidless/projects/PromptResources/src/lib/youtube.ts:    return attributions.filter(attribution => {
+/home/heidless/projects/PromptResources/src/lib/services/compliance-service.ts:            const relevantPolicies = allPolicies.filter(p => 
+/home/heidless/projects/PromptResources/src/lib/services/compliance-service.ts:            const redBreaches = relevantPolicies.filter(p => p.status === 'red');
+/home/heidless/projects/PromptResources/src/lib/services/compliance-service.ts:            const amberDrifts = relevantPolicies.filter(p => p.status === 'amber');
+/home/heidless/projects/PromptResources/src/lib/resources-server.ts:            const statusList = status.split(',').filter(Boolean);
+/home/heidless/projects/PromptResources/src/lib/resources-server.ts:                    .filter(t => t.length >= 2)
+/home/heidless/projects/PromptResources/src/lib/resources-server.ts:                const statusList = status.split(',').filter(Boolean);
+/home/heidless/projects/PromptResources/src/lib/resources-server.ts:                    const searchTokens = search.toLowerCase().replace(/[^\w\s]/g, '').split(/\s+/).filter(t => t.length >= 2).slice(0, 10);
+/home/heidless/projects/PromptResources/src/lib/resources-server.ts:        const userIds = Array.from(new Set(finalResources.map((r: any) => r.addedBy).filter(Boolean)));
+/home/heidless/projects/PromptResources/src/lib/resources-server.ts:                .sort((a, b) => a.name.localeCompare(b.name));
+/home/heidless/projects/PromptResources/src/lib/resources-server.ts:        return Array.from(catsMap.values()).sort((a, b) => a.name.localeCompare(b.name));
+/home/heidless/projects/PromptResources/src/lib/creators-server.ts:        .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+/home/heidless/projects/PromptResources/src/lib/creators-server.ts:    return creators.sort((a, b) => {
+/home/heidless/projects/PromptResources/src/lib/utils.ts:            .filter(t => t.length >= 2)
+/home/heidless/projects/PromptResources/src/lib/utils.ts:            .filter(t => t.length >= 2)
+/home/heidless/projects/PromptResources/src/components/Toast.tsx:            setToasts((prev) => prev.filter((t) => t.id !== id));
+/home/heidless/projects/PromptResources/src/components/Toast.tsx:        setToasts((prev) => prev.filter((t) => t.id !== id));
+/home/heidless/projects/PromptResources/src/components/ThumbnailPicker.tsx:    const filteredAssets = assets.filter(a => 
+/home/heidless/projects/PromptResources/src/components/CommandPalette.tsx:    ].filter(cmd => 
+/home/heidless/projects/PromptResources/src/components/FilterBar.tsx:                          [...(s.filters.selectedCreators || [])].sort().join(',') === [...(selectedCreators || [])].sort().join(',');
+/home/heidless/projects/PromptResources/src/components/FilterBar.tsx:            .filter(c => (c.displayName || '').toLowerCase().includes(creatorSearch.toLowerCase()))
+/home/heidless/projects/PromptResources/src/components/FilterBar.tsx:            .sort((a, b) => {
+/home/heidless/projects/PromptResources/src/components/FilterBar.tsx:        if (current.includes(uid)) setSelectedCreators(current.filter(id => id !== uid));
+/home/heidless/projects/PromptResources/src/components/FilterBar.tsx:        const updated = [...shells.filter(s => s.name !== newShell.name), newShell];
+/home/heidless/projects/PromptResources/src/components/FilterBar.tsx:        const updated = shells.filter(s => s.name !== name);
+/home/heidless/projects/PromptResources/src/components/ResourcesClient.tsx:        searchParams.get('creators') ? searchParams.get('creators')!.split(',').filter(Boolean) : []
+/home/heidless/projects/PromptResources/src/components/ResourcesClient.tsx:        setSelectedCreators(searchParams.get('creators') ? searchParams.get('creators')!.split(',').filter(Boolean) : []);
+/home/heidless/projects/PromptResources/src/components/ResourcesClient.tsx:                        setResources(prev => prev.filter(r => r.id !== resourceId));
+/home/heidless/projects/PromptResources/src/components/ResourcesClient.tsx:                                        { label: 'Verified Rank', value: resources.filter(r => r.rank).length, icon: <Icons.trophy size={16} />, tooltip: 'High-performance assets that have achieved priority ranking in technical benchmarks.' }
+/home/heidless/projects/PromptResources/src/app/dashboard/page.tsx:        ? Object.values(userResData.progress || {}).filter((s) => s === 'completed').length
+/home/heidless/projects/PromptResources/src/app/dashboard/page.tsx:        ? Object.values(userResData.progress || {}).filter((s) => s === 'in-progress').length
+/home/heidless/projects/PromptResources/src/app/admin/audit/youtube/page.tsx:                    const ytResources = allResources.filter(r => isYouTubeUrl(r.url));
+/home/heidless/projects/PromptResources/src/app/admin/audit/youtube/page.tsx:                        needsFix: items.filter(i => i.status === 'pending').length,
+/home/heidless/projects/PromptResources/src/app/admin/audit/youtube/page.tsx:            .filter(idx => idx !== -1);
+/home/heidless/projects/PromptResources/src/app/admin/audit/youtube/page.tsx:                            { label: 'Identified Signals', value: auditItems.filter(i => i.status === 'ready' || i.status === 'pending').length, icon: <Icons.activity size={14} />, color: 'text-rose-400' },
+/home/heidless/projects/PromptResources/src/app/admin/page.tsx:        let filtered = (resources as Resource[]).filter(r => {
+/home/heidless/projects/PromptResources/src/app/admin/page.tsx:        filtered.sort((a, b) => {
+/home/heidless/projects/PromptResources/src/app/admin/page.tsx:    const freeCount = resources.filter((r) => r.pricing === 'free').length;
+/home/heidless/projects/PromptResources/src/app/admin/page.tsx:    const paidCount = resources.filter((r) => r.pricing === 'paid').length;
+/home/heidless/projects/PromptResources/src/app/admin/page.tsx:    const reviewCount = resources.filter((r) => r.status === 'pending' || r.status === 'suggested').length;
+/home/heidless/projects/PromptResources/src/app/admin/page.tsx:    const taintedCount = resources.filter((r) => r.status === 'tainted').length;
+/home/heidless/projects/PromptResources/src/app/admin/page.tsx:    const creatorsCount = users.filter((u) => u.isPublicProfile || u.isStub).length;
+/home/heidless/projects/PromptResources/src/app/admin/page.tsx:                                            .filter(c => c.displayName.toLowerCase().includes(creatorsSearch.toLowerCase()))
+/home/heidless/projects/PromptResources/src/app/admin/page.tsx:                                            .sort((a, b) => (b.resourceCount || 0) - (a.resourceCount || 0))
+/home/heidless/projects/PromptResources/src/app/admin/page.tsx:                                    {resources.filter(r => r.status === 'pending' || r.status === 'suggested').map((r) => (
+/home/heidless/projects/PromptResources/src/app/admin/page.tsx:                                    {resources.filter(r => r.status === 'pending' || r.status === 'suggested').length === 0 && (
+/home/heidless/projects/PromptResources/src/app/admin/page.tsx:                                    {Array.from(new Set(resources.flatMap((r) => r.categories || []))).sort().map((cat) => (
+/home/heidless/projects/PromptResources/src/app/admin/page.tsx:                                            {cat} <span className="text-white/20 ml-2">{resources.filter(r => r.categories?.includes(cat)).length}</span>
+/home/heidless/projects/PromptResources/src/app/admin/page.tsx:                                    {resources.filter(r => r.status === 'tainted').map((r) => (
+/home/heidless/projects/PromptResources/src/app/admin/page.tsx:                                    {resources.filter(r => r.status === 'tainted').length === 0 && (
+/home/heidless/projects/PromptResources/src/app/admin/creators/page.tsx:            return list.filter(u => u.isPublicProfile || u.isStub).sort((a, b) => (b.resourceCount || 0) - (a.resourceCount || 0));
+/home/heidless/projects/PromptResources/src/app/admin/creators/page.tsx:        .filter(c => {
+/home/heidless/projects/PromptResources/src/app/admin/creators/page.tsx:        .sort((a, b) => {
+/home/heidless/projects/PromptResources/src/app/admin/creators/page.tsx:                                    { label: 'Verified Entities', value: creators.filter(c => c.isVerified).length, icon: <Icons.check size={14} />, color: 'text-emerald-400' },
+/home/heidless/projects/PromptResources/src/app/admin/creators/page.tsx:                                    { label: 'External Stubs', value: creators.filter(c => c.isStub).length, icon: <Icons.external size={14} />, color: 'text-indigo-400' },
+/home/heidless/projects/PromptResources/src/app/admin/creators/page.tsx:                                    { label: 'Featured Pioneer', value: creators.filter(c => c.isFeatured).length, icon: <Icons.sparkles size={14} />, color: 'text-amber-400' }
+/home/heidless/projects/PromptResources/src/app/api/user-resources/route.ts:            data.savedResources = data.savedResources.filter((id: string) => id !== resourceId);
+/home/heidless/projects/PromptResources/src/app/api/assets/route.ts:        const tags = searchParams.get('tags')?.split(',').filter(Boolean);
+/home/heidless/projects/PromptResources/src/app/api/links/extract/route.ts:                    const path = urlObj.pathname.split('/').filter(Boolean).pop();
+/home/heidless/projects/PromptResources/src/app/api/categories/route.ts:        })).sort((a: any, b: any) => (a.name || '').localeCompare(b.name || ''));
+/home/heidless/projects/PromptResources/src/app/api/resources/route.ts:        const creators = (registryActive && searchParams.get('creators')) ? searchParams.get('creators')!.split(',').filter(Boolean) : null;
+/home/heidless/projects/PromptResources/src/app/api/resources/route.ts:            attributionNames: finalAttributions.map((a: any) => a.name).filter(Boolean),
+/home/heidless/projects/PromptResources/src/app/api/resources/[id]/route.ts:                        attributionNames: newAttributions.map(a => a.name).filter(Boolean),
+/home/heidless/projects/PromptResources/src/app/api/resources/[id]/route.ts:            updateData.attributionNames = finalAttributions.map((a: any) => a.name).filter(Boolean);
+/home/heidless/projects/PromptResources/src/app/api/resources/[id]/comments/route.ts:        comments.sort((a: any, b: any) => {
+/home/heidless/projects/PromptResources/src/app/api/member/[uid]/route.ts:                    totalCompleted: Object.values(userResData?.progress || {}).filter((s) => s === 'completed').length,
+/home/heidless/projects/PromptResources/src/app/api/member/[uid]/route.ts:                    totalInProgress: Object.values(userResData?.progress || {}).filter((s) => s === 'in-progress').length,
+/home/heidless/projects/PromptResources/src/app/categories/page.tsx:                setCategories(enrichedCats.sort((a, b) => (b.count || 0) - (a.count || 0)));
+/home/heidless/projects/PromptResources/src/app/categories/page.tsx:        return categories.filter(c => 
+/home/heidless/projects/PromptResources/src/app/creators/[slug]/CreatorProfileClient.tsx:    const authoredResources = initialResources.filter(r =>
+/home/heidless/projects/PromptResources/src/app/creators/[slug]/CreatorProfileClient.tsx:    const curatedResources = initialResources.filter(r =>
+/home/heidless/projects/PromptResources/src/app/creators/CreatorsDirectoryClient.tsx:        const sorted = [...creators].sort((a, b) => {
+/home/heidless/projects/PromptResources/src/app/creators/CreatorsDirectoryClient.tsx:        return sortedCreators.filter(c => {
+/home/heidless/projects/PromptResources/src/app/creators/CreatorsDirectoryClient.tsx:                                            { label: 'Verified', value: creators.filter(c => c.isVerified).length, icon: <Icons.check size={16} />, tooltip: 'Creators who have passed identity and quality verification standards.' },
+/home/heidless/projects/PromptResources/src/app/creators/CreatorsDirectoryClient.tsx:                                            { label: 'Ranked', value: creators.filter(c => c.rank).length, icon: <Icons.trophy size={16} />, tooltip: 'Creators recognized for exceptional contribution quality and system performance.' }
+/home/heidless/projects/PromptResources/src/app/resources/new/page.tsx:                            const filtered = prev.filter(a => a.name && a.url);
+/home/heidless/projects/PromptResources/src/app/resources/new/page.tsx:                const finalSuggestions = Array.from(mergedMap.values()).sort((a,b) => a.name.localeCompare(b.name));
+/home/heidless/projects/PromptResources/src/app/resources/new/page.tsx:        setSelectedCategories(selectedCategories.filter((c) => c !== cat));
+/home/heidless/projects/PromptResources/src/app/resources/new/page.tsx:        setAttributions(attributions.filter((_, i) => i !== idx));
+/home/heidless/projects/PromptResources/src/app/resources/new/page.tsx:        const validAttributions = attributions.filter((c) => (c.name || '').trim() && (c.url || '').trim());
+/home/heidless/projects/PromptResources/src/app/resources/new/page.tsx:                    tags: tags.split(',').map((t) => t.trim()).filter(Boolean),
+/home/heidless/projects/PromptResources/src/app/resources/new/page.tsx:                    prompts: prompts.split('\n').map(p => p.trim()).filter(Boolean),
+/home/heidless/projects/PromptResources/src/app/resources/new/page.tsx:                                                    .filter(s => !attributions.some(a => a.name === s.name))
+/home/heidless/projects/PromptResources/src/app/resources/new/page.tsx:                                                .filter((c) => !selectedCategories.includes(c))
+/home/heidless/projects/PromptResources/src/app/resources/new/page.tsx:                                            .filter((c) => !selectedCategories.includes(c.name))
+/home/heidless/projects/PromptResources/src/app/resources/new/page.tsx:                                            .filter((name) => !selectedCategories.includes(name) && !dbCategories.some(db => db.name === name))
+/home/heidless/projects/PromptResources/src/app/resources/page.tsx:    const creators = (registryActive && searchParams.creators) ? searchParams.creators.split(',').filter(Boolean) : null;
+/home/heidless/projects/PromptResources/src/app/resources/[id]/page.tsx:                const updatedTags = resource.tags?.filter(t => t !== tagToRemove) || [];
+/home/heidless/projects/PromptResources/src/app/resources/[id]/page.tsx:                const updatedCats = resource.categories?.filter(c => c !== catToRemove) || [];
+/home/heidless/projects/PromptResources/src/app/resources/[id]/page.tsx:            .filter(link => selectedLinks.has(link.url))
+/home/heidless/projects/PromptResources/src/app/resources/[id]/page.tsx:                                                    <button className="btn btn-primary" onClick={async () => { const promptsArray = tempPrompts.split('\n').map(p => p.trim()).filter(Boolean); await handleUpdateField('prompts', promptsArray); setIsEditingPrompts(false); }}>Save Prompts</button>
+/home/heidless/projects/PromptResources/src/app/resources/[id]/edit/page.tsx:                            const filtered = prev.filter(a => a.name && a.url);
+/home/heidless/projects/PromptResources/src/app/resources/[id]/edit/page.tsx:                const finalSuggestions = Array.from(mergedMap.values()).sort((a,b) => a.name.localeCompare(b.name));
+/home/heidless/projects/PromptResources/src/app/resources/[id]/edit/page.tsx:        setSelectedCategories(selectedCategories.filter((c) => c !== cat));
+/home/heidless/projects/PromptResources/src/app/resources/[id]/edit/page.tsx:        setAttributions(attributions.filter((_, i) => i !== idx));
+/home/heidless/projects/PromptResources/src/app/resources/[id]/edit/page.tsx:        const currentTags = tags.split(',').map(t => t.trim()).filter(Boolean).sort().join(',');
+/home/heidless/projects/PromptResources/src/app/resources/[id]/edit/page.tsx:        const originalTags = (originalResource.tags || []).sort().join(',');
+/home/heidless/projects/PromptResources/src/app/resources/[id]/edit/page.tsx:        const currentCats = [...selectedCategories].sort().join(',');
+/home/heidless/projects/PromptResources/src/app/resources/[id]/edit/page.tsx:        const originalCats = (originalResource.categories || []).sort().join(',');
+/home/heidless/projects/PromptResources/src/app/resources/[id]/edit/page.tsx:        const currentPrompts = prompts.split('\n').map(p => p.trim()).filter(Boolean).sort().join('\n');
+/home/heidless/projects/PromptResources/src/app/resources/[id]/edit/page.tsx:        const originalPrompts = (originalResource.prompts || []).sort().join('\n');
+/home/heidless/projects/PromptResources/src/app/resources/[id]/edit/page.tsx:        const validAttributions = attributions.filter((c) => (c.name || '').trim() && (c.url || '').trim());
+/home/heidless/projects/PromptResources/src/app/resources/[id]/edit/page.tsx:                    tags: tags.split(',').map((t) => t.trim()).filter(Boolean),
+/home/heidless/projects/PromptResources/src/app/resources/[id]/edit/page.tsx:                    prompts: prompts.split('\n').map(p => p.trim()).filter(Boolean),
+/home/heidless/projects/PromptResources/src/app/resources/[id]/edit/page.tsx:                                    {dbCategories.filter(c => !selectedCategories.includes(c.name)).map((cat) => (
+/home/heidless/projects/PromptResources/src/app/resources/[id]/edit/page.tsx:                                    {allCategories.filter(name => !selectedCategories.includes(name) && !dbCategories.some(db => db.name === name)).map((cat) => (
+/home/heidless/projects/PromptResources/src/app/resources/admin/assets/page.tsx:                tags: newTags.split(',').map(t => t.trim()).filter(Boolean),
+/home/heidless/projects/PromptResources/src/app/resources/admin/assets/page.tsx:                                    tags: newTags.split(',').map(t => t.trim()).filter(Boolean),
+/home/heidless/projects/PromptResources/src/app/resources/admin/assets/page.tsx:            setAssets(prev => prev.filter(a => a.id !== asset.id));
+/home/heidless/projects/PromptResources/src/scripts/intelligent-remap.ts:      tags: oldRes.resourceTags ? oldRes.resourceTags.split(',').map((t: string) => t.trim()).filter(Boolean) : [],

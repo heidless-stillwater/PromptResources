@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { adminDb } from '@/lib/firebase-admin';
 import { getAuthUser, isAdmin } from '@/lib/auth-server';
 import { FieldPath } from 'firebase-admin/firestore';
+import { sanitize } from '@/lib/utils';
 
 export async function POST(request: NextRequest) {
     try {
@@ -30,12 +31,10 @@ export async function POST(request: NextRequest) {
                 const data = doc.data();
                 // Access Control: Must be published OR be the owner OR be an admin
                 if (userIsAdmin || data.status === 'published' || (userUid && data.addedBy === userUid)) {
-                    resources.push({
+                    resources.push(sanitize({
                         id: doc.id,
-                        ...data,
-                        createdAt: data.createdAt?.toDate()?.toISOString() || null,
-                        updatedAt: data.updatedAt?.toDate()?.toISOString() || null,
-                    });
+                        ...data
+                    }));
                 }
             });
         }

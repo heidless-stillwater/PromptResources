@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { adminAuth, toolDbAdmin } from '@/lib/firebase-admin';
+import { sanitize } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
 
@@ -61,7 +62,7 @@ export async function GET(req: Request) {
             };
         });
         console.log(`[API] /admin/users returning ${users.length} users`);
-        return NextResponse.json({ success: true, users });
+        return NextResponse.json({ success: true, users: sanitize(users) });
     } catch (e: any) {
         console.error('[API] /admin/users Error:', e.message, e.stack);
         return NextResponse.json({ success: false, error: e.message, stack: e.stack }, { status: 500 });

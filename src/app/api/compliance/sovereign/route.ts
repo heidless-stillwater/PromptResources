@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { ComplianceService } from '@/lib/services/compliance-service';
+import { sanitize } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,7 +17,7 @@ export async function GET() {
             gated, 
             status,
             message: message || (status === 'green' ? 'Sovereign Status: Nominal' : 'Sovereign Compliance Breach Detected.'),
-            breachedPolicies,
+            breachedPolicies: sanitize(breachedPolicies),
             timestamp: new Date().toISOString()
         });
     } catch (error: any) {

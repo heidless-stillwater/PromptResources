@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { accreditationDb } from '@/lib/firebase-admin';
+import { sanitize } from '@/lib/utils';
 
 export async function GET() {
     try {
@@ -8,7 +9,7 @@ export async function GET() {
             .limit(5)
             .get();
             
-        const tickets = snap.docs.map(doc => ({
+        const tickets = snap.docs.map((doc: any) => sanitize({
             id: doc.id,
             ...doc.data()
         }));

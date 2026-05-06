@@ -73,12 +73,23 @@ function AssetManagerContent() {
             setLoading(true);
             const q = query(collection(db, 'thumbnailAssets'), orderBy('createdAt', 'desc'));
             const snapshot = await getDocs(q);
-            const data = snapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data(),
-                createdAt: doc.data().createdAt?.toDate(),
-                updatedAt: doc.data().updatedAt?.toDate()
-            })) as ThumbnailAsset[];
+            const data = snapshot.docs.map(doc => {
+                const docData = doc.data();
+                const parseDate = (val: any) => {
+                    if (!val) return new Date();
+                    if (typeof val.toDate === 'function') return val.toDate();
+                    if (val instanceof Date) return val;
+                    if (typeof val === 'string') return new Date(val);
+                    return new Date();
+                };
+                
+                return {
+                    id: doc.id,
+                    ...docData,
+                    createdAt: parseDate(docData.createdAt),
+                    updatedAt: parseDate(docData.updatedAt)
+                };
+            }) as ThumbnailAsset[];
             setAssets(data);
         } catch (error) {
             console.error('Error fetching assets:', error);
