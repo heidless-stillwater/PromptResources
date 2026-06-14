@@ -197,3 +197,23 @@ export interface SystemConfig {
     security: SecurityConfig;
 }
 
+export interface Playlist {
+    id: string;
+    title: string;
+    description: string;
+    thumbnailUrl: string | null;
+    thumbnailSource: 'derived' | 'custom' | 'resource';
+    thumbnailResourceId?: string | null;
+    resourceIds: string[];
+    addedBy: string;
+    creator?: {
+        displayName: string;
+        photoURL?: string;
+    };
+    status: 'published' | 'private';
+    ranking: number;
+    tags?: string[];
+    createdAt: any;
+    updatedAt: any;
+}
+

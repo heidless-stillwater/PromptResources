@@ -12,8 +12,9 @@ if (getApps().length === 0) {
 }
 
 async function migrate() {
-    const sourceDb = getFirestore(undefined, 'promptresources-db-0');
-    const targetDb = getFirestore(undefined, 'promptresources-db-0');
+    const app = getApps()[0];
+    const sourceDb = getFirestore(app, 'promptresources-db-0');
+    const targetDb = getFirestore(app, 'promptresources-db-0');
 
     console.log('🚀 Starting Full Production Sync...');
 

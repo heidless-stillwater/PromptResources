@@ -7,15 +7,18 @@
     },
     {
       "database": "prompttool-db-0",
-      "rules": "firestore.rules"
+      "rules": "firestore.rules",
+      "indexes": "dummy-indexes.json"
     },
     {
       "database": "suiteutils-db-0",
-      "rules": "firestore.rules"
+      "rules": "firestore.rules",
+      "indexes": "dummy-indexes.json"
     },
     {
       "database": "(default)",
-      "rules": "firestore.rules"
+      "rules": "firestore.rules",
+      "indexes": "dummy-indexes.json"
     }
   ],
   "storage": {
@@ -23,7 +26,7 @@
   },
   "hosting": [
     {
-      "site": "heidless-apps-2",
+      "target": "stillwater-prompt-resources",
       "public": "public",
       "ignore": [
         "firebase.json",

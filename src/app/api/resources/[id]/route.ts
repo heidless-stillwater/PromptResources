@@ -5,6 +5,7 @@ import { resolveAttributions, syncCreatorStats } from '@/lib/creators-server';
 import { Resource } from '@/lib/types';
 import { generateSearchKeywords } from '@/lib/utils';
 import { getResourceById } from '@/lib/resources-server';
+import { syncResourceTags } from '@/lib/tags-server';
 
 export async function GET(
     request: NextRequest,
@@ -208,6 +209,18 @@ export async function PATCH(
 
         await docRef.update(updateData);
 
+        // Sync tag usage counts in master list
+        if (body.tags && Array.isArray(body.tags)) {
+            const previousTags: string[] = resourceData?.tags || [];
+            const currentTags: string[] = body.tags;
+            const addedTags = currentTags.filter(t => !previousTags.includes(t));
+            const removedTags = previousTags.filter(t => !currentTags.includes(t));
+            if (addedTags.length > 0 || removedTags.length > 0) {
+                syncResourceTags(addedTags, removedTags, decodedToken.uid)
+                    .catch(e => console.error('Error syncing tags after PATCH:', e));
+            }
+        }
+
         // Revalidate the paths immediately
         revalidatePath('/resources', 'page');
         revalidatePath(`/resources/${params.id}`, 'page');
@@ -282,7 +295,13 @@ export async function DELETE(
             );
         }
 
+        const tags = resourceData?.tags || [];
         await docRef.delete();
+
+        // Decrement tag counts in the master list
+        if (tags.length > 0) {
+            await syncResourceTags([], tags, decodedToken.uid);
+        }
 
         // Revalidate listing page
         revalidatePath('/resources');

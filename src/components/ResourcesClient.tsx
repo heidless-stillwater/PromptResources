@@ -17,6 +17,7 @@ import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Icons } from '@/components/ui/Icons';
 import { SkeletonGrid } from '@/components/ui/Skeleton';
+import { useTheme } from '@/components/providers/ThemeProvider';
 
 interface ResourcesClientProps {
     initialResources: Resource[];
@@ -31,7 +32,8 @@ export default function ResourcesClient({
     totalResources,
     hasMoreInitial 
 }: ResourcesClientProps) {
-    const { user, isAdmin, loading: authLoading } = useAuth();
+    const { user, profile, isAdmin, isSu, loading: authLoading } = useAuth();
+    const { isDarkMode } = useTheme();
     const router = useRouter();
     const searchParams = useSearchParams();
     const queryClient = useQueryClient();
@@ -73,6 +75,7 @@ export default function ResourcesClient({
         searchParams.get('creators') ? searchParams.get('creators')!.split(',').filter(Boolean) : []
     );
     const [registryActive, setRegistryActive] = useState(searchParams.get('registryActive') !== 'false');
+    const [excludeUid, setExcludeUid] = useState<string | null>(searchParams.get('excludeUid') || null);
     const [viewMode, setViewMode] = useState<'grid-2' | 'grid-3' | 'grid-4' | 'grid-5' | 'grid-6' | 'list'>('grid-3');
     
     // Preference Persistence
@@ -102,11 +105,17 @@ export default function ResourcesClient({
         if (newFilters.sortOrder !== undefined) { if (newFilters.sortOrder) params.set('sortOrder', newFilters.sortOrder); else params.delete('sortOrder'); }
         if (newFilters.selectedCreators !== undefined) { if (newFilters.selectedCreators.length > 0) params.set('creators', newFilters.selectedCreators.join(',')); else params.delete('creators'); }
         if (newFilters.registryActive !== undefined) { if (newFilters.registryActive === false) params.set('registryActive', 'false'); else params.delete('registryActive'); }
+        if (newFilters.excludeUid !== undefined) { if (newFilters.excludeUid) params.set('excludeUid', newFilters.excludeUid); else params.delete('excludeUid'); }
 
         params.delete('page');
         setLoading(true);
         router.push(`/resources?${params.toString()}`, { scroll: false });
     }, [router, searchParams]);
+
+    // Force refresh resources list from server on mount to clear Next.js Router Cache
+    useEffect(() => {
+        router.refresh();
+    }, [router]);
 
     // Sync filters from URL
     useEffect(() => {
@@ -124,6 +133,7 @@ export default function ResourcesClient({
         setSortOrder((searchParams.get('sortOrder') as any) || 'desc');
         setSelectedCreators(searchParams.get('creators') ? searchParams.get('creators')!.split(',').filter(Boolean) : []);
         setRegistryActive(searchParams.get('registryActive') !== 'false');
+        setExcludeUid(searchParams.get('excludeUid') || null);
         setLoading(false);
     }, [initialResources, searchParams]);
 
@@ -132,7 +142,10 @@ export default function ResourcesClient({
         queryKey: ['savedResources', user?.uid],
         queryFn: async () => {
             if (!user) return new Set<string>();
-            const response = await fetch(`/api/user-resources?uid=${user.uid}`);
+            const token = await user.getIdToken();
+            const response = await fetch(`/api/user-resources?uid=${user.uid}`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
             const result = await response.json();
             return new Set<string>(result.data?.savedResources || []);
         },
@@ -267,31 +280,45 @@ export default function ResourcesClient({
                         {/* Identity Pathing */}
                         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
                             <div className="flex items-center gap-4">
-                                <div className="p-3 bg-white/5 border border-white/10 rounded-2xl">
+                                <div className={`p-3 border rounded-2xl ${isDarkMode ? 'bg-white/5 border-white/10' : 'bg-black/5 border-black/10'}`}>
                                     <Icons.database size={20} className="text-primary" />
                                 </div>
                                 <div className="flex flex-col">
-                                    <div className="text-[10px] font-black text-white/20 uppercase tracking-[0.3em] mb-1">
-                                        Ecosystem Registry / Assets
+                                    <div className={`text-[10px] font-black uppercase tracking-[0.3em] mb-1 ${isDarkMode ? 'text-white/20' : 'text-slate-400'}`}>
+                                        Curated Resources & Tools
                                     </div>
-                                    <div className="flex items-center gap-2 text-xs font-bold text-white/60">
-                                        <span className="text-white uppercase tracking-widest">Resources</span>
+                                    <div className="flex items-center gap-2 text-xs font-bold">
+                                        <span className={`uppercase tracking-widest ${isDarkMode ? 'text-white' : 'text-slate-700'}`}>Resources</span>
                                         <span className="opacity-20">/</span>
-                                        <span className="text-primary/60 font-black tracking-widest uppercase">Resources</span>
+                                        <span className="text-primary/60 font-black tracking-widest uppercase">Discover</span>
                                     </div>
                                 </div>
                             </div>
                             
-                            <div className="flex items-center gap-4 p-3 px-4 bg-white/5 border border-white/10 rounded-2xl backdrop-blur-xl">
-                                <div className="flex flex-col items-end">
-                                    <div className="text-[9px] font-black text-white/20 uppercase tracking-widest leading-none mb-1">Central Registry</div>
-                                    <div className="text-xs font-bold text-primary tracking-widest">PROMPT-SYNC</div>
+                            <div className="flex items-center gap-3 w-full md:w-auto">
+                                <div className={`flex-1 md:flex-initial flex items-center gap-4 p-3 px-4 border rounded-2xl backdrop-blur-xl ${isDarkMode ? 'bg-white/5 border-white/10' : 'bg-black/5 border-black/10'}`}>
+                                    <div className="flex flex-col items-end">
+                                        <div className={`text-[9px] font-black uppercase tracking-widest leading-none mb-1 ${isDarkMode ? 'text-white/20' : 'text-slate-400'}`}>Shared Hub</div>
+                                        <div className="text-xs font-bold text-primary tracking-widest">PREMIUM HUB</div>
+                                    </div>
+                                    <div className={`h-8 w-px ${isDarkMode ? 'bg-white/10' : 'bg-black/10'}`} />
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
+                                        <span className={`text-[10px] font-black uppercase tracking-widest italic ${isDarkMode ? 'text-white/40' : 'text-slate-500'}`}>Hub Active</span>
+                                    </div>
                                 </div>
-                                <div className="h-8 w-px bg-white/10" />
-                                <div className="flex items-center gap-2">
-                                    <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
-                                    <span className="text-[10px] font-black uppercase tracking-widest text-white/40 italic">Asset Hub Active</span>
-                                </div>
+                                <Link 
+                                    href="/resources/new"
+                                    className={`p-3 border rounded-2xl flex items-center justify-center transition-all duration-300 hover:scale-105 active:scale-95 shadow-md ${
+                                        isDarkMode 
+                                            ? 'bg-primary/20 border-primary/30 text-primary hover:bg-primary/30 hover:border-primary/50' 
+                                            : 'bg-primary/10 border-primary/20 text-primary hover:bg-primary/20 hover:border-primary/40'
+                                    }`}
+                                    style={{ height: '58px', width: '58px' }}
+                                    title="Add New Resource"
+                                >
+                                    <Icons.plus size={20} strokeWidth={3} />
+                                </Link>
                             </div>
                         </div>
 
@@ -301,32 +328,39 @@ export default function ResourcesClient({
                             
                             <div className="relative z-10 grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
                                 <div>
-                                    <div className="text-[10px] font-black text-white/20 uppercase tracking-[0.3em] mb-4 flex items-center gap-2">
-                                        Directory Index / Resources
+                                    <div className={`text-[10px] font-black uppercase tracking-[0.3em] mb-4 flex items-center gap-2 ${isDarkMode ? 'text-white/20' : 'text-slate-400'}`}>
+                                        Resource Library
                                         <span className="w-1 h-1 rounded-full bg-primary/50" />
                                         <span className="text-primary/60 flex items-center gap-1">
                                             <Icons.database size={10} />
-                                            prompttool-db-1
+                                            Verified Database
                                         </span>
                                     </div>
-                                    <h1 className="text-5xl md:text-8xl font-black tracking-tighter text-white mb-4 leading-none flex items-center gap-4">
-                                        <span>Resource <span className="text-primary">Registry</span></span>
+                                    <h1 className={`text-5xl md:text-8xl font-black tracking-tighter mb-4 leading-none flex items-center gap-4 ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>
+                                        <span>Resource <span className="text-primary">Library</span></span>
+                                        <Link 
+                                            href="/resources/new" 
+                                            className="w-10 h-10 md:w-14 md:h-14 rounded-2xl bg-primary/10 border border-primary/20 hover:bg-primary/20 text-primary flex items-center justify-center transition-all hover:scale-105 shrink-0"
+                                            title="Add New Resource"
+                                        >
+                                            <Icons.plus size={20} strokeWidth={3} />
+                                        </Link>
                                     </h1>
-                                    <p className="text-white/40 max-w-xl text-lg font-medium leading-relaxed italic">
-                                        Explore <span className="text-primary font-black">{totalResources}</span> curated architectural templates and high-fidelity assets within the Stillwater sovereign knowledge graph.
+                                    <p className={`max-w-xl text-lg font-medium leading-relaxed italic ${isDarkMode ? 'text-white/40' : 'text-slate-500'}`}>
+                                        Discover high-performance resource templates, assets, and design libraries hand-crafted for modern creators.
                                     </p>
                                     <div className="flex items-center gap-4 mt-8">
                                         <Link 
                                             href="/resources/new" 
                                             className="px-8 py-4 bg-primary text-white rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center gap-3 transition-all shadow-[0_10px_30px_rgba(var(--primary-rgb),0.3)] hover:scale-[1.03] active:scale-95 group"
                                         >
-                                            New Resource
+                                            Suggest New Resource
                                             <Icons.plus size={14} strokeWidth={3} className="group-hover:rotate-90 transition-transform" />
                                         </Link>
                                         {isAdmin && (
                                             <button 
                                                 onClick={() => setDedupOpen(true)}
-                                                className="p-4 rounded-2xl bg-white/5 border border-white/10 text-white/40 hover:bg-white/10 hover:text-white transition-all"
+                                                className={`p-4 rounded-2xl border transition-all ${isDarkMode ? 'bg-white/5 border-white/10 text-white/40 hover:bg-white/10 hover:text-white' : 'bg-black/5 border-black/10 text-slate-500 hover:bg-black/10 hover:text-slate-800'}`}
                                                 title="Audit Fragments"
                                             >
                                                 <Icons.search size={18} />
@@ -339,16 +373,16 @@ export default function ResourcesClient({
                                 <div className="grid grid-cols-2 gap-3 h-full">
                                     {[
                                         { label: 'Total Assets', value: totalResources, icon: <Icons.database size={16} />, tooltip: 'Complete index of architectural fragments, prompts, and workflows available.' },
-                                        { label: 'Domains', value: initialCategories.length, icon: <Icons.grid size={16} />, tooltip: 'Number of distinct technological and creative specializations covered by the registry.' },
-                                        { label: 'Sources', value: creators.length, icon: <Icons.users size={16} />, tooltip: 'Number of verified creators and organizations contributing to this asset index.' },
-                                        { label: 'Verified Rank', value: resources.filter(r => r.rank).length, icon: <Icons.trophy size={16} />, tooltip: 'High-performance assets that have achieved priority ranking in technical benchmarks.' }
+                                        { label: 'Specialties', value: initialCategories.length, icon: <Icons.grid size={16} />, tooltip: 'Number of distinct technological and creative specializations covered by the registry.' },
+                                        { label: 'Contributors', value: creators.length, icon: <Icons.users size={16} />, tooltip: 'Number of verified creators and organizations contributing to this asset index.' },
+                                        { label: 'Asset Priority', value: resources.filter(r => r.rank).length, icon: <Icons.trophy size={16} />, tooltip: 'High-performance assets that have achieved priority ranking in technical benchmarks.' }
                                     ].map((stat, i) => (
-                                        <div key={i} className="bg-white/5 border border-white/10 rounded-2xl p-5 flex flex-col items-center justify-center hover:bg-white/10 transition-all group/stat relative overflow-hidden" title={stat.tooltip}>
+                                        <div key={i} className={`border rounded-2xl p-5 flex flex-col items-center justify-center transition-all group/stat relative overflow-hidden ${isDarkMode ? 'bg-white/5 border-white/10 hover:bg-white/10' : 'bg-black/[0.02] border-black/5 hover:bg-black/5'}`} title={stat.tooltip}>
                                             <div className="absolute top-0 right-0 p-2 text-primary/10 group-hover/stat:text-primary/30 transition-colors">
                                                 {stat.icon}
                                             </div>
-                                            <div className="text-3xl font-black text-white group-hover/stat:scale-110 transition-transform duration-500 tracking-tighter">{stat.value}</div>
-                                            <div className="text-[9px] font-black text-white/20 uppercase tracking-[0.3em] mt-2 leading-none">{stat.label}</div>
+                                            <div className={`text-3xl font-black group-hover/stat:scale-110 transition-transform duration-500 tracking-tighter ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>{stat.value}</div>
+                                            <div className={`text-[9px] font-black uppercase tracking-[0.3em] mt-2 leading-none ${isDarkMode ? 'text-white/20' : 'text-slate-400'}`}>{stat.label}</div>
                                         </div>
                                     ))}
                                 </div>
@@ -357,44 +391,62 @@ export default function ResourcesClient({
                         </div>
                     </div>
 
-                    {/* ── CONTROL BELT (Aligned with Sources Page) ── */}
-                    <div className="flex flex-wrap items-center justify-between gap-4 p-4 bg-background-secondary/30 backdrop-blur-xl border border-white/5 rounded-[2rem] mb-6 shadow-2xl relative overflow-hidden" id="registry-controls">
+                    {/* ── REGISTRY TABS (Admin & SU Only) ── */}
+                    {(isAdmin || isSu || profile?.role === 'admin' || profile?.role === 'su') && (
+                        <div className={`flex gap-1 p-1.5 border rounded-[1.5rem] mb-6 self-start backdrop-blur-xl animate-in slide-in-from-left-4 duration-700 ${isDarkMode ? 'bg-black/40 border-white/5' : 'bg-white/60 border-slate-200'}`}>
+                            <button 
+                                onClick={() => syncFilters({ excludeUid: '' })}
+                                className={`px-8 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${!excludeUid ? 'bg-primary text-white shadow-xl shadow-primary/20' : isDarkMode ? 'text-white/40 hover:text-white/60' : 'text-slate-500 hover:text-slate-800'}`}
+                            >
+                                Shared Hub {!excludeUid && `(${totalResources})`}
+                            </button>
+                            <button 
+                                onClick={() => syncFilters({ excludeUid: user?.uid })}
+                                className={`px-8 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${excludeUid ? 'bg-primary text-white shadow-xl shadow-primary/20' : isDarkMode ? 'text-white/40 hover:text-white/60' : 'text-slate-500 hover:text-slate-800'}`}
+                            >
+                                Custom Workspace {excludeUid && `(${totalResources})`}
+                            </button>
+                        </div>
+                    )}
+
+                    {/* ── CONTROL BELT ── */}
+                    <div className={`flex flex-wrap items-center justify-between gap-4 p-4 border rounded-[2rem] mb-6 shadow-2xl relative overflow-hidden ${isDarkMode ? 'bg-background-secondary/30 border-white/5' : 'bg-white/80 border-slate-200/60'}`} id="registry-controls">
                         <div className="flex flex-wrap items-center gap-4 flex-1 min-w-[300px] relative z-10">
                             {/* Search */}
                             <div className="relative flex-1 max-w-md group">
-                                <Icons.search className={`absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 transition-colors ${search ? 'text-primary' : 'text-white/20'}`} />
+                                <Icons.search className={`absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 transition-colors ${search ? 'text-primary' : isDarkMode ? 'text-white/20' : 'text-slate-400'}`} />
                                 <input
                                     type="text"
-                                    placeholder="Search architectural fragments..."
-                                    className="w-full h-11 pl-12 pr-10 bg-black/40 border border-white/5 rounded-2xl text-sm outline-none focus:border-primary/50 transition-all font-medium placeholder:text-white/30"
+                                    placeholder="Search resources..."
+                                    className={`w-full h-11 pl-12 pr-10 border rounded-2xl text-sm outline-none focus:border-primary/50 transition-all font-medium ${isDarkMode ? 'bg-black/40 border-white/5 text-white placeholder:text-white/30' : 'bg-slate-50 border-slate-200 text-slate-800 placeholder:text-slate-400'}`}
                                     value={search}
                                     onChange={(e) => setSearch(e.target.value)}
                                     onKeyDown={handleSearchKeyDown}
                                     id="resource-search"
                                 />
                                 {search && (
-                                    <button onClick={() => { setSearch(''); syncFilters({ search: '' }); }} className="absolute right-4 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/80">
+                                    <button onClick={() => { setSearch(''); syncFilters({ search: '' }); }} className={`absolute right-4 top-1/2 -translate-y-1/2 ${isDarkMode ? 'text-white/30 hover:text-white/80' : 'text-slate-400 hover:text-slate-800'}`}>
                                         <Icons.close size={14} />
                                     </button>
                                 )}
                             </div>
                             
-                            <div className="h-8 w-px bg-white/5 hidden md:block"></div>
+                            <div className={`h-8 w-px hidden md:block ${isDarkMode ? 'bg-white/5' : 'bg-slate-200'}`}></div>
 
                             {/* Density Selector Architecture */}
-                            <div className="flex p-1 bg-black/40 rounded-xl border border-white/5">
+                            <div className={`flex p-1 rounded-xl border ${isDarkMode ? 'bg-black/40 border-white/5' : 'bg-slate-50 border-slate-200'}`}>
                                 {(['grid-2', 'grid-3', 'grid-4', 'grid-5', 'grid-6'] as any[]).map(m => (
                                     <button 
                                         key={m}
                                         onClick={() => setViewMode(m)}
-                                        className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase transition-all ${viewMode === m ? 'bg-white/10 text-white shadow-inner' : 'text-white/20 hover:text-white'}`}
+                                        className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase transition-all ${viewMode === m ? (isDarkMode ? 'bg-white/10 text-white shadow-inner' : 'bg-white text-slate-800 shadow-sm border border-slate-200/50') : (isDarkMode ? 'text-white/20 hover:text-white' : 'text-slate-400 hover:text-slate-700')}`}
                                     >
                                         {m.split('-')[1]}C
                                     </button>
                                 ))}
                                 <button 
                                     onClick={() => setViewMode('list')}
-                                    className={`p-1.5 rounded-lg transition-all ${viewMode === 'list' ? 'bg-white/10 text-white shadow-inner' : 'text-white/20 hover:text-white'}`}
+                                    className={`p-1.5 rounded-lg transition-all ${viewMode === 'list' ? (isDarkMode ? 'bg-white/10 text-white shadow-inner' : 'bg-white text-slate-800 shadow-sm border border-slate-200/50') : (isDarkMode ? 'text-white/20 hover:text-white' : 'text-slate-400 hover:text-slate-700')}`}
                                     title="List View"
                                 >
                                     <Icons.list className="w-4 h-4" />
@@ -408,29 +460,27 @@ export default function ResourcesClient({
                                 <select 
                                     value={sortBy}
                                     onChange={(e) => syncFilters({ sortBy: e.target.value })}
-                                    className="h-11 bg-[#0a0a0f] border border-white/5 rounded-xl px-4 pr-10 text-[10px] font-black uppercase text-white/70 outline-none hover:bg-white/5 hover:border-primary/30 transition-all cursor-pointer min-w-[180px] appearance-none tracking-widest"
+                                    className={`h-11 border rounded-xl px-4 pr-10 text-[10px] font-black uppercase outline-none transition-all cursor-pointer min-w-[180px] appearance-none tracking-widest ${isDarkMode ? 'bg-[#0a0a0f] border-white/5 text-white/70 hover:bg-white/5 hover:border-primary/30' : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100 hover:border-primary/30'}`}
                                 >
-                                    <option value="updatedAt" className="bg-[#1e293b] text-white">Sort: Last Synced</option>
-                                    <option value="createdAt" className="bg-[#1e293b] text-white">Sort: Discovery Date</option>
-                                    <option value="createdAt" className="bg-[#1e293b] text-white">Sort: Timestamp Created</option>
-                                    <option value="updatedAt" className="bg-[#1e293b] text-white">Sort: Timestamp Updated</option>
-                                    <option value="title" className="bg-[#1e293b] text-white">Sort: Identity (A-Z)</option>
-                                    <option value="rank" className="bg-[#1e293b] text-white">Sort: Technical Rank</option>
-                                    <option value="averageRating" className="bg-[#1e293b] text-white">Sort: System Rating</option>
+                                    <option value="updatedAt" className={isDarkMode ? 'bg-[#1e293b] text-white' : 'bg-white text-slate-800'}>Recently Updated</option>
+                                    <option value="createdAt" className={isDarkMode ? 'bg-[#1e293b] text-white' : 'bg-white text-slate-800'}>Created Date</option>
+                                    <option value="title" className={isDarkMode ? 'bg-[#1e293b] text-white' : 'bg-white text-slate-800'}>Alphabetical (A-Z)</option>
+                                    <option value="rank" className={isDarkMode ? 'bg-[#1e293b] text-white' : 'bg-white text-slate-800'}>Asset Priority</option>
+                                    <option value="averageRating" className={isDarkMode ? 'bg-[#1e293b] text-white' : 'bg-white text-slate-800'}>User Rating</option>
                                 </select>
-                                <Icons.chevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-3 h-3 text-white/20 pointer-events-none group-hover/sort:text-primary transition-colors" />
+                                <Icons.chevronDown className={`absolute right-4 top-1/2 -translate-y-1/2 w-3 h-3 pointer-events-none group-hover/sort:text-primary transition-colors ${isDarkMode ? 'text-white/20' : 'text-slate-400'}`} />
                             </div>
 
                             {/* Sort Order Toggle */}
                             <button 
                                 onClick={() => syncFilters({ sortOrder: sortOrder === 'asc' ? 'desc' : 'asc' })}
-                                className="h-11 w-11 flex items-center justify-center bg-black/40 border border-white/5 rounded-xl text-white/20 hover:text-primary hover:border-primary/30 transition-all shadow-xl group"
+                                className={`h-11 w-11 flex items-center justify-center border rounded-xl transition-all shadow-xl group ${isDarkMode ? 'bg-black/40 border-white/5 text-white/20 hover:text-primary hover:border-primary/30' : 'bg-slate-50 border-slate-200 text-slate-400 hover:text-primary hover:border-primary/30'}`}
                                 title={sortOrder === 'asc' ? 'Ascending Order' : 'Descending Order'}
                             >
                                 {sortOrder === 'asc' ? <Icons.arrowUp size={16} /> : <Icons.arrowDown size={16} />}
                             </button>
 
-                            <div className="h-8 w-px bg-white/5 hidden md:block"></div>
+                            <div className={`h-8 w-px hidden md:block ${isDarkMode ? 'bg-white/5' : 'bg-slate-200'}`}></div>
 
                             {hasActiveFilters && (
                                 <button onClick={clearAllFilters} className="h-11 px-6 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 rounded-xl text-[10px] font-black uppercase tracking-widest text-rose-400 transition-all flex items-center gap-2">
@@ -438,7 +488,7 @@ export default function ResourcesClient({
                                 </button>
                             )}
                             
-                            <div className="px-4 py-2.5 bg-primary/10 border border-primary/20 rounded-xl hidden lg:block">
+                            <div className={`px-4 py-2.5 border rounded-xl hidden lg:block ${isDarkMode ? 'bg-primary/10 border-primary/20' : 'bg-primary/5 border-primary/10'}`}>
                                 <span className="text-[10px] font-black text-primary uppercase tracking-widest">{resources.length} Assets Found</span>
                             </div>
                         </div>
@@ -477,22 +527,31 @@ export default function ResourcesClient({
                     {loading ? (
                         <div className="pt-4"><SkeletonGrid count={8} columns={4} aspectRatio="16/9" /></div>
                     ) : resources.length === 0 ? (
-                        <Card variant="glass" className="flex flex-col items-center justify-center py-32 text-center border-dashed border-white/10 bg-white/[0.01]">
-                            <div className="w-24 h-24 rounded-full bg-white/5 flex items-center justify-center mb-8 relative">
-                                <Icons.database size={48} className="text-white/10" />
+                        <Card variant="glass" className={`flex flex-col items-center justify-center py-32 text-center border-dashed bg-white/[0.01] ${isDarkMode ? 'border-white/10' : 'border-slate-200'}`}>
+                            <div className={`w-24 h-24 rounded-full flex items-center justify-center mb-8 relative ${isDarkMode ? 'bg-white/5' : 'bg-slate-100'}`}>
+                                <Icons.database size={48} className={isDarkMode ? 'text-white/10' : 'text-slate-350'} />
                                 <div className="absolute inset-0 bg-primary/5 rounded-full blur-2xl" />
                             </div>
                             <h3 className="text-3xl font-black mb-4 tracking-tight">No assets discovered</h3>
-                            <p className="text-white/30 mb-12 max-w-sm mx-auto font-medium leading-relaxed">
-                                Our scanners couldn't find any architectural fragments matching your criteria. Try broadening your discovery parameters.
+                            <p className={`mb-12 max-w-sm mx-auto font-medium leading-relaxed ${isDarkMode ? 'text-white/30' : 'text-slate-500'}`}>
+                                Our scanners couldn&apos;t find any architectural fragments matching your criteria. Try broadening your discovery parameters.
                             </p>
-                            <Button variant="secondary" onClick={clearAllFilters} className="rounded-[2rem] font-black px-12 py-6 text-[10px] uppercase tracking-widest">Reset Discovery Console</Button>
+                            <Button variant="secondary" onClick={clearAllFilters} className="rounded-[2rem] font-black px-12 py-6 text-[10px] uppercase tracking-widest">Reset All Filters</Button>
                         </Card>
                     ) : (
                         <div className="space-y-12">
                             <div className="flex items-center gap-4 mb-8 px-2">
-                                <h2 className="text-[11px] font-black uppercase tracking-[0.4em] text-primary">Registry Records ({totalResources})</h2>
-                                <div className="flex-1 h-px bg-gradient-to-r from-primary/25 to-transparent" />
+                                <div className="flex items-center gap-2">
+                                    <h2 className="text-[11px] font-black uppercase tracking-[0.4em] text-primary">All Resources ({totalResources})</h2>
+                                    <Link 
+                                        href="/resources/new" 
+                                        className="text-primary hover:text-primary/80 transition-colors p-1"
+                                        title="Add New Resource"
+                                    >
+                                        <Icons.plus size={14} strokeWidth={3} />
+                                    </Link>
+                                </div>
+                                <div className={`flex-1 h-px bg-gradient-to-r ${isDarkMode ? 'from-primary/25 to-transparent' : 'from-primary/15 to-transparent'}`} />
                             </div>
 
                             <div className={`
@@ -519,29 +578,91 @@ export default function ResourcesClient({
                     )}
 
                     {/* Pagination */}
-                    {totalResources > pageSize && (
-                        <div className="flex flex-col items-center gap-10 mt-32">
-                            <div className="flex items-center gap-6">
-                                <button 
-                                    onClick={() => handlePageChange(currentPage - 1)}
-                                    disabled={currentPage === 1}
-                                    className="w-16 h-16 rounded-[2rem] bg-white/5 border border-white/10 flex items-center justify-center text-white/40 hover:text-white hover:bg-white/10 disabled:opacity-20 transition-all shadow-xl"
-                                >
-                                    <Icons.chevronLeft size={28} />
-                                </button>
-                                <div className="px-10 py-5 bg-white/5 border border-white/10 rounded-[2rem] text-[10px] font-black uppercase tracking-[0.3em] text-white/40 shadow-xl">
-                                    Segment {currentPage} <span className="mx-2 opacity-20">/</span> {Math.ceil(totalResources / pageSize)}
+                    {totalResources > pageSize && (() => {
+                        const totalPages = Math.ceil(totalResources / pageSize);
+                        const delta = 1;
+                        const pages: (number | string)[] = [];
+                        for (let i = 1; i <= totalPages; i++) {
+                            if (
+                                i === 1 ||
+                                i === totalPages ||
+                                (i >= currentPage - delta && i <= currentPage + delta)
+                            ) {
+                                pages.push(i);
+                            } else if (pages[pages.length - 1] !== '...') {
+                                pages.push('...');
+                            }
+                        }
+
+                        return (
+                            <div className="flex flex-col items-center gap-10 mt-32 select-none animate-in fade-in duration-500">
+                                <div className="flex items-center gap-2">
+                                    {/* Previous Button */}
+                                    <button 
+                                        onClick={() => handlePageChange(currentPage - 1)}
+                                        disabled={currentPage === 1}
+                                        className={`w-12 h-12 rounded-2xl border flex items-center justify-center disabled:opacity-25 disabled:cursor-not-allowed transition-all duration-300 shadow-md ${
+                                            isDarkMode 
+                                                ? 'bg-white/5 border-white/10 text-white/60 hover:text-white hover:bg-white/10 hover:border-white/20' 
+                                                : 'bg-slate-50 border-slate-200 text-slate-500 hover:text-slate-800 hover:bg-slate-100 hover:border-slate-300'
+                                        }`}
+                                        title="Previous Page"
+                                    >
+                                        <Icons.chevronLeft size={18} />
+                                    </button>
+
+                                    {/* Page Numbers */}
+                                    <div className="flex items-center gap-1.5">
+                                        {pages.map((p, idx) => {
+                                            if (p === '...') {
+                                                return (
+                                                    <span 
+                                                        key={`ellipsis-${idx}`} 
+                                                        className={`w-10 h-10 flex items-center justify-center text-xs font-bold ${
+                                                            isDarkMode ? 'text-white/30' : 'text-slate-400'
+                                                        }`}
+                                                    >
+                                                        •••
+                                                    </span>
+                                                );
+                                            }
+
+                                            const isCurrent = p === currentPage;
+                                            return (
+                                                <button
+                                                    key={`page-${p}`}
+                                                    onClick={() => handlePageChange(p as number)}
+                                                    className={`w-10 h-10 rounded-xl text-xs font-black transition-all duration-300 ${
+                                                        isCurrent
+                                                            ? 'bg-primary text-white shadow-lg shadow-primary/20 scale-105'
+                                                            : isDarkMode
+                                                                ? 'bg-white/5 border border-white/5 text-white/50 hover:bg-white/10 hover:text-white hover:border-white/10'
+                                                                : 'bg-slate-50 border border-slate-200/60 text-slate-500 hover:bg-slate-100 hover:text-slate-800 hover:border-slate-300'
+                                                    }`}
+                                                >
+                                                    {p}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+
+                                    {/* Next Button */}
+                                    <button 
+                                        onClick={() => handlePageChange(currentPage + 1)}
+                                        disabled={currentPage >= totalPages}
+                                        className={`w-12 h-12 rounded-2xl border flex items-center justify-center disabled:opacity-25 disabled:cursor-not-allowed transition-all duration-300 shadow-md ${
+                                            isDarkMode 
+                                                ? 'bg-white/5 border-white/10 text-white/60 hover:text-white hover:bg-white/10 hover:border-white/20' 
+                                                : 'bg-slate-50 border-slate-200 text-slate-500 hover:text-slate-800 hover:bg-slate-100 hover:border-slate-300'
+                                        }`}
+                                        title="Next Page"
+                                    >
+                                        <Icons.chevronRight size={18} />
+                                    </button>
                                 </div>
-                                <button 
-                                    onClick={() => handlePageChange(currentPage + 1)}
-                                    disabled={currentPage >= Math.ceil(totalResources / pageSize)}
-                                    className="w-16 h-16 rounded-[2rem] bg-white/5 border border-white/10 flex items-center justify-center text-white/40 hover:text-white hover:bg-white/10 disabled:opacity-20 transition-all shadow-xl"
-                                >
-                                    <Icons.chevronRight size={28} />
-                                </button>
                             </div>
-                        </div>
-                    )}
+                        );
+                    })()}
                 </div>
             </div>
 

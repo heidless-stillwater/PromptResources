@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminDb, toolDbAdmin } from '@/lib/firebase-admin';
 import { StrikesService } from '@/lib/services/strikes-service';

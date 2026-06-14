@@ -1,12 +1,68 @@
 {
   "projects": {
-    "default": "heidless-apps-2"
+    "sovereign-01": "heidless-apps-2",
+    "sovereign-02": "stillwater-sovereign-02"
   },
   "targets": {
     "heidless-apps-2": {
       "hosting": {
-        "prompt-resources": [
-          "promptresources-v1"
+        "stillwater-suite-utils": [
+          "suite-utils"
+        ],
+        "stillwater-prompt-tool": [
+          "heidless-prompt-tool"
+        ],
+        "stillwater-prompt-resources": [
+          "heidless-prompt-resources"
+        ],
+        "stillwater-prompt-master": [
+          "heidless-prompt-master"
+        ],
+        "stillwater-prompt-accreditation": [
+          "heidless-prompt-accreditation"
+        ],
+        "stillwater-video-system": [
+          "heidless-video-system"
+        ],
+        "stillwater-persona": [
+          "persona-v0"
+        ],
+        "stillwater-plan-tune": [
+          "heidless-plan-tune"
+        ],
+        "stillwater-token-market": [
+          "stillwater-token-market"
+        ]
+      }
+    },
+    "stillwater-sovereign-02": {
+      "hosting": {
+        "stillwater-suite-utils": [
+          "stillwater-sovereign-02"
+        ],
+        "stillwater-prompt-tool": [
+          "stillwater-prompt-tool-02"
+        ],
+        "stillwater-prompt-resources": [
+          "stillwater-prompt-resources-02"
+        ],
+        "stillwater-prompt-master": [
+          "stillwater-prompt-master-02"
+        ],
+        "stillwater-prompt-accreditation": [
+          "stillwater-prompt-accreditation-02"
+        ],
+        "stillwater-video-system": [
+          "stillwater-video-system-02"
+        ],
+        "stillwater-persona": [
+          "stillwater-persona-02"
+        ],
+        "stillwater-plan-tune": [
+          "stillwater-plan-tune-02"
+        ],
+        "stillwater-token-market": [
+          "stillwater-token-market-02"
         ]
       }
     }

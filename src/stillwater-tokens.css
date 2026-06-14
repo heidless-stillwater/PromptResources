@@ -98,3 +98,52 @@
   --radius-xl: 24px;
   --radius-full: 9999px;
 }
+
+/* ==============================================================================
+   🌸 CREAMY ALABASTER (LIGHT MODE) OVERRIDES
+   Curated warm light theme with gold-slate borders and blurry shadows.
+   ============================================================================== */
+.light {
+  --bg-primary: #fbf9f6; /* Soft warm cream */
+  --bg-secondary: #f4f0ea; /* Creamy alabaster */
+  --bg-card: rgba(255, 255, 255, 0.75);
+  --bg-input: #e9e3da; /* Warm grey-cream */
+
+  --text-primary: #1e293b; /* Slate 900 */
+  --text-secondary: #475569; /* Slate 600 */
+  --text-muted: #64748b; /* Slate 500 */
+
+  --accent-primary: #0d9488; /* Keep teal-600 */
+  --accent-secondary: #10b981; /* Keep emerald-500 */
+  --brand-glow: rgba(13, 148, 136, 0.1);
+
+  --primary: var(--accent-primary);
+  --primary-hover: #0f766e;
+  --accent: var(--accent-secondary);
+  --accent-hover: #059669;
+  --background: var(--bg-primary);
+  --background-secondary: var(--bg-secondary);
+  --foreground: var(--text-primary);
+  --foreground-muted: var(--text-secondary);
+  --border: rgba(13, 148, 136, 0.12); /* Soft teal border */
+  --card: var(--bg-card);
+
+  --stillwater-deep: #fbf9f6;
+
+  /* Gradients */
+  --gradient-glass: linear-gradient(135deg, rgba(255, 255, 255, 0.8) 0%, rgba(255, 255, 255, 0.4) 100%);
+  --gradient-accent: linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-secondary) 100%);
+  --gradient-brand: linear-gradient(135deg, var(--primary), var(--accent));
+
+  /* Depth */
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 12px 32px rgba(13, 148, 136, 0.06);
+  --shadow-glow: 0 0 30px rgba(13, 148, 136, 0.08);
+
+  /* Glass Depth System */
+  --glass-surface: rgba(255, 255, 255, 0.6);
+  --glass-card: rgba(255, 255, 255, 0.75);
+  --glass-overlay: rgba(251, 249, 246, 0.85);
+}
+

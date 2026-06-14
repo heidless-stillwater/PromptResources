@@ -74,7 +74,7 @@ function DashboardContent() {
         queryKey: ['total-resources-count'],
         queryFn: async () => {
             const token = await user?.getIdToken();
-            const res = await fetch('/api/resources?pageSize=1', {
+            const res = await fetch('/api/resources?status=published&pageSize=1', {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             const result = await res.json();

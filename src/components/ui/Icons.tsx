@@ -17,6 +17,9 @@ import {
     ChevronLeft,
     ChevronRight,
     ChevronDown,
+    ChevronUp,
+    ChevronsUp,
+    ChevronsDown,
     Plus,
     Search,
     Settings,
@@ -66,7 +69,8 @@ import {
     Folder,
     Edit,
     Trash,
-    Calendar
+    Calendar,
+    ArrowUpDown
 } from "lucide-react"
 
 // Twitter/X icon (removed from lucide-react v1)
@@ -129,6 +133,9 @@ export const Icons = {
     chevronLeft: ChevronLeft,
     chevronRight: ChevronRight,
     chevronDown: ChevronDown,
+    chevronUp: ChevronUp,
+    chevronsUp: ChevronsUp,
+    chevronsDown: ChevronsDown,
     plus: Plus,
     search: Search,
     settings: Settings,
@@ -173,5 +180,6 @@ export const Icons = {
     edit: Edit,
     trash: Trash,
     layoutGrid: LayoutGrid,
-    calendar: Calendar
+    calendar: Calendar,
+    sort: ArrowUpDown
 }

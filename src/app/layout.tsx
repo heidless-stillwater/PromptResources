@@ -24,6 +24,7 @@ const outfit = Outfit({
 import { AuthProvider } from '@/contexts/AuthContext';
 import { ToastProvider } from '@/components/Toast';
 import ReactQueryProvider from '@/components/providers/ReactQueryProvider';
+import { ThemeProvider } from '@/components/providers/ThemeProvider';
 import CommandPalette from '@/components/CommandPalette';
 import { SovereignSentinel } from '@/components/SovereignSentinel';
 import { SovereignConsole } from '@/components/SovereignConsole';
@@ -51,11 +52,13 @@ export default function RootLayout({
                 <AuthProvider>
                     <ToastProvider>
                         <ReactQueryProvider>
-                            <SovereignSentinel />
-                            <SovereignConsole />
-                            <SovereignDebugger />
-                            <CommandPalette />
-                            {children}
+                            <ThemeProvider>
+                                <SovereignSentinel />
+                                <SovereignConsole />
+                                <SovereignDebugger />
+                                <CommandPalette />
+                                {children}
+                            </ThemeProvider>
                         </ReactQueryProvider>
                     </ToastProvider>
                 </AuthProvider>

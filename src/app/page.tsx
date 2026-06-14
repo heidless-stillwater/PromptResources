@@ -44,7 +44,7 @@ export default async function HomePage() {
         featuredCreators = await getAllCreators({ featured: true, limit: 3 });
 
         // Fetch counts for stats
-        const allResourcesSnap = await adminDb.collection('resources').count().get();
+        const allResourcesSnap = await adminDb.collection('resources').where('status', '==', 'published').count().get();
         const catSnap = await adminDb.collection('categories').get();
         
         stats = {

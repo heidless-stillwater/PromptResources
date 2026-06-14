@@ -22,6 +22,7 @@ export interface GetResourcesOptions {
     userUid?: string | null;
     userIsAdmin?: boolean;
     creators?: string[] | null;
+    excludeUid?: string | null;
 }
 
 export async function getResourcesAction(options: GetResourcesOptions) {
@@ -42,6 +43,7 @@ export async function getResourcesAction(options: GetResourcesOptions) {
         userUid,
         userIsAdmin = false,
         creators = null,
+        excludeUid = null,
     } = options;
 
     try {
@@ -66,135 +68,209 @@ export async function getResourcesAction(options: GetResourcesOptions) {
             };
         }
 
-        let query: any = adminDb.collection('resources');
-
-        // ────────────────────────────────────────────────────
-        // SOVEREIGN GATE: Content Visibility & Moderation
-        // ────────────────────────────────────────────────────
-        if (status) {
-            const statusList = status.split(',').filter(Boolean);
-            if (statusList.length === 1) {
-                query = query.where('status', '==', statusList[0]);
-            } else if (statusList.length > 1) {
-                query = query.where('status', 'in', statusList);
-            }
-        } else if (!userIsAdmin) {
-            // Strictly exclude hidden content from public view if no specific status requested.
-            // Using equality 'published' to avoid complex range/inequality filter clashing.
-            query = query.where('status', '==', 'published');
-        }
-
-        // Apply specified filters
-        if (platform) query = query.where('platform', '==', platform);
-        if (pricing) query = query.where('pricing', '==', pricing);
-        if (type) query = query.where('type', '==', type);
-        if (category) query = query.where('categories', 'array-contains', category);
-        if (addedBy) query = query.where('addedBy', '==', addedBy);
-        if (isFavorite) query = query.where('isFavorite', '==', true);
-        if (creators && creators.length > 0) {
-            query = query.where('attributedUserIds', 'array-contains-any', creators.slice(0, 10));
-        }
-        if (priorityRank === 'any') {
-            query = query.where('rank', '>', 0);
-        } else if (priorityRank && !isNaN(Number(priorityRank))) {
-            query = query.where('rank', '>', 0).where('rank', '<=', Number(priorityRank));
-        }
-
-        const effectiveSortBy = sortBy;
-        let rankRequirementApplied = !!priorityRank;
-
-        if (effectiveSortBy === 'rank' && !rankRequirementApplied) {
-            query = query.where('rank', '>', 0);
-            rankRequirementApplied = true;
-        }
-
-        if (priorityRank === 'any' || (effectiveSortBy === 'rank' && !priorityRank)) {
-            query = query.orderBy('rank', sortOrder);
-            if (effectiveSortBy !== 'rank') {
-                query = query.orderBy(effectiveSortBy, sortOrder);
-            }
-        } else {
-            query = query.orderBy(effectiveSortBy, sortOrder);
-        }
-
         let finalResources: Resource[] = [];
         let total = 0;
 
         if (search) {
+            let query: any = adminDb.collection('resources');
+
+            if (platform) query = query.where('platform', '==', platform);
+            if (pricing) query = query.where('pricing', '==', pricing);
+            if (type) query = query.where('type', '==', type);
+            if (category) query = query.where('categories', 'array-contains', category);
+            if (addedBy) query = query.where('addedBy', '==', addedBy);
+            if (isFavorite) query = query.where('isFavorite', '==', true);
+            
             const isUrl = /^https?:\/\//i.test(search);
             const ytId = extractYouTubeId(search);
+            
+            const searchTokens = search.toLowerCase()
+                .replace(/[^\w\s]/g, '')
+                .split(/\s+/)
+                .filter(t => t.length >= 2)
+                .slice(0, 10);
 
             if (ytId) {
                 query = query.where('youtubeVideoId', '==', ytId);
             } else if (isUrl) {
                 query = query.where('url', '==', search);
             } else {
-                const searchTokens = search.toLowerCase()
-                    .replace(/[^\w\s]/g, '')
-                    .split(/\s+/)
-                    .filter(t => t.length >= 2)
-                    .slice(0, 10);
-
                 if (searchTokens.length > 0) {
                     query = query.where('searchKeywords', 'array-contains-any', searchTokens);
                 }
             }
-        }
 
-        let countSnapshot = await query.count().get();
-        total = countSnapshot.data().count;
+            const snapshot = await query.get();
+            let matchedDocs = snapshot.docs.map((doc: any) => ({ id: doc.id, ...doc.data() } as Resource));
 
-        // HEALING: Fallback for 'averageRating' if no rated items exist
-        // Firestore excludes documents missing the field used in orderBy.
-        // If a user sorts by rating but no assets have been rated, we pivot back to discovery date.
-        if (total === 0 && effectiveSortBy === 'averageRating') {
-            console.log('[SovereignDiscovery] No rated items found. Falling back to chronological discovery.');
-            // Re-clone query without the rating sort
-            let fallbackQuery: any = adminDb.collection('resources');
-            
-            // Re-apply same filters
+            // Apply range/inequality filters in-memory
+            if (excludeUid) {
+                matchedDocs = matchedDocs.filter((d: any) => d.addedBy !== excludeUid);
+            }
+            if (priorityRank === 'any') {
+                matchedDocs = matchedDocs.filter((d: any) => d.rank !== null && d.rank !== undefined && d.rank > 0);
+            } else if (priorityRank && !isNaN(Number(priorityRank))) {
+                matchedDocs = matchedDocs.filter((d: any) => d.rank !== null && d.rank !== undefined && d.rank > 0 && d.rank <= Number(priorityRank));
+            }
+
+            const effectiveSortBy = sortBy;
+            if (effectiveSortBy === 'rank') {
+                matchedDocs = matchedDocs.filter((d: any) => d.rank !== null && d.rank !== undefined && d.rank > 0);
+            }
+
+            // Calculate relevance score
+            const searchLower = search.toLowerCase();
+            matchedDocs.forEach((doc: any) => {
+                let score = 0;
+                const titleLower = (doc.title || '').toLowerCase();
+                
+                // Huge boost if title contains exact search phrase (or search phrase contains title)
+                if (titleLower.includes(searchLower) || searchLower.includes(titleLower)) {
+                    score += 100;
+                }
+                
+                // Match tokens
+                const docKeywords = new Set(doc.searchKeywords || []);
+                searchTokens.forEach((token: string) => {
+                    if (docKeywords.has(token)) {
+                        score += 10;
+                    }
+                    if (titleLower.includes(token)) {
+                        score += 5;
+                    }
+                });
+                
+                doc.relevanceScore = score;
+            });
+
+            // Sort in-memory
+            const sortOrderSign = sortOrder === 'desc' ? -1 : 1;
+            matchedDocs.sort((a: any, b: any) => {
+                const scoreA = a.relevanceScore || 0;
+                const scoreB = b.relevanceScore || 0;
+                if (scoreB !== scoreA) {
+                    return scoreB - scoreA;
+                }
+
+                if (effectiveSortBy === 'rank') {
+                    const rA = a.rank ?? Infinity;
+                    const rB = b.rank ?? Infinity;
+                    return (rA - rB) * sortOrderSign;
+                }
+
+                const getVal = (doc: any) => {
+                    const val = doc[effectiveSortBy];
+                    if (val === null || val === undefined) return 0;
+                    if (typeof val.toDate === 'function') return val.toDate().getTime();
+                    if (val instanceof Date) return val.getTime();
+                    if (typeof val === 'string') {
+                        const time = new Date(val).getTime();
+                        return isNaN(time) ? val : time;
+                    }
+                    return val;
+                };
+
+                const valA = getVal(a);
+                const valB = getVal(b);
+
+                if (typeof valA === 'string' && typeof valB === 'string') {
+                    return valA.localeCompare(valB) * sortOrderSign;
+                }
+                return (valA - valB) * sortOrderSign;
+            });
+
+            total = matchedDocs.length;
+            finalResources = matchedDocs.slice((page - 1) * pageSize, page * pageSize);
+        } else {
+            // Path B: Default logic when search is NOT active
+            let query: any = adminDb.collection('resources');
+
             if (status) {
                 const statusList = status.split(',').filter(Boolean);
-                if (statusList.length === 1) fallbackQuery = fallbackQuery.where('status', '==', statusList[0]);
-                else if (statusList.length > 1) fallbackQuery = fallbackQuery.where('status', 'in', statusList);
-            } else if (!userIsAdmin) {
-                if (search || (creators && creators.length > 0)) fallbackQuery = fallbackQuery.where('status', '==', 'published');
-                else fallbackQuery = fallbackQuery.where('status', 'not-in', ['hidden', 'draft', 'pending']);
-            }
-            if (platform) fallbackQuery = fallbackQuery.where('platform', '==', platform);
-            if (pricing) fallbackQuery = fallbackQuery.where('pricing', '==', pricing);
-            if (type) fallbackQuery = fallbackQuery.where('type', '==', type);
-            if (category) fallbackQuery = fallbackQuery.where('categories', 'array-contains', category);
-            if (addedBy) fallbackQuery = fallbackQuery.where('addedBy', '==', addedBy);
-            if (isFavorite) fallbackQuery = fallbackQuery.where('isFavorite', '==', true);
-            if (creators && creators.length > 0) fallbackQuery = fallbackQuery.where('attributedUserIds', 'array-contains-any', creators.slice(0, 10));
-            if (priorityRank === 'any') fallbackQuery = fallbackQuery.where('rank', '>', 0);
-            else if (priorityRank && !isNaN(Number(priorityRank))) fallbackQuery = fallbackQuery.where('rank', '>', 0).where('rank', '<=', Number(priorityRank));
-            
-            if (search) {
-                const ytId = extractYouTubeId(search);
-                if (ytId) fallbackQuery = fallbackQuery.where('youtubeVideoId', '==', ytId);
-                else if (/^https?:\/\//i.test(search)) fallbackQuery = fallbackQuery.where('url', '==', search);
-                else {
-                    const searchTokens = search.toLowerCase().replace(/[^\w\s]/g, '').split(/\s+/).filter(t => t.length >= 2).slice(0, 10);
-                    if (searchTokens.length > 0) fallbackQuery = fallbackQuery.where('searchKeywords', 'array-contains-any', searchTokens);
+                if (statusList.length === 1) {
+                    query = query.where('status', '==', statusList[0]);
+                } else if (statusList.length > 1) {
+                    query = query.where('status', 'in', statusList);
                 }
+            } else if (!userIsAdmin) {
+                query = query.where('status', '==', 'published');
             }
 
-            fallbackQuery = fallbackQuery.orderBy('updatedAt', 'desc');
-            query = fallbackQuery;
-            
-            const fallbackCount = await query.count().get();
-            total = fallbackCount.data().count;
+            if (platform) query = query.where('platform', '==', platform);
+            if (pricing) query = query.where('pricing', '==', pricing);
+            if (type) query = query.where('type', '==', type);
+            if (category) query = query.where('categories', 'array-contains', category);
+            if (addedBy) query = query.where('addedBy', '==', addedBy);
+            if (excludeUid) query = query.where('addedBy', '!=', excludeUid);
+            if (isFavorite) query = query.where('isFavorite', '==', true);
+            if (creators && creators.length > 0) {
+                query = query.where('attributedUserIds', 'array-contains-any', creators.slice(0, 10));
+            }
+            if (priorityRank === 'any') {
+                query = query.where('rank', '>', 0);
+            } else if (priorityRank && !isNaN(Number(priorityRank))) {
+                query = query.where('rank', '>', 0).where('rank', '<=', Number(priorityRank));
+            }
+
+            const effectiveSortBy = sortBy;
+            let rankRequirementApplied = !!priorityRank;
+
+            if (effectiveSortBy === 'rank' && !rankRequirementApplied) {
+                query = query.where('rank', '>', 0);
+                rankRequirementApplied = true;
+            }
+
+            if (priorityRank === 'any' || (effectiveSortBy === 'rank' && !priorityRank)) {
+                query = query.orderBy('rank', sortOrder);
+                if (effectiveSortBy !== 'rank') {
+                    query = query.orderBy(effectiveSortBy, sortOrder);
+                }
+            } else {
+                query = query.orderBy(effectiveSortBy, sortOrder);
+            }
+
+            let countSnapshot = await query.count().get();
+            total = countSnapshot.data().count;
+
+            if (total === 0 && effectiveSortBy === 'averageRating') {
+                console.log('[SovereignDiscovery] No rated items found. Falling back to chronological discovery.');
+                let fallbackQuery: any = adminDb.collection('resources');
+                
+                if (status) {
+                    const statusList = status.split(',').filter(Boolean);
+                    if (statusList.length === 1) fallbackQuery = fallbackQuery.where('status', '==', statusList[0]);
+                    else if (statusList.length > 1) fallbackQuery = fallbackQuery.where('status', 'in', statusList);
+                } else if (!userIsAdmin) {
+                    fallbackQuery = fallbackQuery.where('status', 'not-in', ['hidden', 'draft', 'pending']);
+                }
+                if (platform) fallbackQuery = fallbackQuery.where('platform', '==', platform);
+                if (pricing) fallbackQuery = fallbackQuery.where('pricing', '==', pricing);
+                if (type) fallbackQuery = fallbackQuery.where('type', '==', type);
+                if (category) fallbackQuery = fallbackQuery.where('categories', 'array-contains', category);
+                if (addedBy) fallbackQuery = fallbackQuery.where('addedBy', '==', addedBy);
+                if (isFavorite) fallbackQuery = fallbackQuery.where('isFavorite', '==', true);
+                if (creators && creators.length > 0) fallbackQuery = fallbackQuery.where('attributedUserIds', 'array-contains-any', creators.slice(0, 10));
+                if (priorityRank === 'any') fallbackQuery = fallbackQuery.where('rank', '>', 0);
+                else if (priorityRank && !isNaN(Number(priorityRank))) fallbackQuery = fallbackQuery.where('rank', '>', 0).where('rank', '<=', Number(priorityRank));
+                
+                fallbackQuery = fallbackQuery.orderBy('updatedAt', 'desc');
+                query = fallbackQuery;
+                
+                const fallbackCount = await query.count().get();
+                total = fallbackCount.data().count;
+            }
+
+            const snapshot = await query.limit(pageSize).offset((page - 1) * pageSize).get();
+            finalResources = snapshot.docs.map((doc: any) => ({ id: doc.id, ...doc.data() } as Resource));
         }
 
-        const snapshot = await query
-            .offset((page - 1) * pageSize)
-            .limit(pageSize)
-            .get();
+        // Post-processing for filters that clash with Firestore limitations (e.g. multiple inequalities)
+        if (excludeUid && (priorityRank || sortBy === 'rank')) {
+            finalResources = finalResources.filter(r => r.addedBy !== excludeUid);
+            // Note: Total count might be slightly off in this edge case, but avoids query crash
+        }
 
-        finalResources = snapshot.docs.map((doc: any) => {
-            const data = doc.data();
+        finalResources = finalResources.map((r: any) => {
             const formatDate = (val: any) => {
                 if (!val) return null;
                 if (typeof val.toDate === 'function') return val.toDate().toISOString();
@@ -204,11 +280,10 @@ export async function getResourcesAction(options: GetResourcesOptions) {
             };
 
             return {
-                id: doc.id,
-                status: 'published', // Default for legacy data
-                ...data,
-                createdAt: formatDate(data.createdAt),
-                updatedAt: formatDate(data.updatedAt),
+                ...r,
+                status: r.status || 'published', // Default for legacy data
+                createdAt: formatDate(r.createdAt),
+                updatedAt: formatDate(r.updatedAt),
             };
         });
 

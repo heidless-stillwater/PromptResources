@@ -16,6 +16,7 @@ import { Icons } from '@/components/ui/Icons';
 import { Category, ApiResponse } from '@/lib/types';
 import Footer from '@/components/Footer';
 import ConfirmationModal from '@/components/ConfirmationModal';
+import { clearPlaylistsCache } from '@/lib/playlists-cache';
 
 export default function NewResourcePage() {
     const { user, loading: authLoading, isAdmin } = useAuth();
@@ -29,7 +30,10 @@ export default function NewResourcePage() {
     const [platform, setPlatform] = useState<Platform>('gemini');
     const [pricing, setPricing] = useState<ResourcePricing>('free');
     const [pricingDetails, setPricingDetails] = useState('');
-    const [tags, setTags] = useState('');
+    const [selectedTags, setSelectedTags] = useState<string[]>([]);
+    const [allDbTags, setAllDbTags] = useState<Array<{ name: string; count: number }>>([]);
+    const [tagInput, setTagInput] = useState('');
+    const [isTagDropdownOpen, setIsTagDropdownOpen] = useState(false);
     const [prompts, setPrompts] = useState('');
     const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
     const [suggestedCategories, setSuggestedCategories] = useState<string[]>([]);
@@ -38,7 +42,7 @@ export default function NewResourcePage() {
     const [suggestedAttributions, setSuggestedAttributions] = useState<Attribution[]>([]);
     const [ytMetadata, setYtMetadata] = useState<any>(null);
     const [isFavorite, setIsFavorite] = useState<boolean | null>(null);
-    const [rank, setRank] = useState<number | ''>('');
+    const [rank, setRank] = useState<number | ''>(3);
     const [notes, setNotes] = useState('');
     const [adminNotes, setAdminNotes] = useState('');
     const [loading, setLoading] = useState(false);
@@ -79,6 +83,80 @@ export default function NewResourcePage() {
         type: 'error',
     });
 
+    const [playlists, setPlaylists] = useState<any[]>([]);
+    const [selectedPlaylists, setSelectedPlaylists] = useState<string[]>([]);
+    const [playlistsLoading, setPlaylistsLoading] = useState(true);
+    const [showInlinePlaylistForm, setShowInlinePlaylistForm] = useState(false);
+    const [inlinePlaylistTitle, setInlinePlaylistTitle] = useState('');
+    const [inlinePlaylistStatus, setInlinePlaylistStatus] = useState<'published' | 'private'>('private');
+    const [creatingPlaylist, setCreatingPlaylist] = useState(false);
+
+    useEffect(() => {
+        const fetchUserPlaylists = async () => {
+            try {
+                setPlaylistsLoading(true);
+                const token = user ? await user.getIdToken() : '';
+                const res = await fetch('/api/playlists?userOnly=true', {
+                    headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+                    cache: 'no-store'
+                });
+                const result = await res.json();
+                if (result.success) {
+                    setPlaylists(result.data || []);
+                }
+            } catch (e) {
+                console.error('[NewResourcePage] Error fetching user playlists:', e);
+            } finally {
+                setPlaylistsLoading(false);
+            }
+        };
+        if (user) {
+            fetchUserPlaylists();
+        }
+    }, [user]);
+
+    const handleTogglePlaylistSelection = (playlistId: string) => {
+        setSelectedPlaylists(prev =>
+            prev.includes(playlistId)
+                ? prev.filter(id => id !== playlistId)
+                : [...prev, playlistId]
+        );
+    };
+
+    const handleCreatePlaylistInline = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!inlinePlaylistTitle.trim() || !user) return;
+
+        try {
+            setCreatingPlaylist(true);
+            const token = await user.getIdToken();
+            const res = await fetch('/api/playlists', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                    title: inlinePlaylistTitle.trim(),
+                    status: inlinePlaylistStatus,
+                    resourceIds: []
+                })
+            });
+            const result = await res.json();
+            if (result.success && result.data) {
+                setPlaylists(prev => [result.data, ...prev]);
+                setSelectedPlaylists(prev => [...prev, result.data.id]);
+                setInlinePlaylistTitle('');
+                setInlinePlaylistStatus('private');
+                setShowInlinePlaylistForm(false);
+            }
+        } catch (e) {
+            console.error('[NewResourcePage] Error creating playlist inline:', e);
+        } finally {
+            setCreatingPlaylist(false);
+        }
+    };
+
 
     useEffect(() => {
         const fetchCats = async () => {
@@ -94,6 +172,26 @@ export default function NewResourcePage() {
         };
         fetchCats();
     }, []);
+
+    useEffect(() => {
+        const fetchTags = async () => {
+            try {
+                const token = user ? await user.getIdToken() : '';
+                const res = await fetch('/api/tags', {
+                    headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+                });
+                const data = await res.json();
+                if (data.success && data.data) {
+                    setAllDbTags(data.data);
+                }
+            } catch (e) {
+                console.error('Failed to fetch tags', e);
+            }
+        };
+        if (user) {
+            fetchTags();
+        }
+    }, [user]);
 
     const handleCreateCategory = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -166,12 +264,15 @@ export default function NewResourcePage() {
                 if (field === 'description') {
                     if (data.description) setDescription(data.description);
                 } else if (field === 'tags') {
-                    if (data.tags) setTags(data.tags.join(', '));
+                    if (data.tags) setSelectedTags(Array.from(new Set([...selectedTags, ...data.tags.map((t: string) => t.trim().toLowerCase())])));
                 } else {
                     // Full enrichment
                     if (data.title && !title) setTitle(data.title);
                     if (data.description) setDescription(data.description);
-                    if (data.tags) setTags(data.tags.join(', '));
+                    if (data.tags) {
+                        const newTags = data.tags.map((t: string) => t.trim().toLowerCase());
+                        setSelectedTags(Array.from(new Set([...selectedTags, ...newTags])));
+                    }
                     if (data.categories && data.categories.length > 0) {
                         setSelectedCategories(Array.from(new Set([...selectedCategories, ...data.categories])));
                     }
@@ -259,14 +360,14 @@ export default function NewResourcePage() {
                 // Also trigger logic-based suggestions
                 const currentTitle = title || data.title || '';
                 if (currentTitle) {
-                    const cats = suggestCategories(currentTitle, description, targetUrl, { tags, type, mediaFormat, platform, pricing });
+                    const cats = suggestCategories(currentTitle, description, targetUrl, { tags: selectedTags.join(', '), type, mediaFormat, platform, pricing });
                     if (selectedCategories.length === 0) {
                         setSelectedCategories(cats);
                     }
                     
                     const suggestedTags = suggestTags(currentTitle, description, targetUrl);
-                    if (!tags && suggestedTags.length > 0) {
-                        setTags(suggestedTags.join(', '));
+                    if (selectedTags.length === 0 && suggestedTags.length > 0) {
+                        setSelectedTags(suggestedTags.map(t => t.trim().toLowerCase()));
                     }
                     
                     if (!description) {
@@ -307,12 +408,12 @@ export default function NewResourcePage() {
 
     useEffect(() => {
         if (title || url) {
-            const cats = suggestCategories(title, description, url, { tags, type, mediaFormat, platform, pricing });
+            const cats = suggestCategories(title, description, url, { tags: selectedTags.join(', '), type, mediaFormat, platform, pricing });
             setSuggestedCategories(cats);
             const creds = suggestAttributions(url, title, { authorName: ytMetadata?.author_name, authorUrl: ytMetadata?.author_url });
             setSuggestedAttributions(creds);
         }
-    }, [title, description, url, ytMetadata, tags, type, mediaFormat, platform, pricing]);
+    }, [title, description, url, ytMetadata, selectedTags, type, mediaFormat, platform, pricing]);
 
     // Live duplicate check — debounced 700ms after user stops typing
     useEffect(() => {
@@ -536,7 +637,7 @@ export default function NewResourcePage() {
                     attributions: validAttributions,
                     youtubeVideoId: youtubeVideoId || null,
                     thumbnailUrl: thumbnailUrl.trim() || null,
-                    tags: tags.split(',').map((t) => t.trim()).filter(Boolean),
+                    tags: selectedTags,
                     addedBy: user?.uid,
                     status: isAdmin ? status : 'suggested',
                     isFavorite: isFavorite === null ? null : isFavorite,
@@ -550,9 +651,39 @@ export default function NewResourcePage() {
             const result = await response.json();
 
             if (result.success) {
+                const newResourceId = overwriteId || result.id;
+
+                // Associate with selected playlists
+                if (selectedPlaylists.length > 0 && newResourceId) {
+                    await Promise.all(selectedPlaylists.map(async (playlistId) => {
+                        try {
+                            const playlist = playlists.find(p => p.id === playlistId);
+                            if (playlist) {
+                                const updatedResourceIds = [...(playlist.resourceIds || [])];
+                                if (!updatedResourceIds.includes(newResourceId)) {
+                                    updatedResourceIds.push(newResourceId);
+                                }
+                                await fetch(`/api/playlists/${playlistId}`, {
+                                    method: 'PATCH',
+                                    headers: {
+                                        'Content-Type': 'application/json',
+                                        'Authorization': `Bearer ${token}`
+                                    },
+                                    body: JSON.stringify({ resourceIds: updatedResourceIds })
+                                });
+                            }
+                        } catch (e) {
+                            console.error(`Failed to associate resource with playlist ${playlistId}:`, e);
+                        }
+                    }));
+                }
+
+                clearPlaylistsCache();
+                window.dispatchEvent(new Event('playlists-updated'));
+
                 router.refresh();
                 if (isAdmin) {
-                    router.push(`/resources/${overwriteId || result.id || ''}`);
+                    router.push(`/resources/${newResourceId || ''}`);
                 } else {
                     router.push('/resources?suggested=true');
                 }
@@ -706,32 +837,165 @@ export default function NewResourcePage() {
                                 <p className="form-helper">The link to the resource (website, video, document, etc.)</p>
                             </div>
 
+                            <div className="form-group col-span-2 animate-fade-in">
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-2)' }}>
+                                    <label className="form-label text-xs font-black uppercase tracking-widest text-white/60" style={{ marginBottom: 0 }}>Tags</label>
+                                    <button
+                                        type="button"
+                                        className={`btn btn-secondary btn-sm ${isEnriching ? 'opacity-50' : ''}`}
+                                        onClick={() => handleAIEnrich('tags')}
+                                        id="ai-suggest-tags"
+                                        disabled={!url || isEnriching}
+                                    >
+                                        {isEnriching ? '...' : '✨ AI Suggest'}
+                                    </button>
+                                </div>
+
+                                {/* Selected Tag Chips */}
+                                <div className="flex flex-wrap gap-2 mb-3">
+                                    {selectedTags.map(tag => (
+                                        <span 
+                                            key={tag} 
+                                            className="px-3 py-1 bg-indigo-500/20 border border-indigo-500/30 rounded-xl text-xs text-indigo-300 flex items-center gap-1.5 font-bold transition-all hover:bg-indigo-500/30"
+                                        >
+                                            #{tag}
+                                            <button 
+                                                type="button" 
+                                                onClick={() => setSelectedTags(selectedTags.filter(t => t !== tag))}
+                                                className="text-indigo-400 hover:text-white font-black"
+                                            >
+                                                ✕
+                                            </button>
+                                        </span>
+                                    ))}
+                                    {selectedTags.length === 0 && (
+                                        <span className="text-xs text-white/20 italic">No tags added yet. Type or pick some below.</span>
+                                    )}
+                                </div>
+
+                                {/* Custom Dropdown Tag Input */}
+                                <div className="relative">
+                                    <div className="flex gap-2">
+                                        <input
+                                            type="text"
+                                            className="form-input flex-1"
+                                            value={tagInput}
+                                            onChange={(e) => {
+                                                setTagInput(e.target.value);
+                                                setIsTagDropdownOpen(true);
+                                            }}
+                                            onFocus={() => setIsTagDropdownOpen(true)}
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter') {
+                                                    e.preventDefault();
+                                                    const clean = tagInput.trim().toLowerCase().replace(/#/g, '');
+                                                    if (clean && !selectedTags.includes(clean)) {
+                                                        setSelectedTags([...selectedTags, clean]);
+                                                        setTagInput('');
+                                                    }
+                                                }
+                                            }}
+                                            placeholder="Type tag and press Enter, or choose from popular dropdown..."
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                const clean = tagInput.trim().toLowerCase().replace(/#/g, '');
+                                                if (clean && !selectedTags.includes(clean)) {
+                                                    setSelectedTags([...selectedTags, clean]);
+                                                    setTagInput('');
+                                                }
+                                            }}
+                                            className="px-5 py-2.5 bg-white/5 border border-white/10 rounded-xl text-xs font-black uppercase tracking-widest text-white/60 hover:text-white hover:bg-white/10 transition-all"
+                                        >
+                                            Add
+                                        </button>
+                                    </div>
+
+                                    {/* Dropdown menu */}
+                                    {isTagDropdownOpen && (
+                                        <>
+                                            <div 
+                                                className="fixed inset-0 z-40" 
+                                                onClick={() => setIsTagDropdownOpen(false)}
+                                            />
+                                            <div className="absolute left-0 right-0 mt-2 bg-[#12121a] border border-white/10 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] z-50 max-h-60 overflow-y-auto p-2 custom-scrollbar">
+                                                {/* Filter matching tags */}
+                                                {allDbTags
+                                                    .filter(t => !selectedTags.includes(t.name) && t.name.toLowerCase().includes(tagInput.toLowerCase()))
+                                                    .map(tag => (
+                                                        <button
+                                                            key={tag.name}
+                                                            type="button"
+                                                            onClick={() => {
+                                                                setSelectedTags([...selectedTags, tag.name]);
+                                                                setTagInput('');
+                                                                setIsTagDropdownOpen(false);
+                                                            }}
+                                                            className="w-full text-left px-4 py-2.5 rounded-xl hover:bg-white/5 text-xs text-white/80 hover:text-white flex justify-between items-center transition-all"
+                                                        >
+                                                            <span className="font-semibold text-white/80">#{tag.name}</span>
+                                                            <span className="text-[10px] font-black text-white/30 bg-white/5 px-2.5 py-1 rounded-lg">
+                                                                {tag.count} {tag.count === 1 ? 'asset' : 'assets'}
+                                                            </span>
+                                                        </button>
+                                                    ))
+                                                }
+                                                {/* If typing a tag that doesn't exist yet */}
+                                                {tagInput.trim() && !allDbTags.some(t => t.name.toLowerCase() === tagInput.trim().toLowerCase()) && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            const clean = tagInput.trim().toLowerCase().replace(/#/g, '');
+                                                            if (clean && !selectedTags.includes(clean)) {
+                                                                setSelectedTags([...selectedTags, clean]);
+                                                                setTagInput('');
+                                                                setIsTagDropdownOpen(false);
+                                                            }
+                                                        }}
+                                                        className="w-full text-left px-4 py-2.5 rounded-xl hover:bg-white/5 text-xs text-indigo-400 font-bold transition-all"
+                                                    >
+                                                        ✨ Create new tag: "#{tagInput.trim().toLowerCase().replace(/#/g, '')}"
+                                                    </button>
+                                                )}
+                                                {allDbTags.filter(t => !selectedTags.includes(t.name) && t.name.toLowerCase().includes(tagInput.toLowerCase())).length === 0 && !tagInput.trim() && (
+                                                    <div className="px-4 py-3 text-center text-xs text-white/30">
+                                                        No more tags found
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
+                            </div>
+
+                            <div className="form-group col-span-2">
+                                <label className="form-label text-xs font-black uppercase tracking-widest text-white/60" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <Icons.trophy size={14} className="text-amber-400" /> Asset Priority
+                                </label>
+                                <div className="flex flex-wrap gap-2">
+                                    {[null, 1, 2, 3, 5, 10].map((r) => (
+                                        <button
+                                            key={r === null ? 'none' : r}
+                                            type="button"
+                                            onClick={() => setRank(r === null ? '' : r)}
+                                            className={`px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all border ${
+                                                (r === null && rank === '') || (typeof r === 'number' && rank === r)
+                                                    ? 'bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-600/20'
+                                                    : 'bg-white/5 border-white/10 text-white/40 hover:bg-white/10 hover:border-white/20'
+                                            }`}
+                                        >
+                                            {r === null ? 'None' : r}
+                                        </button>
+                                    ))}
+                                </div>
+                                <p className="form-helper">Prioritize this asset in benchmarks and discovery queues (default is 3)</p>
+                            </div>
+
                             {isAdmin && (
                                 <div className="col-span-2 space-y-8 mb-6 pb-6 border-b border-white/5">
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                        <div className="form-group">
-                                            <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                <Icons.trophy size={14} className="text-amber-400" /> Rank & Discovery Weight
-                                            </label>
-                                            <div className="flex flex-wrap gap-2">
-                                                {[null, 1, 2, 3, 5, 10].map((r) => (
-                                                    <button
-                                                        key={r === null ? 'none' : r}
-                                                        type="button"
-                                                        onClick={() => setRank(r === null ? '' : r)}
-                                                        className={`px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all border ${
-                                                            (r === null && rank === '') || (typeof r === 'number' && rank === r)
-                                                                ? 'bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-600/20'
-                                                                : 'bg-white/5 border-white/10 text-white/40 hover:bg-white/10 hover:border-white/20'
-                                                        }`}
-                                                    >
-                                                        {r === null ? 'None' : r}
-                                                    </button>
-                                                ))}
-                                            </div>
-                                        </div>
-
-                                        <div className="form-group">
+                                        <div className="form-group col-span-2 md:col-span-1">
                                             <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                                 <Icons.star size={14} className="text-amber-400" /> Featured Elevation
                                             </label>
@@ -757,51 +1021,169 @@ export default function NewResourcePage() {
                                             </div>
                                         </div>
                                     </div>
-
-                                    <div className="form-group">
-                                        <label className="form-label" htmlFor="thumbnailUrl">🖼️ Thumbnail Image URL</label>
-                                        <div style={{ display: 'flex', gap: 'var(--space-3)', alignItems: 'center' }}>
-                                            <input
-                                                id="thumbnailUrl"
-                                                type="text"
-                                                className="form-input"
-                                                value={thumbnailUrl}
-                                                onChange={(e) => setThumbnailUrl(e.target.value)}
-                                                placeholder="Enter image URL or pick from Nanobanana scenarios..."
-                                                style={{ flex: 1 }}
-                                            />
-                                            <button 
-                                                type="button" 
-                                                className="btn btn-secondary btn-sm"
-                                                onClick={() => setIsPickerOpen(true)}
-                                                style={{ whiteSpace: 'nowrap', padding: 'var(--space-2) var(--space-4)', fontSize: '12px' }}
-                                            >
-                                                📂 Browse scenarios
-                                            </button>
-                                        </div>
-                                        
-                                        {thumbnailUrl && (
-                                            <div style={{ marginTop: 'var(--space-3)', borderRadius: 'var(--radius-md)', overflow: 'hidden', height: '140px', width: '250px', position: 'relative', border: '1px solid var(--border-subtle)', background: 'var(--bg-secondary)' }}>
-                                                <img src={thumbnailUrl} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                                                <button 
-                                                    type="button" 
-                                                    className="btn btn-danger btn-sm" 
-                                                    onClick={() => setThumbnailUrl('')}
-                                                    style={{ position: 'absolute', top: '8px', right: '8px', padding: '4px 10px', fontSize: '11px', boxShadow: 'var(--shadow-lg)' }}
-                                                >
-                                                    Remove
-                                                </button>
-                                            </div>
-                                        )}
-                                    </div>
-                                    
-                                    <ThumbnailPicker 
-                                        isOpen={isPickerOpen} 
-                                        onClose={() => setIsPickerOpen(false)}
-                                        onSelect={(url) => setThumbnailUrl(url)}
-                                    />
                                 </div>
                             )}
+
+                            <div className="form-group col-span-2">
+                                <label className="form-label" htmlFor="thumbnailUrl">🖼️ Thumbnail Image URL</label>
+                                <div style={{ display: 'flex', gap: 'var(--space-3)', alignItems: 'center' }}>
+                                    <input
+                                        id="thumbnailUrl"
+                                        type="text"
+                                        className="form-input"
+                                        value={thumbnailUrl}
+                                        onChange={(e) => setThumbnailUrl(e.target.value)}
+                                        placeholder="Enter image URL or pick from Nanobanana scenarios..."
+                                        style={{ flex: 1 }}
+                                    />
+                                    <button 
+                                        type="button" 
+                                        className="btn btn-secondary btn-sm"
+                                        onClick={() => setIsPickerOpen(true)}
+                                        style={{ whiteSpace: 'nowrap', padding: 'var(--space-2) var(--space-4)', fontSize: '12px' }}
+                                    >
+                                        📂 Browse scenarios
+                                    </button>
+                                </div>
+                                
+                                {thumbnailUrl && (
+                                    <div style={{ marginTop: 'var(--space-3)', borderRadius: 'var(--radius-md)', overflow: 'hidden', height: '140px', width: '250px', position: 'relative', border: '1px solid var(--border-subtle)', background: 'var(--bg-secondary)' }}>
+                                        <img src={thumbnailUrl} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                        <button 
+                                            type="button" 
+                                            className="btn btn-danger btn-sm" 
+                                            onClick={() => setThumbnailUrl('')}
+                                            style={{ position: 'absolute', top: '8px', right: '8px', padding: '4px 10px', fontSize: '11px', boxShadow: 'var(--shadow-lg)' }}
+                                        >
+                                            Remove
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                            
+                            <ThumbnailPicker 
+                                isOpen={isPickerOpen} 
+                                onClose={() => setIsPickerOpen(false)}
+                                onSelect={(url) => setThumbnailUrl(url)}
+                            />
+
+                            <div className="form-group col-span-2 border-t border-white/5 pt-6 mt-6">
+                                <label className="form-label text-xs font-black uppercase tracking-widest text-white/60 mb-3 flex items-center gap-2">
+                                    <Icons.play size={14} className="text-indigo-400" /> Save to Playlists
+                                </label>
+
+                                {playlistsLoading ? (
+                                    <div className="py-6 flex flex-col items-center gap-2">
+                                        <div className="w-6 h-6 border-2 border-primary/20 border-t-primary rounded-full animate-spin" />
+                                        <span className="text-[9px] font-black uppercase tracking-widest text-white/30">Loading playlists...</span>
+                                    </div>
+                                ) : playlists.length === 0 && !showInlinePlaylistForm ? (
+                                    <div className="py-4 text-center">
+                                        <p className="text-xs font-semibold text-white/40 italic mb-3">No playlists discovered.</p>
+                                        <button 
+                                            type="button"
+                                            onClick={() => setShowInlinePlaylistForm(true)}
+                                            className="px-4 py-2 bg-indigo-600/20 border border-indigo-500/30 text-indigo-400 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-600/30 transition-all"
+                                        >
+                                            Create First Playlist
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-4">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-60 overflow-y-auto pr-1 custom-scrollbar">
+                                            {playlists.map((playlist) => {
+                                                const isChecked = selectedPlaylists.includes(playlist.id);
+                                                return (
+                                                    <label 
+                                                        key={playlist.id} 
+                                                        className={`flex items-center gap-3 p-3 border rounded-xl cursor-pointer transition-all hover:bg-white/5 select-none ${
+                                                            isChecked ? 'border-indigo-500/40 bg-indigo-500/5' : 'border-white/5 bg-white/2'
+                                                        }`}
+                                                    >
+                                                        <input 
+                                                            type="checkbox"
+                                                            checked={isChecked}
+                                                            onChange={() => handleTogglePlaylistSelection(playlist.id)}
+                                                            className="w-4 h-4 rounded border-white/10 bg-[#0d0d12] text-indigo-500 focus:ring-0 cursor-pointer accent-indigo-500"
+                                                        />
+                                                        <div className="flex-1 min-w-0">
+                                                            <div className="text-xs font-bold truncate text-white">{playlist.title}</div>
+                                                            <div className="text-[8px] font-black text-white/40 uppercase tracking-widest mt-1 flex items-center gap-2">
+                                                                <span>{playlist.status}</span>
+                                                                <span className="opacity-30">•</span>
+                                                                <span>{playlist.resourceIds?.length || 0} Assets</span>
+                                                            </div>
+                                                        </div>
+                                                    </label>
+                                                );
+                                            })}
+                                        </div>
+
+                                        {!showInlinePlaylistForm && (
+                                            <button 
+                                                type="button"
+                                                onClick={() => setShowInlinePlaylistForm(true)}
+                                                className="w-full h-10 flex items-center justify-center gap-2 border border-dashed border-white/10 hover:border-indigo-500/30 rounded-xl text-[9px] font-black uppercase tracking-widest text-indigo-400 transition-all"
+                                            >
+                                                <Icons.plus size={12} /> Create New Playlist
+                                            </button>
+                                        )}
+                                    </div>
+                                )}
+
+                                {showInlinePlaylistForm && (
+                                    <div className="mt-4 p-4 bg-white/2 border border-white/5 rounded-xl space-y-4 animate-in slide-in-from-bottom-2 duration-300">
+                                        <div className="space-y-2">
+                                            <label className="text-[8px] font-black uppercase tracking-widest pl-1 text-white/40">Playlist Name</label>
+                                            <input 
+                                                type="text"
+                                                required
+                                                placeholder="Enter title..."
+                                                value={inlinePlaylistTitle}
+                                                onChange={(e) => setInlinePlaylistTitle(e.target.value)}
+                                                className="w-full bg-white/5 border border-white/10 rounded-xl h-10 px-4 text-xs font-semibold outline-none focus:border-indigo-500/50 transition-all text-white"
+                                            />
+                                        </div>
+
+                                        <div className="flex items-center justify-between gap-4">
+                                            <div className="flex items-center bg-white/5 border border-white/10 rounded-xl p-0.5">
+                                                <button 
+                                                    type="button" 
+                                                    onClick={() => setInlinePlaylistStatus('private')}
+                                                    className={`px-3 py-1.5 rounded-lg text-[8px] font-black uppercase transition-all ${inlinePlaylistStatus === 'private' ? 'bg-indigo-600 text-white' : 'text-white/40 hover:text-white'}`}
+                                                >
+                                                    Private
+                                                </button>
+                                                <button 
+                                                    type="button" 
+                                                    onClick={() => setInlinePlaylistStatus('published')}
+                                                    className={`px-3 py-1.5 rounded-lg text-[8px] font-black uppercase transition-all ${inlinePlaylistStatus === 'published' ? 'bg-indigo-600 text-white' : 'text-white/40 hover:text-white'}`}
+                                                >
+                                                    Public
+                                                </button>
+                                            </div>
+                                            
+                                            <div className="flex gap-2">
+                                                <button 
+                                                    type="button" 
+                                                    onClick={() => setShowInlinePlaylistForm(false)}
+                                                    className="px-4 py-2 border border-white/10 rounded-xl text-[9px] font-black uppercase text-white/40 hover:text-white hover:bg-white/5 transition-all"
+                                                >
+                                                    Cancel
+                                                </button>
+                                                <button 
+                                                    type="button"
+                                                    onClick={handleCreatePlaylistInline}
+                                                    disabled={creatingPlaylist}
+                                                    className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-[9px] font-black uppercase tracking-widest hover:scale-105 active:scale-95 transition-all disabled:opacity-50"
+                                                >
+                                                    {creatingPlaylist ? 'Creating...' : 'Create'}
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
 
                                 <div className="form-group col-span-2">
                                     <label className="form-label" htmlFor="title">Title *</label>
@@ -1021,28 +1403,7 @@ export default function NewResourcePage() {
                                     </div>
                                 )}
 
-                                <div className="form-group col-span-2">
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-2)' }}>
-                                        <label className="form-label" htmlFor="tags" style={{ marginBottom: 0 }}>Tags (comma separated)</label>
-                                        <button
-                                            type="button"
-                                            className={`btn btn-secondary btn-sm ${isEnriching ? 'opacity-50' : ''}`}
-                                            onClick={() => handleAIEnrich('tags')}
-                                            id="ai-suggest-tags"
-                                            disabled={!url || isEnriching}
-                                        >
-                                            {isEnriching ? '...' : '✨ AI Suggest'}
-                                        </button>
-                                    </div>
-                                    <input
-                                        id="tags"
-                                        type="text"
-                                        className="form-input"
-                                        value={tags}
-                                        onChange={(e) => setTags(e.target.value)}
-                                        placeholder="prompt, AI, tutorial, beginner"
-                                    />
-                                </div>
+
 
                                 <div className="form-group col-span-2">
                                     <label className="form-label" htmlFor="notes">📖 Public Notes & Instructions</label>
@@ -1081,7 +1442,7 @@ export default function NewResourcePage() {
                                     type="button"
                                     className="btn btn-secondary btn-sm"
                                     onClick={() => {
-                                        const cats = suggestCategories(title, description, url, { tags, type, mediaFormat, platform, pricing });
+                                        const cats = suggestCategories(title, description, url, { tags: selectedTags.join(', '), type, mediaFormat, platform, pricing });
                                         setSelectedCategories(Array.from(new Set([...selectedCategories, ...cats])));
                                     }}
                                     id="ai-suggest-categories"

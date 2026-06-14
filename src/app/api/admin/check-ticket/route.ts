@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
 import { accreditationDb } from '@/lib/firebase-admin';
 import { sanitize } from '@/lib/utils';

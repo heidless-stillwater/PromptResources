@@ -163,10 +163,12 @@ const FilterBar: React.FC<FilterBarProps> = ({
                             onChange={e => setPriorityRank(e.target.value)} 
                             className={selectStyle}
                         >
-                            <option value="" className={optionStyle}>Ranking</option>
-                            <option value="any" className={optionStyle}>Ranked Only</option>
-                            {[1,3,5,10,25].map(r => (
-                                <option key={r} value={r.toString()} className={optionStyle}>Top {r}</option>
+                            <option value="" className={optionStyle}>Asset Priority</option>
+                            <option value="any" className={optionStyle}>Priority Set</option>
+                            {[1,2,3,5,10,25].map(r => (
+                                <option key={r} value={r.toString()} className={optionStyle}>
+                                    {r === 1 ? 'Priority 1 (Highest)' : `Priority ${r} or Higher`}
+                                </option>
                             ))}
                         </select>
                         <Icons.chevronDown size={12} className="absolute right-3 text-white/10 pointer-events-none group-hover:text-primary transition-colors" />
@@ -287,7 +289,7 @@ const FilterBar: React.FC<FilterBarProps> = ({
                                         </button>
                                     </div>
                                     <div className="flex flex-wrap gap-2">
-                                        {s.filters.priorityRank && <span className="text-[8px] font-black text-primary/60 bg-primary/5 px-1.5 py-0.5 rounded uppercase border border-primary/10">Rank {s.filters.priorityRank}</span>}
+                                        {s.filters.priorityRank && <span className="text-[8px] font-black text-primary/60 bg-primary/5 px-1.5 py-0.5 rounded uppercase border border-primary/10">Priority {s.filters.priorityRank}</span>}
                                         {s.filters.selectedCreators.length > 0 && <span className="text-[8px] font-black text-white/20 bg-white/5 px-1.5 py-0.5 rounded uppercase border border-white/5">{s.filters.selectedCreators.length} Pioneers</span>}
                                     </div>
                                 </div>

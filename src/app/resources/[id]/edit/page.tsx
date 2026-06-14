@@ -16,6 +16,7 @@ import { Icons } from '@/components/ui/Icons';
 import { Category, ApiResponse } from '@/lib/types';
 import Footer from '@/components/Footer';
 import ConfirmationModal from '@/components/ConfirmationModal';
+import { clearPlaylistsCache } from '@/lib/playlists-cache';
 
 export default function EditResourcePage() {
     const { user, loading: authLoading, isAdmin } = useAuth();
@@ -48,6 +49,14 @@ export default function EditResourcePage() {
     const [error, setError] = useState('');
     const [originalResource, setOriginalResource] = useState<Resource | null>(null);
     const [hasChanges, setHasChanges] = useState(false);
+
+    const [playlists, setPlaylists] = useState<any[]>([]);
+    const [selectedPlaylists, setSelectedPlaylists] = useState<string[]>([]);
+    const [playlistsLoading, setPlaylistsLoading] = useState(true);
+    const [showInlinePlaylistForm, setShowInlinePlaylistForm] = useState(false);
+    const [inlinePlaylistTitle, setInlinePlaylistTitle] = useState('');
+    const [inlinePlaylistStatus, setInlinePlaylistStatus] = useState<'published' | 'private'>('private');
+    const [creatingPlaylist, setCreatingPlaylist] = useState(false);
 
     const allCategories = getDefaultCategories();
     const [isPickerOpen, setIsPickerOpen] = useState(false);
@@ -272,6 +281,77 @@ export default function EditResourcePage() {
         fetchResource();
     }, [id, user, isAdmin, router]);
 
+    useEffect(() => {
+        const fetchUserPlaylists = async () => {
+            try {
+                setPlaylistsLoading(true);
+                const token = user ? await user.getIdToken() : '';
+                const res = await fetch('/api/playlists?userOnly=true', {
+                    headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+                    cache: 'no-store'
+                });
+                const result = await res.json();
+                if (result.success) {
+                    const list = result.data || [];
+                    setPlaylists(list);
+                    if (id) {
+                        const matched = list.filter((p: any) => (p.resourceIds || []).includes(id)).map((p: any) => p.id);
+                        setSelectedPlaylists(matched);
+                    }
+                }
+            } catch (e) {
+                console.error('[EditResourcePage] Error fetching user playlists:', e);
+            } finally {
+                setPlaylistsLoading(false);
+            }
+        };
+        if (user && id) {
+            fetchUserPlaylists();
+        }
+    }, [user, id]);
+
+    const handleTogglePlaylistSelection = (playlistId: string) => {
+        setSelectedPlaylists(prev =>
+            prev.includes(playlistId)
+                ? prev.filter(pId => pId !== playlistId)
+                : [...prev, playlistId]
+        );
+    };
+
+    const handleCreatePlaylistInline = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!inlinePlaylistTitle.trim() || !user) return;
+
+        try {
+            setCreatingPlaylist(true);
+            const token = await user.getIdToken();
+            const res = await fetch('/api/playlists', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                    title: inlinePlaylistTitle.trim(),
+                    status: inlinePlaylistStatus,
+                    resourceIds: []
+                })
+            });
+            const result = await res.json();
+            if (result.success && result.data) {
+                setPlaylists(prev => [result.data, ...prev]);
+                setSelectedPlaylists(prev => [...prev, result.data.id]);
+                setInlinePlaylistTitle('');
+                setInlinePlaylistStatus('private');
+                setShowInlinePlaylistForm(false);
+            }
+        } catch (e) {
+            console.error('[EditResourcePage] Error creating playlist inline:', e);
+        } finally {
+            setCreatingPlaylist(false);
+        }
+    };
+
     // Auto-detect YouTube and suggest categories/attributions (only if URL changes)
     useEffect(() => {
         if (url && isYouTubeUrl(url) && url !== originalResource?.url) {
@@ -464,6 +544,9 @@ export default function EditResourcePage() {
         const currentPrompts = prompts.split('\n').map(p => p.trim()).filter(Boolean).sort().join('\n');
         const originalPrompts = (originalResource.prompts || []).sort().join('\n');
 
+        const originalPlaylistsString = playlists.filter((p: any) => (p.resourceIds || []).includes(id)).map((p: any) => p.id).sort().join(',');
+        const currentPlaylistsString = [...selectedPlaylists].sort().join(',');
+
         const isChanged = 
             title.trim() !== (originalResource.title || '') ||
             description.trim() !== (originalResource.description || '') ||
@@ -481,10 +564,11 @@ export default function EditResourcePage() {
             (rank === '' ? null : Number(rank)) !== (originalResource.rank === undefined ? null : originalResource.rank) ||
             currentPrompts !== originalPrompts ||
             notes.trim() !== (originalResource.notes || '') ||
-            adminNotes.trim() !== (originalResource.adminNotes || '');
+            adminNotes.trim() !== (originalResource.adminNotes || '') ||
+            currentPlaylistsString !== originalPlaylistsString;
 
         setHasChanges(isChanged);
-    }, [title, description, url, type, mediaFormat, platform, pricing, pricingDetails, tags, selectedCategories, thumbnailUrl, status, isFavorite, rank, prompts, notes, adminNotes, originalResource]);
+    }, [title, description, url, type, mediaFormat, platform, pricing, pricingDetails, tags, selectedCategories, thumbnailUrl, status, isFavorite, rank, prompts, notes, adminNotes, originalResource, playlists, selectedPlaylists, id]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -537,6 +621,48 @@ export default function EditResourcePage() {
             const result = await response.json();
 
             if (result.success) {
+                // Save/Update playlists associations
+                const originalPlaylists = playlists.filter((p: any) => (p.resourceIds || []).includes(id)).map((p: any) => p.id);
+                const addedPlaylists = selectedPlaylists.filter(x => !originalPlaylists.includes(x));
+                const removedPlaylists = originalPlaylists.filter(x => !selectedPlaylists.includes(x));
+
+                await Promise.all([
+                    ...addedPlaylists.map(async (playlistId) => {
+                        const playlist = playlists.find(p => p.id === playlistId);
+                        if (playlist) {
+                            const updatedResourceIds = [...(playlist.resourceIds || [])];
+                            if (!updatedResourceIds.includes(id)) {
+                                updatedResourceIds.push(id);
+                            }
+                            await fetch(`/api/playlists/${playlistId}`, {
+                                method: 'PATCH',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'Authorization': `Bearer ${token}`
+                                },
+                                body: JSON.stringify({ resourceIds: updatedResourceIds })
+                            });
+                        }
+                    }),
+                    ...removedPlaylists.map(async (playlistId) => {
+                        const playlist = playlists.find(p => p.id === playlistId);
+                        if (playlist) {
+                            const updatedResourceIds = (playlist.resourceIds || []).filter((rId: string) => rId !== id);
+                            await fetch(`/api/playlists/${playlistId}`, {
+                                method: 'PATCH',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'Authorization': `Bearer ${token}`
+                                },
+                                body: JSON.stringify({ resourceIds: updatedResourceIds })
+                            });
+                        }
+                    })
+                ]);
+
+                clearPlaylistsCache();
+                window.dispatchEvent(new Event('playlists-updated'));
+
                 router.refresh();
                 router.push(`/resources/${id}`);
             } else {
@@ -707,48 +833,48 @@ export default function EditResourcePage() {
                                                 </div>
                                             </div>
                                         </div>
-
-                                        <div className="form-group">
-                                            <label className="form-label">🖼️ Thumbnail Image URL</label>
-                                            <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
-                                                <input
-                                                    type="text"
-                                                    className="form-input"
-                                                    value={thumbnailUrl}
-                                                    onChange={(e) => setThumbnailUrl(e.target.value)}
-                                                    placeholder="Enter image URL..."
-                                                    style={{ flex: 1 }}
-                                                />
-                                                <button 
-                                                    type="button" 
-                                                    className="btn btn-secondary btn-sm"
-                                                    onClick={() => setIsPickerOpen(true)}
-                                                    style={{ whiteSpace: 'nowrap' }}
-                                                >
-                                                    Browse scenarios
-                                                </button>
-                                            </div>
-                                            {thumbnailUrl && (
-                                                <div style={{ marginTop: 'var(--space-3)', borderRadius: 'var(--radius-md)', overflow: 'hidden', height: '140px', width: '250px', position: 'relative', border: '1px solid var(--border-subtle)', background: 'var(--bg-secondary)' }}>
-                                                    <img src={thumbnailUrl} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                                                    <button 
-                                                        type="button" 
-                                                        className="btn btn-danger btn-sm" 
-                                                        onClick={() => setThumbnailUrl('')}
-                                                        style={{ position: 'absolute', top: '8px', right: '8px', padding: '4px 10px', fontSize: '11px', boxShadow: 'var(--shadow-lg)' }}
-                                                    >
-                                                        Remove
-                                                    </button>
-                                                </div>
-                                            )}
-                                            <ThumbnailPicker 
-                                                isOpen={isPickerOpen} 
-                                                onClose={() => setIsPickerOpen(false)}
-                                                onSelect={(url) => setThumbnailUrl(url)}
-                                            />
-                                        </div>
                                     </div>
                                 )}
+
+                                <div className="form-group col-span-2">
+                                    <label className="form-label">🖼️ Thumbnail Image URL</label>
+                                    <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
+                                        <input
+                                            type="text"
+                                            className="form-input"
+                                            value={thumbnailUrl}
+                                            onChange={(e) => setThumbnailUrl(e.target.value)}
+                                            placeholder="Enter image URL..."
+                                            style={{ flex: 1 }}
+                                        />
+                                        <button 
+                                            type="button" 
+                                            className="btn btn-secondary btn-sm"
+                                            onClick={() => setIsPickerOpen(true)}
+                                            style={{ whiteSpace: 'nowrap' }}
+                                        >
+                                            Browse scenarios
+                                        </button>
+                                    </div>
+                                    {thumbnailUrl && (
+                                        <div style={{ marginTop: 'var(--space-3)', borderRadius: 'var(--radius-md)', overflow: 'hidden', height: '140px', width: '250px', position: 'relative', border: '1px solid var(--border-subtle)', background: 'var(--bg-secondary)' }}>
+                                            <img src={thumbnailUrl} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                            <button 
+                                                type="button" 
+                                                className="btn btn-danger btn-sm" 
+                                                onClick={() => setThumbnailUrl('')}
+                                                style={{ position: 'absolute', top: '8px', right: '8px', padding: '4px 10px', fontSize: '11px', boxShadow: 'var(--shadow-lg)' }}
+                                            >
+                                                Remove
+                                            </button>
+                                        </div>
+                                    )}
+                                    <ThumbnailPicker 
+                                        isOpen={isPickerOpen} 
+                                        onClose={() => setIsPickerOpen(false)}
+                                        onSelect={(url) => setThumbnailUrl(url)}
+                                    />
+                                </div>
 
                                 <div className="form-group col-span-2">
                                     <label className="form-label">Title *</label>
@@ -857,6 +983,123 @@ export default function EditResourcePage() {
                                         rows={4}
                                         placeholder="Paste specific prompts here..."
                                     />
+                                </div>
+                                <div className="form-group col-span-2 border-t border-white/5 pt-6 mt-6">
+                                    <label className="form-label text-xs font-black uppercase tracking-widest text-white/60 mb-3 flex items-center gap-2">
+                                        <Icons.play size={14} className="text-indigo-400" /> Save to Playlists
+                                    </label>
+
+                                    {playlistsLoading ? (
+                                        <div className="py-6 flex flex-col items-center gap-2">
+                                            <div className="w-6 h-6 border-2 border-primary/20 border-t-primary rounded-full animate-spin" />
+                                            <span className="text-[9px] font-black uppercase tracking-widest text-white/30">Loading playlists...</span>
+                                        </div>
+                                    ) : playlists.length === 0 && !showInlinePlaylistForm ? (
+                                        <div className="py-4 text-center">
+                                            <p className="text-xs font-semibold text-white/40 italic mb-3">No playlists discovered.</p>
+                                            <button 
+                                                type="button"
+                                                onClick={() => setShowInlinePlaylistForm(true)}
+                                                className="px-4 py-2 bg-indigo-600/20 border border-indigo-500/30 text-indigo-400 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-600/30 transition-all"
+                                            >
+                                                Create First Playlist
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-4">
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-60 overflow-y-auto pr-1 custom-scrollbar">
+                                                {playlists.map((playlist) => {
+                                                    const isChecked = selectedPlaylists.includes(playlist.id);
+                                                    return (
+                                                        <label 
+                                                            key={playlist.id} 
+                                                            className={`flex items-center gap-3 p-3 border rounded-xl cursor-pointer transition-all hover:bg-white/5 select-none ${
+                                                                isChecked ? 'border-indigo-500/40 bg-indigo-500/5' : 'border-white/5 bg-white/2'
+                                                            }`}
+                                                        >
+                                                            <input 
+                                                                type="checkbox"
+                                                                checked={isChecked}
+                                                                onChange={() => handleTogglePlaylistSelection(playlist.id)}
+                                                                className="w-4 h-4 rounded border-white/10 bg-[#0d0d12] text-indigo-500 focus:ring-0 cursor-pointer accent-indigo-500"
+                                                            />
+                                                            <div className="flex-1 min-w-0">
+                                                                <div className="text-xs font-bold truncate text-white">{playlist.title}</div>
+                                                                <div className="text-[8px] font-black text-white/40 uppercase tracking-widest mt-1 flex items-center gap-2">
+                                                                    <span>{playlist.status}</span>
+                                                                    <span className="opacity-30">•</span>
+                                                                    <span>{playlist.resourceIds?.length || 0} Assets</span>
+                                                                </div>
+                                                            </div>
+                                                        </label>
+                                                    );
+                                                })}
+                                            </div>
+
+                                            {!showInlinePlaylistForm && (
+                                                <button 
+                                                    type="button"
+                                                    onClick={() => setShowInlinePlaylistForm(true)}
+                                                    className="w-full h-10 flex items-center justify-center gap-2 border border-dashed border-white/10 hover:border-indigo-500/30 rounded-xl text-[9px] font-black uppercase tracking-widest text-indigo-400 transition-all"
+                                                >
+                                                    <Icons.plus size={12} /> Create New Playlist
+                                                </button>
+                                            )}
+                                        </div>
+                                    )}
+
+                                    {showInlinePlaylistForm && (
+                                        <div className="mt-4 p-4 bg-white/2 border border-white/5 rounded-xl space-y-4 animate-in slide-in-from-bottom-2 duration-300">
+                                            <div className="space-y-2">
+                                                <label className="text-[8px] font-black uppercase tracking-widest pl-1 text-white/40">Playlist Name</label>
+                                                <input 
+                                                    type="text"
+                                                    required
+                                                    placeholder="Enter title..."
+                                                    value={inlinePlaylistTitle}
+                                                    onChange={(e) => setInlinePlaylistTitle(e.target.value)}
+                                                    className="w-full bg-white/5 border border-white/10 rounded-xl h-10 px-4 text-xs font-semibold outline-none focus:border-indigo-500/50 transition-all text-white"
+                                                />
+                                            </div>
+
+                                            <div className="flex items-center justify-between gap-4">
+                                                <div className="flex items-center bg-white/5 border border-white/10 rounded-xl p-0.5">
+                                                    <button 
+                                                        type="button"
+                                                        onClick={() => setInlinePlaylistStatus('published')}
+                                                        className={`px-3 py-1.5 rounded-lg text-[8px] font-black uppercase tracking-widest transition-all ${inlinePlaylistStatus === 'published' ? 'bg-indigo-600 text-white' : 'text-white/40 hover:text-white'}`}
+                                                    >
+                                                        Public
+                                                    </button>
+                                                    <button 
+                                                        type="button"
+                                                        onClick={() => setInlinePlaylistStatus('private')}
+                                                        className={`px-3 py-1.5 rounded-lg text-[8px] font-black uppercase tracking-widest transition-all ${inlinePlaylistStatus === 'private' ? 'bg-indigo-600 text-white' : 'text-white/40 hover:text-white'}`}
+                                                    >
+                                                        Private
+                                                    </button>
+                                                </div>
+
+                                                <div className="flex gap-2">
+                                                    <button 
+                                                        type="button"
+                                                        onClick={() => setShowInlinePlaylistForm(false)}
+                                                        className="px-4 py-2 bg-white/5 border border-white/10 rounded-xl text-[9px] font-black uppercase tracking-widest text-white/60 hover:text-white transition-all"
+                                                    >
+                                                        Cancel
+                                                    </button>
+                                                    <button 
+                                                        type="button"
+                                                        onClick={(e) => handleCreatePlaylistInline(e)}
+                                                        disabled={creatingPlaylist}
+                                                        className="px-5 py-2 bg-indigo-600 text-white rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-indigo-500 transition-all flex items-center gap-1 shadow-lg shadow-indigo-600/20"
+                                                    >
+                                                        {creatingPlaylist ? 'Creating...' : 'Create'}
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         </div>

@@ -25,10 +25,9 @@ export function SuiteSwitcher() {
     return (
         <div className="relative" ref={ref}>
             <button onClick={() => setIsOpen(!isOpen)}
-                    className="flex items-center gap-2 px-3 py-2 bg-white/5 hover:bg-white/10 border border-white/5 rounded-xl transition-all group">
+                    className="flex items-center justify-center w-9 h-9 bg-white/5 hover:bg-white/10 border border-white/5 rounded-xl transition-all group"
+                    aria-label="Toggle Suite Switcher">
                 <Icons.layoutGrid size={16} className="text-white/40 group-hover:text-white" />
-                <span className="text-[10px] font-black uppercase tracking-[0.2em] text-white/40 group-hover:text-white hidden sm:block">Suite</span>
-                <Icons.chevronDown size={14} className={`text-white/40 transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`} />
             </button>
             {isOpen && (
                 <div className="absolute top-full mt-3 left-0 w-80 bg-[#0c0c14]/95 backdrop-blur-2xl border border-white/10 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] p-4 z-[100]">

@@ -7,6 +7,7 @@ import { revalidatePath } from 'next/cache';
 import { extractYouTubeId } from '@/lib/youtube';
 import { resolveAttributions, syncCreatorStats } from '@/lib/creators-server';
 import { generateSearchKeywords, sanitize } from '@/lib/utils';
+import { syncResourceTags } from '@/lib/tags-server';
 
 export async function GET(request: NextRequest) {
     try {
@@ -23,16 +24,17 @@ export async function GET(request: NextRequest) {
         const sortBy = searchParams.get('sortBy') || 'updatedAt';
         const sortOrder = (searchParams.get('sortOrder') as 'asc' | 'desc') || 'desc';
         const page = parseInt(searchParams.get('page') || '1');
-        const pageSize = Math.min(parseInt(searchParams.get('pageSize') || '96'), 100);
+        const pageSize = Math.min(parseInt(searchParams.get('pageSize') || '24'), 100);
         const registryActive = searchParams.get('registryActive') !== 'false';
         const creators = (registryActive && searchParams.get('creators')) ? searchParams.get('creators')!.split(',').filter(Boolean) : null;
+        const excludeUid = searchParams.get('excludeUid');
 
         const decodedToken = await getAuthUser(request);
         const userUid = decodedToken?.uid;
         const userEmail = decodedToken?.email;
         
         // Dual-vector admin check: Firestore role OR verified email match
-        const userIsAdmin = userUid ? (await isAdmin(userUid) || userEmail === 'heidlessemail18@gmail.com' || userEmail === 'lockhart.r@gmail.com') : false;
+        const userIsAdmin = userUid ? (await isAdmin(userUid) || userEmail === 'heidlessemail21@gmail.com' || userEmail === 'heidlessemail18@gmail.com' || userEmail === 'lockhart.r@gmail.com') : false;
 
         const { resources, total, hasMore } = await getResourcesAction({
             platform,
@@ -51,6 +53,7 @@ export async function GET(request: NextRequest) {
             userUid,
             userIsAdmin,
             creators,
+            excludeUid,
         });
 
         const sanitizedResources = sanitize(resources);
@@ -117,6 +120,12 @@ export async function POST(request: NextRequest) {
         };
 
         const docRef = await adminDb.collection('resources').add(docData);
+        
+        // Sync tag usage counts in master list
+        if (body.tags && Array.isArray(body.tags)) {
+            syncResourceTags(body.tags, [], decodedToken.uid)
+                .catch(e => console.error('Error syncing tags after POST:', e));
+        }
         
         revalidatePath('/resources');
         revalidatePath('/');

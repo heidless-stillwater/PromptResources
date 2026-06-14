@@ -1,0 +1,10 @@
+.gcloudignore
+.git
+.gitignore
+node_modules/
+.next/
+.env*.local
+README.md
+*.log
+npm-debug.log*
+yarn-debug.log*

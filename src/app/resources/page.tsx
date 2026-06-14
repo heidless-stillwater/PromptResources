@@ -21,6 +21,7 @@ interface ResourcesPageProps {
         pageSize?: string;
         creators?: string;
         registryActive?: string;
+        excludeUid?: string;
     };
 }
 
@@ -35,8 +36,9 @@ export default async function ResourcesPage({ searchParams }: ResourcesPageProps
     const sortBy = searchParams.sortBy || 'createdAt';
     const sortOrder = (searchParams.sortOrder as 'asc' | 'desc') || 'desc';
     const page = parseInt(searchParams.page || '1');
-    const pageSize = Math.min(parseInt(searchParams.pageSize || '96'), 96);
+    const pageSize = Math.min(parseInt(searchParams.pageSize || '24'), 96);
     const registryActive = searchParams.registryActive !== 'false';
+    const excludeUid = searchParams.excludeUid || null;
     const creators = (registryActive && searchParams.creators) ? searchParams.creators.split(',').filter(Boolean) : null;
 
     const [{ resources, total, hasMore }, categories] = await Promise.all([
@@ -53,6 +55,7 @@ export default async function ResourcesPage({ searchParams }: ResourcesPageProps
             page,
             creators,
             pageSize,
+            excludeUid,
             userIsAdmin: false,
         }),
         getAllCategories(),

@@ -24,6 +24,9 @@ import { useToast } from '@/components/Toast';
 import CreatorChip from '@/components/CreatorChip';
 import ConfirmationModal from '@/components/ConfirmationModal';
 import { triggerTicketFixAction } from './actions';
+import AddToPlaylistModal from '@/components/AddToPlaylistModal';
+import PlaylistQueueSidebar from '@/components/PlaylistQueueSidebar';
+import { getSharedPlaylists } from '@/lib/playlists-cache';
 
 export default function ResourceDetailPage() {
     const params = useParams();
@@ -31,13 +34,17 @@ export default function ResourceDetailPage() {
     const searchParams = useSearchParams();
     const ticketId = searchParams.get('ticketId');
     const returnUrl = searchParams.get('returnUrl');
+    const playlistId = searchParams.get('playlistId');
     const { user, isAdmin, activeRole } = useAuth();
     const { addToast } = useToast();
     const queryClient = useQueryClient();
+    const [isTagInputOpen, setIsTagInputOpen] = useState(false);
+    const [newTag, setNewTag] = useState('');
     const [deleting, setDeleting] = useState(false);
     const [copyStatus, setCopyStatus] = useState('Copy Link');
     const [shareOpen, setShareOpen] = useState(false);
     const shareRef = useRef<HTMLDivElement>(null);
+    const tagInputRef = useRef<HTMLDivElement>(null);
     const [isNoteModalOpen, setIsNoteModalOpen] = useState(false);
     const [noteContent, setNoteContent] = useState('');
     const [initialNoteContent, setInitialNoteContent] = useState('');
@@ -49,6 +56,7 @@ export default function ResourceDetailPage() {
     const [isPickerOpen, setIsPickerOpen] = useState(false);
     const [fixModalOpen, setFixModalOpen] = useState(false);
     const [activeFixPending, setActiveFixPending] = useState(false);
+    const [isPlaylistOpen, setIsPlaylistOpen] = useState(false);
 
     // In-place Notes Editing State
     const [isEditingPublicNotes, setIsEditingPublicNotes] = useState(false);
@@ -142,41 +150,28 @@ export default function ResourceDetailPage() {
     const fixId = ticketData?.remediation?.fixId;
     const predictiveAction = fixId ? (FIX_SUMMARIES[fixId] || 'Generic System Alignment') : 'Generic System Alignment';
 
-    // Check if saved
-    const { data: isSaved = false } = useQuery({
-        queryKey: ['resource-saved-status', resourceId, user?.uid],
-        queryFn: async () => {
-            if (!user) return false;
-            const response = await fetch(`/api/user-resources?uid=${user.uid}`);
-            const result = await response.json();
-            if (!result.success) return false;
-            return result.data.some((r: any) => r.id === resourceId);
-        },
-        enabled: !!user,
-    });
+    const [itemPlaylists, setItemPlaylists] = useState<any[]>([]);
 
-    // Toggle save
-    const toggleSave = async () => {
-        if (!user) return;
-        try {
-            const token = await user.getIdToken();
-            const response = await fetch('/api/user-resources', {
-                method: isSaved ? 'DELETE' : 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify({ resourceId })
-            });
-            const result = await response.json();
-            if (result.success) {
-                queryClient.invalidateQueries({ queryKey: ['resource-saved-status', resourceId, user.uid] });
-                addToast(isSaved ? 'Removed from library' : 'Saved to library', 'success');
+    useEffect(() => {
+        const handleUpdate = () => {
+            if (user) {
+                getSharedPlaylists(async () => await user.getIdToken())
+                    .then(list => {
+                        const matched = list.filter(p => (p.resourceIds || []).includes(resourceId));
+                        setItemPlaylists(matched);
+                    });
+            } else {
+                setItemPlaylists([]);
             }
-        } catch (error) {
-            console.error('Save error:', error);
-        }
-    };
+        };
+
+        window.addEventListener('playlists-updated', handleUpdate);
+        handleUpdate();
+
+        return () => {
+            window.removeEventListener('playlists-updated', handleUpdate);
+        };
+    }, [user, resourceId]);
 
     // Fetch User Note
     const { data: noteData } = useQuery({
@@ -200,6 +195,36 @@ export default function ResourceDetailPage() {
         }
     }, [noteData]);
 
+    // Fetch All Tags for Autocomplete/Suggestions
+    const { data: allTags = [] } = useQuery({
+        queryKey: ['tags'],
+        queryFn: async () => {
+            if (!user) return [];
+            const token = await user.getIdToken();
+            const res = await fetch('/api/tags', {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+            const result = await res.json();
+            if (result.success) {
+                return result.data || [];
+            }
+            return [];
+        },
+        enabled: !!user && isTagInputOpen,
+    });
+
+    const filteredTags: string[] = allTags
+        .map((t: any) => t.name)
+        .filter((tagName: string) => {
+            const matchesQuery = newTag 
+                ? tagName.toLowerCase().includes(newTag.toLowerCase())
+                : true;
+            const isNotCurrent = !(resource?.tags || []).includes(tagName);
+            return matchesQuery && isNotCurrent;
+        });
+
     const loading = resourceLoading;
 
     useEffect(() => {
@@ -207,35 +232,16 @@ export default function ResourceDetailPage() {
             if (shareRef.current && !shareRef.current.contains(event.target as Node)) {
                 setShareOpen(false);
             }
+            if (tagInputRef.current && !tagInputRef.current.contains(event.target as Node)) {
+                setIsTagInputOpen(false);
+                setNewTag('');
+            }
         }
         document.addEventListener('mousedown', handleClickOutside);
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
-    const handleSave = async () => {
-        if (!user) return router.push('/auth/login');
-        try {
-            const response = await fetch('/api/user-resources', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    uid: user.uid,
-                    resourceId,
-                    action: isSaved ? 'unsave' : 'save'
-                }),
-            });
 
-            const result = await response.json();
-            if (result.success) {
-                queryClient.invalidateQueries({ queryKey: ['resource-saved-status', resourceId, user.uid] });
-                queryClient.invalidateQueries({ queryKey: ['user-resources', user.uid] });
-            }
-        } catch (error) {
-            console.error('Error updating saved status:', error);
-        }
-    };
 
     const handleDelete = async () => {
         setConfirmModal({
@@ -278,7 +284,7 @@ export default function ResourceDetailPage() {
             e.preventDefault();
             e.stopPropagation();
         }
-        const url = window.location.href;
+        const url = resource?.url || '';
         navigator.clipboard.writeText(url).then(() => {
             setCopyStatus('Copied! ✅');
             setTimeout(() => {
@@ -304,8 +310,6 @@ export default function ResourceDetailPage() {
         setShareOpen(false);
     };
 
-    const [isTagInputOpen, setIsTagInputOpen] = useState(false);
-    const [newTag, setNewTag] = useState('');
     const [isCategoryInputOpen, setIsCategoryInputOpen] = useState(false);
     const allCategories = getDefaultCategories();
 
@@ -425,18 +429,19 @@ export default function ResourceDetailPage() {
         });
     };
 
-    const handleAddTag = async () => {
-        if (!newTag.trim() || !resource) return;
+    const handleAddTag = async (tagToAdd?: string) => {
+        const tagValue = (tagToAdd || newTag).trim();
+        if (!tagValue || !resource) return;
         if (!isAdmin && resource?.addedBy !== user?.uid) return;
 
         const currentTags = resource.tags || [];
-        if (currentTags.includes(newTag.trim())) {
+        if (currentTags.includes(tagValue)) {
             setIsTagInputOpen(false);
             setNewTag('');
             return;
         }
 
-        const updatedTags = [...currentTags, newTag.trim()];
+        const updatedTags = [...currentTags, tagValue];
         try {
             const token = await user?.getIdToken();
             const response = await fetch(`/api/resources/${resourceId}`, {
@@ -774,36 +779,14 @@ return (
                     </div>
                 </div>
 
-                <div className="container relative z-10 pt-12 pb-24">
+                <div className="container relative z-10" style={{ paddingTop: '108px', paddingBottom: '20px' }}>
                     {/* Pathing breadcrumbs */}
-                    <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.4em] text-white/30 mb-8">
+                    <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.4em] text-white/30">
                         <Link href="/" className="hover:text-teal-400 transition-colors">Sources Registry</Link>
                         <Icons.chevronRight size={10} className="text-white/10" />
                         <Link href="/resources" className="hover:text-teal-400 transition-colors">Resources</Link>
                         <Icons.chevronRight size={10} className="text-white/10" />
-                        <span className="text-teal-400">Identity Active</span>
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-3">
-                        <span className="px-3 py-1 bg-teal-500 text-white rounded-lg text-[10px] font-black uppercase tracking-widest flex items-center gap-2 shadow-lg shadow-teal-500/20">
-                            <Icons.database size={12} /> {r.type}
-                        </span>
-                        <div className="h-4 w-px bg-white/10" />
-                        <span className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest border border-white/10 backdrop-blur-md ${
-                            r.pricing === 'free' ? 'text-emerald-400 bg-emerald-500/5' : 
-                            r.pricing === 'paid' ? 'text-amber-500 bg-amber-500/5' : 
-                            'text-teal-400 bg-teal-500/5'
-                        }`}>
-                            {r.pricing}
-                        </span>
-                        {r.isFavorite && (
-                            <>
-                                <div className="h-4 w-px bg-white/10" />
-                                <div className="flex items-center gap-2 px-3 py-1 bg-amber-500/10 border border-amber-500/20 text-amber-500 rounded-lg text-[10px] font-black uppercase tracking-widest">
-                                    <Icons.sparkles size={12} /> Featured
-                                </div>
-                            </>
-                        )}
+                        <span className="text-teal-400 truncate max-w-[200px]" title={r.title}>{r.title}</span>
                     </div>
                 </div>
             </div>
@@ -967,7 +950,9 @@ return (
                     )}
 
 
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
+                    <div className="flex flex-col xl:flex-row gap-10 items-start">
+                        <div className="flex-1 min-w-0">
+                            <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
                         {/* ── COLUMN 1: IDENTITY & CORE ── */}
                         <div className="lg:col-span-2 space-y-10">
                             <div className="space-y-6">
@@ -1037,18 +1022,30 @@ return (
                             </div>
 
                             {/* Large Thumbnail Content */}
-                            <div className="relative group rounded-[2.5rem] overflow-hidden border border-white/10 shadow-2xl bg-black/40 backdrop-blur-xl">
+                            <a 
+                                href={r.url} 
+                                target="_blank" 
+                                rel="noopener noreferrer" 
+                                className="block relative group rounded-[2.5rem] overflow-hidden border border-white/10 shadow-2xl bg-black/40 backdrop-blur-xl hover:border-teal-500/30 transition-all duration-300"
+                            >
                                 {r.thumbnailUrl ? (
                                     <div className="aspect-video relative">
                                         <img src={r.thumbnailUrl} alt={r.title} className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-105" />
-                                        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 flex items-center justify-center">
+                                            <div className="bg-[#0a0a0f]/80 backdrop-blur-md px-5 py-2.5 rounded-full border border-white/10 flex items-center gap-2 text-xs font-black uppercase tracking-widest text-teal-400 transform translate-y-4 group-hover:translate-y-0 transition-all duration-500 shadow-[0_10px_30px_rgba(0,0,0,0.5)]">
+                                                <Icons.external size={14} /> Open Resource
+                                            </div>
+                                        </div>
                                     </div>
                                 ) : (
-                                    <div className="aspect-video flex items-center justify-center bg-teal-500/5">
-                                        <Icons.database size={64} className="text-teal-500/10" />
+                                    <div className="aspect-video flex flex-col items-center justify-center bg-teal-500/5 gap-4">
+                                        <Icons.database size={64} className="text-teal-500/10 group-hover:text-teal-500/20 transition-colors" />
+                                        <div className="bg-[#0a0a0f]/60 backdrop-blur-sm px-5 py-2.5 rounded-full border border-white/5 flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-teal-400">
+                                            <Icons.external size={12} /> Open Resource
+                                        </div>
                                     </div>
                                 )}
-                            </div>
+                            </a>
 
                             {/* Description Block */}
                             <div className="glass-card p-10 border-teal-500/10">
@@ -1182,27 +1179,56 @@ return (
                                     Open Resource <Icons.external size={18} strokeWidth={3} />
                                 </a>
                                 
-                                <div className="grid grid-cols-2 gap-4">
+                                <div className="flex gap-3 flex-wrap">
                                     <button 
                                         onClick={() => setIsFlagModalOpen(true)}
-                                        className="py-4 bg-white/5 border border-white/10 rounded-2xl text-white/40 hover:bg-rose-500 hover:text-white hover:border-rose-400 transition-all flex items-center justify-center gap-3 font-black text-[10px] uppercase tracking-widest"
+                                        className="p-4 bg-white/5 border border-white/10 rounded-2xl text-white/40 hover:bg-rose-500 hover:text-white hover:border-rose-400 transition-all flex-1 flex items-center justify-center"
+                                        title="Report"
                                     >
-                                        <Icons.report size={16} /> Report
-                                    </button>
-                                    <button 
-                                        onClick={handleSave}
-                                        className={`py-4 border rounded-2xl transition-all flex items-center justify-center gap-3 font-black text-[10px] uppercase tracking-widest ${isSaved ? 'bg-teal-500/20 border-teal-500/40 text-teal-400' : 'bg-white/5 border-white/10 text-white/40 hover:text-white hover:bg-white/10'}`}
-                                    >
-                                        {isSaved ? <Icons.check size={16} /> : <Icons.plus size={16} />} {isSaved ? 'Saved' : 'Save'}
-                                    </button>
-                                </div>
-                                
-                                <div className="flex gap-4">
-                                    <button onClick={() => setShareOpen(!shareOpen)} className="flex-1 py-4 bg-white/5 border border-white/10 rounded-2xl text-white/40 hover:text-white transition-all text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-3">
-                                        <Icons.share size={16} /> Share
+                                        <Icons.report size={18} />
                                     </button>
                                     {(isAdmin || (user && r.addedBy === user.uid)) && (
-                                        <button onClick={handleDelete} className="p-4 bg-rose-500/10 border border-rose-500/20 text-rose-500 rounded-2xl hover:bg-rose-500 hover:text-white transition-all">
+                                        <Link 
+                                            href={`/resources/${r.id}/edit`}
+                                            className="p-4 bg-teal-500/10 border border-teal-500/20 text-teal-400 rounded-2xl hover:bg-teal-500 hover:text-white transition-all flex-1 flex items-center justify-center"
+                                            title="Edit Resource"
+                                        >
+                                            <Icons.edit size={18} />
+                                        </Link>
+                                    )}
+                                    <button 
+                                        onClick={handleCopyLink} 
+                                        className={`p-4 border rounded-2xl transition-all flex-1 flex items-center justify-center ${
+                                            copyStatus === 'Copied! ✅'
+                                                ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400 hover:bg-emerald-500 hover:text-white hover:border-emerald-400'
+                                                : 'bg-white/5 border border-white/10 text-white/40 hover:text-white'
+                                        }`}
+                                        title={copyStatus}
+                                    >
+                                        {copyStatus === 'Copied! ✅' ? <Icons.check size={18} /> : <Icons.copy size={18} />}
+                                    </button>
+                                    <button 
+                                        onClick={() => setShareOpen(!shareOpen)} 
+                                        className="p-4 bg-white/5 border border-white/10 rounded-2xl text-white/40 hover:text-white transition-all flex-1 flex items-center justify-center"
+                                        title="Share"
+                                    >
+                                        <Icons.share size={18} />
+                                    </button>
+                                    {user && (
+                                        <button 
+                                            onClick={() => setIsPlaylistOpen(true)} 
+                                            className="p-4 bg-white/5 border border-white/10 rounded-2xl text-white/40 hover:text-white transition-all flex-1 flex items-center justify-center"
+                                            title="Playlist"
+                                        >
+                                            <Icons.list size={18} />
+                                        </button>
+                                    )}
+                                    {(isAdmin || (user && r.addedBy === user.uid)) && (
+                                        <button 
+                                            onClick={handleDelete} 
+                                            className="p-4 bg-rose-500/10 border border-rose-500/20 text-rose-500 rounded-2xl hover:bg-rose-500 hover:text-white transition-all flex-1 flex items-center justify-center"
+                                            title="Delete"
+                                        >
                                             <Icons.trash size={18} />
                                         </button>
                                     )}
@@ -1210,7 +1236,7 @@ return (
                             </div>
 
                             {/* Ratings & Metadata */}
-                            <div className="glass-card p-8 space-y-8 border-white/5">
+                            <div className={`glass-card p-8 space-y-8 border-white/5 relative ${isTagInputOpen ? 'z-50' : 'z-10'}`}>
                                 <div className="space-y-4">
                                     <h4 className="text-[10px] font-black uppercase tracking-widest text-white/30">Community Evaluation</h4>
                                     <div className="flex items-center justify-between">
@@ -1222,17 +1248,55 @@ return (
                                 <div className="h-px bg-white/5" />
 
                                 <div className="space-y-6">
-                                    <div className="flex justify-between items-center">
-                                        <span className="text-[10px] font-black uppercase tracking-widest text-white/30">Architecture</span>
+                                    <div className="flex justify-between items-center gap-4">
+                                        <span className="text-[10px] font-black uppercase tracking-widest text-white/30 shrink-0">Title</span>
+                                        <span className="text-xs font-bold text-white text-right max-w-[180px] truncate" title={r.title}>{r.title}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center gap-4">
+                                        <span className="text-[10px] font-black uppercase tracking-widest text-white/30 shrink-0">Source URL</span>
+                                        <a href={r.url} target="_blank" rel="noopener noreferrer" className="text-xs font-bold text-teal-400 hover:underline text-right max-w-[180px] truncate" title={r.url}>
+                                            {r.url}
+                                        </a>
+                                    </div>
+                                    {r.thumbnailUrl && (
+                                        <div className="flex justify-between items-center gap-4">
+                                            <span className="text-[10px] font-black uppercase tracking-widest text-white/30 shrink-0">Thumbnail URL</span>
+                                            <a href={r.thumbnailUrl} target="_blank" rel="noopener noreferrer" className="text-xs font-bold text-teal-400 hover:underline text-right max-w-[180px] truncate" title={r.thumbnailUrl}>
+                                                {r.thumbnailUrl}
+                                            </a>
+                                        </div>
+                                    )}
+                                    <div className="flex justify-between items-center gap-4">
+                                        <span className="text-[10px] font-black uppercase tracking-widest text-white/30 shrink-0">Architecture</span>
                                         <span className="text-xs font-bold text-white capitalize">{r.platform}</span>
                                     </div>
-                                    <div className="flex justify-between items-center">
-                                        <span className="text-[10px] font-black uppercase tracking-widest text-white/30">Pricing Model</span>
+                                    <div className="flex justify-between items-center gap-4">
+                                        <span className="text-[10px] font-black uppercase tracking-widest text-white/30 shrink-0">Pricing Model</span>
                                         <span className="text-xs font-bold text-teal-400 capitalize">{r.pricing}</span>
                                     </div>
-                                    <div className="flex justify-between items-center">
-                                        <span className="text-[10px] font-black uppercase tracking-widest text-white/30">Intelligence Type</span>
+                                    {r.pricingDetails && (
+                                        <div className="flex justify-between items-center gap-4">
+                                            <span className="text-[10px] font-black uppercase tracking-widest text-white/30 shrink-0">Pricing Details</span>
+                                            <span className="text-xs font-bold text-white">{r.pricingDetails}</span>
+                                        </div>
+                                    )}
+                                    <div className="flex justify-between items-center gap-4">
+                                        <span className="text-[10px] font-black uppercase tracking-widest text-white/30 shrink-0">Intelligence Type</span>
                                         <span className="text-xs font-bold text-white capitalize">{r.type}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center gap-4">
+                                        <span className="text-[10px] font-black uppercase tracking-widest text-white/30 shrink-0">Media Format</span>
+                                        <span className="text-xs font-bold text-white capitalize">{r.mediaFormat}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center gap-4">
+                                        <span className="text-[10px] font-black uppercase tracking-widest text-white/30 shrink-0">Asset Priority</span>
+                                        <span className="text-xs font-bold text-white">{r.rank !== null && r.rank !== undefined ? r.rank : 'None'}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center gap-4">
+                                        <span className="text-[10px] font-black uppercase tracking-widest text-white/30 shrink-0">Featured Elevation</span>
+                                        <span className={`text-xs font-bold ${r.isFavorite ? 'text-amber-400' : 'text-white/40'}`}>
+                                            {r.isFavorite ? 'Featured' : 'Standard'}
+                                        </span>
                                     </div>
                                 </div>
 
@@ -1250,17 +1314,130 @@ return (
                                 </div>
 
                                 <div className="h-px bg-white/5" />
-
                                 <div className="space-y-4">
                                     <h4 className="text-[10px] font-black uppercase tracking-widest text-white/30">Intelligence Tags</h4>
-                                    <div className="flex flex-wrap gap-2">
-                                        {r.tags?.map(tag => (
-                                            <span key={tag} className="text-[10px] font-bold text-white/30 italic hover:text-teal-400 transition-colors">#{tag}</span>
-                                        ))}
-                                        {(isAdmin || (user && r.addedBy === user.uid)) && (
-                                            <button onClick={() => setIsTagInputOpen(true)} className="w-6 h-6 rounded bg-white/5 flex items-center justify-center text-white/20 hover:text-white transition-all">+</button>
+                                    <div ref={tagInputRef} className="flex flex-wrap gap-2 items-center relative z-50">
+                                        {r.tags?.map(tag => {
+                                            const canEdit = isAdmin || (user && r.addedBy === user.uid);
+                                            return (
+                                                <span 
+                                                    key={tag} 
+                                                    className={`group/tag inline-flex items-center gap-1 px-2.5 py-1 bg-white/5 border border-white/5 rounded-lg text-[10px] font-bold text-white/40 italic transition-all hover:text-teal-400 hover:border-teal-500/20 ${canEdit ? 'cursor-pointer' : ''}`}
+                                                    onClick={() => {
+                                                        if (canEdit) {
+                                                            handleRemoveTag(tag);
+                                                        }
+                                                    }}
+                                                    title={canEdit ? `Click to remove tag #${tag}` : undefined}
+                                                >
+                                                    #{tag}
+                                                    {canEdit && (
+                                                        <span className="opacity-0 group-hover/tag:opacity-100 text-rose-500 font-bold hover:scale-125 transition-all ml-1 text-xs leading-none">
+                                                            &times;
+                                                        </span>
+                                                    )}
+                                                </span>
+                                            );
+                                        })}
+                                        {isTagInputOpen ? (
+                                            <div className="flex items-center gap-2 animate-in fade-in duration-200">
+                                                <div className="relative">
+                                                    <input
+                                                        type="text"
+                                                        className="px-2.5 py-1 bg-[#0f0f15] border border-white/10 rounded-lg text-[10px] text-white placeholder-white/20 focus:outline-none focus:border-teal-500/50 w-28"
+                                                        placeholder="new tag..."
+                                                        value={newTag}
+                                                        onChange={(e) => setNewTag(e.target.value)}
+                                                        autoFocus
+                                                        onKeyDown={(e) => {
+                                                            if (e.key === 'Enter') {
+                                                                handleAddTag();
+                                                            } else if (e.key === 'Escape') {
+                                                                setIsTagInputOpen(false);
+                                                                setNewTag('');
+                                                            }
+                                                        }}
+                                                    />
+                                                    {/* Suggestions Dropdown */}
+                                                    {filteredTags.length > 0 && (
+                                                        <div className="absolute top-full left-0 mt-1 w-48 max-h-[280px] overflow-y-auto bg-[#0a0a0f]/95 border border-white/10 rounded-lg shadow-2xl backdrop-blur-xl z-50 py-1 scrollbar-thin scrollbar-thumb-white/10">
+                                                            {filteredTags.map((tagName: string) => (
+                                                                <button
+                                                                    key={tagName}
+                                                                    onClick={() => handleAddTag(tagName)}
+                                                                    className="w-full text-left px-3 py-1.5 text-[10px] text-white/60 hover:text-white hover:bg-teal-500/20 transition-all font-medium flex items-center justify-between"
+                                                                >
+                                                                    <span>#{tagName}</span>
+                                                                    <span className="text-[8px] text-white/20 font-mono">
+                                                                        {allTags.find((t: any) => t.name === tagName)?.count || 0}
+                                                                    </span>
+                                                                </button>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                <button
+                                                    onClick={() => handleAddTag()}
+                                                    className="px-2 py-1 bg-teal-500 hover:bg-teal-600 text-white rounded text-[10px] font-black uppercase tracking-widest transition-all"
+                                                >
+                                                    Add
+                                                </button>
+                                                <button
+                                                    onClick={() => {
+                                                        setIsTagInputOpen(false);
+                                                        setNewTag('');
+                                                    }}
+                                                    className="px-2 py-1 bg-white/5 border border-white/10 text-white/40 hover:text-white rounded text-[10px] font-black uppercase tracking-widest transition-all"
+                                                >
+                                                    Cancel
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            (isAdmin || (user && r.addedBy === user.uid)) && (
+                                                <button 
+                                                    onClick={() => setIsTagInputOpen(true)} 
+                                                    className="w-6 h-6 rounded bg-white/5 flex items-center justify-center text-white/20 hover:text-teal-400 hover:bg-teal-500/10 border border-white/5 hover:border-teal-500/20 transition-all font-bold text-sm"
+                                                    title="Add Tag"
+                                                >
+                                                    +
+                                                </button>
+                                            )
                                         )}
                                     </div>
+                                </div>
+                                <div className="h-px bg-white/5" />
+                                <div className="space-y-4">
+                                    <h4 className="text-[10px] font-black uppercase tracking-widest text-white/30">Playlist Assignments</h4>
+                                    {itemPlaylists.length === 0 ? (
+                                        <div className="text-[10px] text-white/40 italic">
+                                            Not included in any playlists.
+                                        </div>
+                                    ) : (
+                                        <div className="flex flex-col gap-2">
+                                            {itemPlaylists.map((playlist) => (
+                                                <Link
+                                                    key={playlist.id}
+                                                    href={`/playlists/${playlist.id}`}
+                                                    className="flex items-center gap-2.5 p-2 bg-white/5 border border-white/5 rounded-xl hover:bg-white/10 hover:border-teal-500/20 transition-all group/playlist text-left"
+                                                >
+                                                    {playlist.thumbnailUrl ? (
+                                                        <img
+                                                            src={playlist.thumbnailUrl}
+                                                            alt={playlist.title}
+                                                            className="w-6 h-6 rounded object-cover flex-shrink-0"
+                                                        />
+                                                    ) : (
+                                                        <div className="w-6 h-6 rounded bg-teal-500/20 flex items-center justify-center text-teal-500 text-xs font-bold flex-shrink-0 animate-pulse">
+                                                            📚
+                                                        </div>
+                                                    )}
+                                                    <span className="text-[10px] font-bold text-white/60 group-hover/playlist:text-teal-400 transition-colors truncate">
+                                                        {playlist.title}
+                                                    </span>
+                                                </Link>
+                                            ))}
+                                        </div>
+                                    )}
                                 </div>
                             </div>
 
@@ -1275,7 +1452,7 @@ return (
                                     </div>
                                     <div className="space-y-3">
                                         <Link href={`/resources/${r.id}/edit`} className="flex items-center justify-between p-4 bg-white/5 border border-white/10 rounded-2xl hover:bg-white/10 transition-all group/edit">
-                                            <span className="text-[10px] font-black uppercase tracking-widest text-white/60 group-hover/edit:text-white">Hard Refactor</span>
+                                            <span className="text-[10px] font-black uppercase tracking-widest text-white/60 group-hover/edit:text-white">Edit Resource</span>
                                             <Icons.edit size={14} className="text-white/20 group-hover/edit:text-teal-400" />
                                         </Link>
                                     </div>
@@ -1310,8 +1487,16 @@ return (
                                     ))}
                                 </div>
                             </div>
+                            </div>
                         </div>
                     </div>
+                    {playlistId && (
+                        <PlaylistQueueSidebar 
+                            playlistId={playlistId} 
+                            currentResourceId={resourceId} 
+                        />
+                    )}
+                </div>
                 </main>
             </div>
         {/* Note Editor Modal */}
@@ -1635,6 +1820,13 @@ return (
                 }}
                 onClose={() => setFixModalOpen(false)}
             />
+            {user && (
+                <AddToPlaylistModal 
+                    resourceId={resourceId}
+                    isOpen={isPlaylistOpen}
+                    onClose={() => setIsPlaylistOpen(false)}
+                />
+            )}
             <Footer />
         </div>
     );

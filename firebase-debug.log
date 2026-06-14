@@ -1,0 +1,38 @@
+[debug] [2026-06-11T15:23:48.134Z] ----------------------------------------------------------------------
+[debug] [2026-06-11T15:23:48.136Z] Command:       /home/heidless/.nvm/versions/node/v22.22.2/bin/node /home/heidless/projects/PromptResources/node_modules/.bin/firebase deploy --only firestore:indexes --project stillwater-sovereign-02
+[debug] [2026-06-11T15:23:48.136Z] CLI Version:   15.16.0
+[debug] [2026-06-11T15:23:48.137Z] Platform:      linux
+[debug] [2026-06-11T15:23:48.137Z] Node Version:  v22.22.2
+[debug] [2026-06-11T15:23:48.137Z] Time:          Thu Jun 11 2026 16:23:48 GMT+0100 (British Summer Time)
+[debug] [2026-06-11T15:23:48.137Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2026-06-11T15:23:49.809Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-06-11T15:23:49.809Z] > authorizing via signed-in user (heidlessemail19@gmail.com)
+[debug] [2026-06-11T15:23:49.810Z] [iam] checking project stillwater-sovereign-02 for permissions ["datastore.indexes.create","datastore.indexes.delete","datastore.indexes.list","datastore.indexes.update","firebase.projects.get"]
+[debug] [2026-06-11T15:23:49.811Z] Checked if tokens are valid: false, expires at: 1781190302468
+[debug] [2026-06-11T15:23:49.811Z] Checked if tokens are valid: false, expires at: 1781190302468
+[debug] [2026-06-11T15:23:49.811Z] > refreshing access token with scopes: []
+[debug] [2026-06-11T15:23:49.814Z] >>> [apiv2][query] POST https://www.googleapis.com/oauth2/v3/token [none]
+[debug] [2026-06-11T15:23:49.815Z] >>> [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[debug] [2026-06-11T15:23:49.996Z] <<< [apiv2][status] POST https://www.googleapis.com/oauth2/v3/token 200
+[debug] [2026-06-11T15:23:49.997Z] <<< [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[debug] [2026-06-11T15:23:50.025Z] >>> [apiv2][query] POST https://cloudresourcemanager.googleapis.com/v1/projects/stillwater-sovereign-02:testIamPermissions [none]
+[debug] [2026-06-11T15:23:50.025Z] >>> [apiv2][(partial)header] POST https://cloudresourcemanager.googleapis.com/v1/projects/stillwater-sovereign-02:testIamPermissions  x-goog-user-project=stillwater-sovereign-02
+[debug] [2026-06-11T15:23:50.026Z] >>> [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/stillwater-sovereign-02:testIamPermissions {"permissions":["datastore.indexes.create","datastore.indexes.delete","datastore.indexes.list","datastore.indexes.update","firebase.projects.get"]}
+[debug] [2026-06-11T15:23:50.249Z] <<< [apiv2][status] POST https://cloudresourcemanager.googleapis.com/v1/projects/stillwater-sovereign-02:testIamPermissions 200
+[debug] [2026-06-11T15:23:50.249Z] <<< [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/stillwater-sovereign-02:testIamPermissions {"permissions":["datastore.indexes.create","datastore.indexes.delete","datastore.indexes.list","datastore.indexes.update","firebase.projects.get"]}
+[info] 
+[info] === Deploying to 'stillwater-sovereign-02'...
+[info] 
+[info] i  deploying firestore 
+[info] i  firestore: ensuring required API firestore.googleapis.com is enabled... 
+[info] i  firestore: ensuring required API firestore.googleapis.com is enabled... 
+[info] i  firestore: deploying indexes... 
+[debug] [2026-06-11T15:23:50.333Z] TypeError: Cannot read properties of undefined (reading 'map')
+    at deployIndexes (/home/heidless/projects/PromptResources/node_modules/firebase-tools/lib/deploy/firestore/deploy.js:24:38)
+    at default_1 (/home/heidless/projects/PromptResources/node_modules/firebase-tools/lib/deploy/firestore/deploy.js:51:11)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async chain (/home/heidless/projects/PromptResources/node_modules/firebase-tools/lib/deploy/index.js:45:9)
+    at async deploy (/home/heidless/projects/PromptResources/node_modules/firebase-tools/lib/deploy/index.js:126:9)
+[error] 
+[error] Error: An unexpected error has occurred.

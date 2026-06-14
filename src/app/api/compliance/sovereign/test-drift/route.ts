@@ -13,7 +13,7 @@ export async function POST(req: NextRequest) {
         const decodedToken = await adminAuth.verifyIdToken(token);
         
         // Only allow admin to simulate drifts (or the specific test user)
-        if (decodedToken.email !== 'heidlessemail18@gmail.com') {
+        if (decodedToken.email !== 'heidlessemail21@gmail.com' && decodedToken.email !== 'heidlessemail18@gmail.com') {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 

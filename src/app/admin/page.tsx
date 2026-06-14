@@ -12,6 +12,7 @@ import { UserProfile, Resource } from '@/lib/types';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Icons } from '@/components/ui/Icons';
 import { extractYouTubeId } from '@/lib/youtube';
+import { useToast } from '@/components/Toast';
 
 export default function AdminPage() {
     return (
@@ -33,8 +34,18 @@ function AdminContent() {
     const router = useRouter();
     const queryClient = useQueryClient();
     const searchParams = useSearchParams();
+    const { addToast } = useToast();
     const defaultTab = (searchParams.get('tab') as any) || 'overview';
-    const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'resources' | 'creators' | 'suggestions' | 'categories' | 'tainted'>(defaultTab);
+    const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'resources' | 'creators' | 'suggestions' | 'categories' | 'tags' | 'tainted'>(defaultTab);
+    
+    // Tags Tab State
+    const [newTagName, setNewTagName] = useState('');
+    const [editingTagId, setEditingTagId] = useState<string | null>(null);
+    const [editingTagName, setEditingTagName] = useState('');
+    const [tagSearch, setTagSearch] = useState('');
+    const [creatingTag, setCreatingTag] = useState(false);
+    const [tagSortBy, setTagSortBy] = useState<'name' | 'count'>('count');
+    const [tagSortOrder, setTagSortOrder] = useState<'asc' | 'desc'>('desc');
     
     // Creator Explorer State
     const [isCreatingStub, setIsCreatingStub] = useState(false);
@@ -43,6 +54,9 @@ function AdminContent() {
     const [creatorSortBy, setCreatorSortBy] = useState<'name' | 'authored' | 'total' | 'newest'>('total');
     const [creatorFilterType, setCreatorFilterType] = useState<string>('all');
     const [creatorFilterStatus, setCreatorFilterStatus] = useState<'all' | 'stub' | 'native'>('all');
+    
+
+
     
     // Reconciliation State
     const [legacyStats, setLegacyStats] = useState<{ default: number; active: number; node: string } | null>(null);
@@ -228,6 +242,85 @@ function AdminContent() {
         }
     });
 
+    // Tags Mutations
+    const createTagMutation = useMutation({
+        mutationFn: async (name: string) => {
+            const token = await user?.getIdToken();
+            const res = await fetch('/api/tags', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ name })
+            });
+            const result = await res.json();
+            if (!result.success) throw new Error(result.error);
+            return result;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['admin', 'tags'] });
+            setNewTagName('');
+            setCreatingTag(false);
+            addToast('Tag created successfully', 'success');
+        },
+        onError: (error: any) => {
+            alert(error.message || 'Failed to create tag');
+        }
+    });
+
+    const renameTagMutation = useMutation({
+        mutationFn: async ({ id, name }: { id: string, name: string }) => {
+            const token = await user?.getIdToken();
+            const res = await fetch('/api/tags', {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ id, name })
+            });
+            const result = await res.json();
+            if (!result.success) throw new Error(result.error);
+            return result;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['admin', 'tags'] });
+            queryClient.invalidateQueries({ queryKey: ['admin', 'resources'] });
+            setEditingTagId(null);
+            setEditingTagName('');
+            addToast('Tag renamed successfully', 'success');
+        },
+        onError: (error: any) => {
+            alert(error.message || 'Failed to rename tag');
+        }
+    });
+
+    const deleteTagMutation = useMutation({
+        mutationFn: async (id: string) => {
+            const token = await user?.getIdToken();
+            const res = await fetch('/api/tags', {
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ id })
+            });
+            const result = await res.json();
+            if (!result.success) throw new Error(result.error);
+            return result;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['admin', 'tags'] });
+            queryClient.invalidateQueries({ queryKey: ['admin', 'resources'] });
+            addToast('Tag deleted globally', 'success');
+        },
+        onError: (error: any) => {
+            alert(error.message || 'Failed to delete tag');
+        }
+    });
+
     const handleDeleteResource = async (id: string) => {
         if (!confirm('Delete this resource?')) return;
         deleteResourceMutation.mutate(id);
@@ -261,7 +354,7 @@ function AdminContent() {
 
     useEffect(() => {
         const tab = searchParams.get('tab');
-        if (tab && ['overview', 'users', 'resources', 'creators', 'suggestions', 'categories', 'tainted'].includes(tab)) {
+        if (tab && ['overview', 'users', 'resources', 'creators', 'suggestions', 'categories', 'tags', 'tainted'].includes(tab)) {
             setActiveTab(tab as any);
         }
     }, [searchParams]);
@@ -283,6 +376,50 @@ function AdminContent() {
         },
         enabled: !!user && (isAdmin || canSwitchRoles),
     });
+
+    // Fetch Tags
+    const { data: allAdminTags = [], isLoading: adminTagsLoading } = useQuery({
+        queryKey: ['admin', 'tags'],
+        queryFn: async () => {
+            const idToken = await user?.getIdToken();
+            const res = await fetch('/api/tags', {
+                headers: { 'Authorization': `Bearer ${idToken}` }
+            });
+            const data = await res.json();
+            if (!data.success) {
+                return [];
+            }
+            return data.data || [];
+        },
+        enabled: !!user && (isAdmin || canSwitchRoles),
+    });
+
+    const processedTags = useMemo(() => {
+        // 1. Filter
+        let filtered = [...allAdminTags].filter((t: any) => 
+            t.name.toLowerCase().includes(tagSearch.toLowerCase())
+        );
+
+        // 2. Sort
+        filtered.sort((a: any, b: any) => {
+            let valA = a[tagSortBy];
+            let valB = b[tagSortBy];
+
+            if (tagSortBy === 'name') {
+                const nameA = (valA || '').toLowerCase();
+                const nameB = (valB || '').toLowerCase();
+                if (nameA < nameB) return tagSortOrder === 'asc' ? -1 : 1;
+                if (nameA > nameB) return tagSortOrder === 'asc' ? 1 : -1;
+                return 0;
+            } else {
+                const numA = Number(valA) || 0;
+                const numB = Number(valB) || 0;
+                return tagSortOrder === 'asc' ? numA - numB : numB - numA;
+            }
+        });
+
+        return filtered;
+    }, [allAdminTags, tagSearch, tagSortBy, tagSortOrder]);
 
     const createStubMutation = useMutation({
         mutationFn: async (stubData: { name: string, slug: string, type: string, bio: string }) => {
@@ -528,7 +665,7 @@ function AdminContent() {
             <main className="container mx-auto px-4 pt-0 pb-10 relative z-30 mt-10">
                 {/* Navigation Hub */}
                 <div className="flex flex-wrap items-center gap-2 p-2 bg-white/5 backdrop-blur-3xl border border-white/5 rounded-[2rem] w-fit mb-5">
-                    {(['overview', 'users', 'resources', 'creators', 'suggestions', 'categories', 'tainted'] as const).map((tab) => (
+                    {(['overview', 'users', 'resources', 'creators', 'suggestions', 'categories', 'tags', 'tainted'] as const).map((tab) => (
                         <button
                             key={tab}
                             className={`px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] transition-all flex items-center gap-2 group ${
@@ -1094,6 +1231,187 @@ function AdminContent() {
                                         </div>
                                     ))}
                                 </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Tags View */}
+                    {activeTab === 'tags' && (
+                        <div className="glass-card p-6 relative overflow-hidden group">
+                            <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-indigo-500/5 rounded-full blur-[100px] -mr-48 -mt-48 group-hover:bg-indigo-500/10 transition-all duration-1000" />
+                            <div className="relative z-10 space-y-6">
+                                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-white/5 pb-5">
+                                    <div>
+                                        <h3 className="text-2xl font-black tracking-tighter uppercase text-white/80">Intelligence Tags Manager</h3>
+                                        <p className="text-white/40 text-sm font-medium mt-1 leading-relaxed">
+                                            Manage the global master list of metadata tags. Renaming or deleting tags here will instantly cascade to all associated prompt resources.
+                                        </p>
+                                    </div>
+                                    <button 
+                                        onClick={() => setCreatingTag(true)} 
+                                        className="px-6 py-2.5 bg-indigo-600 border border-indigo-400 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all hover:bg-indigo-500 shadow-lg shadow-indigo-600/20 active:scale-95 flex items-center gap-2"
+                                    >
+                                        <Icons.plus size={14} /> Create Master Tag
+                                    </button>
+                                </div>
+
+                                {/* Create Tag Inline Form */}
+                                {creatingTag && (
+                                    <div className="p-4 bg-white/5 border border-white/10 rounded-2xl flex flex-col md:flex-row items-end md:items-center gap-4 animate-in fade-in slide-in-from-top-2 duration-200">
+                                        <div className="flex-1 flex flex-col gap-1.5">
+                                            <label className="text-[10px] font-black uppercase tracking-widest text-white/40">New Tag Name</label>
+                                            <input 
+                                                type="text" 
+                                                className="form-input bg-black/40 border border-white/15 focus:border-indigo-500/30 text-white" 
+                                                placeholder="e.g. prompt-chaining"
+                                                value={newTagName}
+                                                onChange={e => setNewTagName(e.target.value)}
+                                                autoFocus
+                                            />
+                                        </div>
+                                        <div className="flex gap-2">
+                                            <button 
+                                                onClick={() => createTagMutation.mutate(newTagName)}
+                                                disabled={createTagMutation.isPending}
+                                                className="px-5 py-2.5 bg-indigo-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-500 transition-all disabled:opacity-50"
+                                            >
+                                                {createTagMutation.isPending ? 'Creating...' : 'Create'}
+                                            </button>
+                                            <button 
+                                                onClick={() => { setCreatingTag(false); setNewTagName(''); }}
+                                                className="px-5 py-2.5 bg-white/5 border border-white/10 text-white/60 hover:text-white hover:bg-white/10 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
+                                            >
+                                                Cancel
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Search & Stats */}
+                                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                                    <div className="relative w-full md:w-80">
+                                        <Icons.search size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-white/20" />
+                                        <input 
+                                            type="text" 
+                                            className="w-full bg-black/40 border border-white/5 rounded-2xl h-10 pl-12 pr-4 text-xs font-medium outline-none focus:border-indigo-500/30 text-white"
+                                            placeholder="Search tags..."
+                                            value={tagSearch}
+                                            onChange={e => setTagSearch(e.target.value)}
+                                        />
+                                    </div>
+                                    <div className="text-[10px] font-black text-white/30 uppercase tracking-widest">
+                                        Total Master Tags: <span className="text-white">{allAdminTags.length}</span>
+                                    </div>
+                                </div>
+
+                                {/* Tags Table/List */}
+                                {adminTagsLoading ? (
+                                    <div className="py-20 flex flex-col items-center gap-4">
+                                        <div className="w-8 h-8 border-4 border-indigo-500/20 border-t-indigo-500 rounded-full animate-spin" />
+                                        <div className="text-[8px] font-black uppercase tracking-widest text-white/20">Loading Tags</div>
+                                    </div>
+                                ) : (
+                                    <div className="border border-white/5 rounded-2xl overflow-hidden bg-black/20">
+                                        <table className="w-full text-left border-collapse">
+                                            <thead>
+                                                <tr className="bg-white/5 border-b border-white/5">
+                                                    {[
+                                                        { key: 'name', label: 'Tag Slug / Display Name' },
+                                                        { key: 'count', label: 'Usage Count' }
+                                                    ].map((col) => (
+                                                        <th 
+                                                            key={col.key}
+                                                            className="p-3 px-6 text-[10px] font-black uppercase tracking-widest text-white/30 cursor-pointer hover:text-white transition-colors"
+                                                            onClick={() => {
+                                                                if (tagSortBy === col.key) {
+                                                                    setTagSortOrder(tagSortOrder === 'asc' ? 'desc' : 'asc');
+                                                                } else {
+                                                                    setTagSortBy(col.key as 'name' | 'count');
+                                                                    setTagSortOrder('asc');
+                                                                }
+                                                            }}
+                                                        >
+                                                            <div className="flex items-center gap-2">
+                                                                {col.label}
+                                                                {tagSortBy === col.key && (
+                                                                    <Icons.chevronDown size={12} className={`transition-transform ${tagSortOrder === 'desc' ? '' : 'rotate-180'}`} />
+                                                                )}
+                                                            </div>
+                                                        </th>
+                                                    ))}
+                                                    <th className="p-3 px-6 text-[10px] font-black uppercase tracking-widest text-white/30 text-right">Actions</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-white/5">
+                                                {processedTags.map((tag: any) => (
+                                                        <tr key={tag.id} className="hover:bg-white/[0.02] transition-colors group">
+                                                            <td className="p-3 px-6">
+                                                                {editingTagId === tag.id ? (
+                                                                    <div className="flex items-center gap-2 animate-in fade-in duration-200">
+                                                                        <input 
+                                                                            type="text" 
+                                                                            className="form-input bg-[#0f0f15] border border-white/15 text-xs py-1 px-3 w-48 text-white rounded-lg focus:outline-none focus:border-indigo-500/30" 
+                                                                            value={editingTagName}
+                                                                            onChange={e => setEditingTagName(e.target.value)}
+                                                                            autoFocus
+                                                                            onKeyDown={e => {
+                                                                                if (e.key === 'Enter') {
+                                                                                    renameTagMutation.mutate({ id: tag.id, name: editingTagName });
+                                                                                } else if (e.key === 'Escape') {
+                                                                                    setEditingTagId(null);
+                                                                                }
+                                                                            }}
+                                                                        />
+                                                                        <button 
+                                                                            onClick={() => renameTagMutation.mutate({ id: tag.id, name: editingTagName })}
+                                                                            disabled={renameTagMutation.isPending}
+                                                                            className="px-3 py-1 bg-indigo-600 text-white rounded-lg text-[10px] font-black uppercase tracking-widest"
+                                                                        >
+                                                                            Save
+                                                                        </button>
+                                                                        <button 
+                                                                            onClick={() => setEditingTagId(null)}
+                                                                            className="px-3 py-1 bg-white/5 text-white/40 rounded-lg text-[10px] font-black uppercase tracking-widest"
+                                                                        >
+                                                                            Cancel
+                                                                        </button>
+                                                                    </div>
+                                                                ) : (
+                                                                    <div className="flex items-center gap-2">
+                                                                        <span className="text-sm font-bold text-white/80">#{tag.name}</span>
+                                                                        <button 
+                                                                            onClick={() => { setEditingTagId(tag.id); setEditingTagName(tag.name); }}
+                                                                            className="opacity-0 group-hover:opacity-100 text-indigo-400 hover:text-indigo-300 transition-all text-xs"
+                                                                            title="Rename Tag"
+                                                                        >
+                                                                            <Icons.edit size={12} />
+                                                                        </button>
+                                                                    </div>
+                                                                )}
+                                                            </td>
+                                                            <td className="p-3 px-6">
+                                                                <span className="text-xs font-bold font-mono text-white/40">{tag.count} resources</span>
+                                                            </td>
+                                                            <td className="p-3 px-6 text-right">
+                                                                <button
+                                                                    onClick={() => {
+                                                                        if (confirm(`Are you sure you want to delete the tag "#${tag.name}"? It will be removed from all associated resources.`)) {
+                                                                            deleteTagMutation.mutate(tag.id);
+                                                                        }
+                                                                    }}
+                                                                    disabled={deleteTagMutation.isPending}
+                                                                    className="p-2 bg-white/5 border border-white/10 rounded-lg hover:bg-rose-500/20 text-white/40 hover:text-rose-400 transition-all disabled:opacity-50"
+                                                                    title="Delete Tag Globally"
+                                                                >
+                                                                    <Icons.trash size={14} />
+                                                                </button>
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     )}
